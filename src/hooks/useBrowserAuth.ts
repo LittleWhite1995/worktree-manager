@@ -17,11 +17,29 @@ export function useBrowserAuth(): UseBrowserAuthReturn {
   const [browserLoggingIn, setBrowserLoggingIn] = useState(false);
 
   // Validate stored session on startup (avoids re-auth on refresh)
-  // Also checks URL #pwd= fragment for auto-authentication via shared link
+  // Also checks URL params/fragments for auto-authentication
   useEffect(() => {
     if (isTauri()) return;
 
-    // Check URL #pwd= fragment for auto-authentication
+    // Check URL ?session_id=mobile-xxx param for auto-authentication from iOS app.
+    // The backend auto-accepts any session starting with "mobile-" (http_server.rs),
+    // so we just store it in sessionStorage and skip the password screen.
+    const urlParams = new URLSearchParams(window.location.search);
+    const mobileSessionId = urlParams.get('session_id');
+    if (mobileSessionId && mobileSessionId.startsWith('mobile-')) {
+      // Store the mobile session ID so all subsequent API calls include it
+      sessionStorage.setItem('wm_session_id', mobileSessionId);
+      // Remove session_id from URL to keep it clean
+      urlParams.delete('session_id');
+      const cleanSearch = urlParams.toString();
+      const cleanUrl = window.location.pathname + (cleanSearch ? '?' + cleanSearch : '');
+      window.history.replaceState({}, '', cleanUrl);
+      // Reload to initialize all singletons (WebSocket, etc.) with the new session ID
+      window.location.replace(cleanUrl);
+      return;
+    }
+
+    // Check URL #pwd= fragment for auto-authentication via shared link
     const hash = window.location.hash;
     const urlPwd = hash.startsWith('#pwd=')
       ? decodeURIComponent(hash.substring(5).split('&')[0])
