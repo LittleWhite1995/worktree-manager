@@ -566,13 +566,15 @@ function App() {
                 />
               )}
 
-              {/* Terminal view */}
+              {/* Terminal view — uses flex layout (not fullscreen) so it
+                  fills the space between header and MobileTabBar naturally,
+                  avoiding bottom whitespace from fixed inset-0 */}
               {mobileView === 'terminal' && (
-                <div className="h-full">
+                <div className="flex-1 min-h-0 flex flex-col">
                   <TerminalPanel
                     visible={true}
                     height={0}
-                    isFullscreen={true}
+                    fillContainer={true}
                     onStartResize={() => { }}
                     terminalTabs={terminalHook.terminalTabs}
                     activatedTerminals={terminalHook.activatedTerminals}

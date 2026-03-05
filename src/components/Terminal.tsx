@@ -106,41 +106,46 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Mobile: two-finger scroll to browse terminal history
+    // Mobile: single-finger scroll to browse terminal history
     if (IS_MOBILE && terminalRef.current) {
       let touchStartY = 0;
-      let isTwoFinger = false;
       let scrollAccum = 0;
+      let isDragging = false;
 
       const el = terminalRef.current;
 
       el.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 2) {
-          isTwoFinger = true;
-          touchStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        if (e.touches.length === 1) {
+          touchStartY = e.touches[0].clientY;
           scrollAccum = 0;
-        } else {
-          isTwoFinger = false;
+          isDragging = false;
         }
       }, { passive: true });
 
       el.addEventListener('touchmove', (e) => {
-        if (isTwoFinger && e.touches.length === 2) {
-          e.preventDefault();
-          const nowY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-          scrollAccum += touchStartY - nowY;
-          const lineHeight = 16; // approximate line height in px
-          const lines = Math.trunc(scrollAccum / lineHeight);
-          if (lines !== 0) {
-            term.scrollLines(lines);
-            scrollAccum -= lines * lineHeight;
+        if (e.touches.length === 1) {
+          const nowY = e.touches[0].clientY;
+          const dy = touchStartY - nowY;
+          // Start scrolling after a small threshold to avoid false triggers
+          if (!isDragging && Math.abs(dy) > 8) {
+            isDragging = true;
           }
-          touchStartY = nowY;
+          if (isDragging) {
+            e.preventDefault();
+            scrollAccum += dy;
+            const lineHeight = 16;
+            const lines = Math.trunc(scrollAccum / lineHeight);
+            if (lines !== 0) {
+              term.scrollLines(lines);
+              scrollAccum -= lines * lineHeight;
+            }
+            touchStartY = nowY;
+          }
         }
       }, { passive: false });
 
       el.addEventListener('touchend', () => {
-        isTwoFinger = false;
+        isDragging = false;
         scrollAccum = 0;
       }, { passive: true });
     }
