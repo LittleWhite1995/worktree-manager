@@ -724,7 +724,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     {detectedTools && detectedTools.terminals.length > 0 ? (
                       <Select value={toolPaths.terminal || 'auto'}
                         onValueChange={(value) => {
-                          saveToolPaths({ ...toolPaths, terminal: value });
+                          saveToolPaths({ ...toolPaths, terminal: value, terminal_custom: '' });
                           localStorage.setItem('preferred_terminal', value);
                         }}
                       >
@@ -742,6 +742,19 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       </div>
                     )}
                     <p className="text-[10px] text-slate-600 mt-1">{t('settings.defaultTerminalHint', '打开终端时使用的默认终端程序')}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">{t('settings.terminalCustomPath', '自定义终端路径（覆盖上方选择）')}</label>
+                    <Input type="text" value={toolPaths.terminal_custom || ''} placeholder={t('settings.terminalCustomPlaceholder', '如 C:\\Tools\\cmder\\Cmder.exe 或 /usr/local/bin/fish')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        saveToolPaths({ ...toolPaths, terminal_custom: val });
+                        // If custom path is set, store it as preferred_terminal for PTY
+                        localStorage.setItem('preferred_terminal', val || toolPaths.terminal || 'auto');
+                      }}
+                      className="h-8 text-sm font-mono"
+                    />
+                    <p className="text-[10px] text-slate-600 mt-1">{t('settings.terminalCustomHint', '填写后将忽略上方下拉选择，直接使用该路径作为终端程序')}</p>
                   </div>
                 </div>
 
