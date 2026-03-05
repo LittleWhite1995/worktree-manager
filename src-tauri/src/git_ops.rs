@@ -1,7 +1,8 @@
 use git2::{Repository, StatusOptions};
 use serde::Serialize;
 use std::path::Path;
-use std::process::Command;
+
+use crate::utils::git_command;
 
 /// Helper function to find the main worktree path for a given repository
 fn find_main_worktree(repo_path: &Path) -> Option<std::path::PathBuf> {
@@ -65,7 +66,7 @@ fn handle_branch_checkout_conflict(
         if current_branch == target_branch {
             log::info!("[merge] Branch conflict detected! Checking uncommitted changes...");
 
-            let status_output = Command::new("git")
+            let status_output = git_command()
                 .arg("-C")
                 .arg(main_worktree_path)
                 .arg("status")
@@ -100,7 +101,7 @@ fn handle_branch_checkout_conflict(
                 &commit_sha[..8]
             );
 
-            let checkout_output = Command::new("git")
+            let checkout_output = git_command()
                 .arg("-C")
                 .arg(main_worktree_path)
                 .arg("checkout")
@@ -402,7 +403,7 @@ pub fn sync_with_base_branch(path: &Path, base_branch: &str) -> Result<String, S
 
     // Step 1: Fetch from remote
     log::info!("[git] Step 1/2: git fetch origin {}", base_branch);
-    let fetch_output = Command::new("git")
+    let fetch_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("fetch")
@@ -424,7 +425,7 @@ pub fn sync_with_base_branch(path: &Path, base_branch: &str) -> Result<String, S
 
     // Step 2: Merge origin/base_branch into current branch
     log::info!("[git] Step 2/2: git merge origin/{}", base_branch);
-    let merge_output = Command::new("git")
+    let merge_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("merge")
@@ -454,7 +455,7 @@ pub fn push_to_remote(path: &Path) -> Result<String, String> {
     log::info!("[git] Pushing to remote: path={}", path.display());
 
     // Step 1: Get current branch
-    let branch_output = Command::new("git")
+    let branch_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("rev-parse")
@@ -474,7 +475,7 @@ pub fn push_to_remote(path: &Path) -> Result<String, String> {
 
     // Step 2: Push to remote
     log::info!("[git] Pushing branch '{}' to origin", current_branch);
-    let push_output = Command::new("git")
+    let push_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("push")
@@ -508,7 +509,7 @@ fn restore_merge_state(
 ) {
     // Checkout back to original branch in worktree
     log::info!("[merge] Restoring worktree to branch: {}", original_branch);
-    let restore = Command::new("git")
+    let restore = git_command()
         .arg("-C")
         .arg(path)
         .arg("checkout")
@@ -534,7 +535,7 @@ fn restore_merge_state(
     if switched_main {
         if let (Some(main_wt), Some(orig_branch)) = (main_worktree_path, original_main_branch) {
             log::info!("[merge] Restoring main worktree to branch: {}", orig_branch);
-            let restore_output = Command::new("git")
+            let restore_output = git_command()
                 .arg("-C")
                 .arg(main_wt)
                 .arg("checkout")
@@ -601,7 +602,7 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
 
     // Step 2: Checkout test branch
     log::info!("[merge-test] Step 2: git checkout {}", test_branch);
-    let checkout_output = Command::new("git")
+    let checkout_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("checkout")
@@ -631,7 +632,7 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
 
     // Step 3: Pull latest
     log::info!("[merge-test] Step 3: git pull origin {}", test_branch);
-    let pull_output = Command::new("git")
+    let pull_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("pull")
@@ -656,7 +657,7 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
 
     // Step 4: Merge
     log::info!("[merge-test] Step 4: git merge {}", current_branch);
-    let merge_output = Command::new("git")
+    let merge_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("merge")
@@ -673,7 +674,7 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
             stdout
         );
         // Abort merge if in conflict state
-        let _ = Command::new("git")
+        let _ = git_command()
             .arg("-C")
             .arg(path)
             .arg("merge")
@@ -706,7 +707,7 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
 
     // Step 5: Push
     log::info!("[merge-test] Step 5: git push origin {}", test_branch);
-    let push_output = Command::new("git")
+    let push_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("push")
@@ -792,7 +793,7 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 
     // Step 2: Checkout base branch
     log::info!("[merge-base] Step 2: git checkout {}", base_branch);
-    let checkout_output = Command::new("git")
+    let checkout_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("checkout")
@@ -822,7 +823,7 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 
     // Step 3: Pull latest
     log::info!("[merge-base] Step 3: git pull origin {}", base_branch);
-    let pull_output = Command::new("git")
+    let pull_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("pull")
@@ -847,7 +848,7 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 
     // Step 4: Merge
     log::info!("[merge-base] Step 4: git merge {}", current_branch);
-    let merge_output = Command::new("git")
+    let merge_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("merge")
@@ -864,7 +865,7 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
             stdout
         );
         // Abort merge if in conflict state
-        let _ = Command::new("git")
+        let _ = git_command()
             .arg("-C")
             .arg(path)
             .arg("merge")
@@ -897,7 +898,7 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 
     // Step 5: Push
     log::info!("[merge-base] Step 5: git push origin {}", base_branch);
-    let push_output = Command::new("git")
+    let push_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("push")
@@ -997,7 +998,7 @@ pub enum GitPlatform {
 }
 
 pub fn detect_git_platform(path: &Path) -> Result<GitPlatform, String> {
-    let remote_output = Command::new("git")
+    let remote_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("remote")
@@ -1049,7 +1050,7 @@ pub fn create_pull_request(
         GitPlatform::GitHub => {
             // Check if gh CLI is available
             log::info!("[git] Checking gh CLI availability");
-            let gh_check = Command::new("gh").arg("--version").output().map_err(|_| {
+            let gh_check = std::process::Command::new("gh").arg("--version").output().map_err(|_| {
                 "gh CLI is not installed. Please install it from https://cli.github.com/"
                     .to_string()
             })?;
@@ -1065,7 +1066,7 @@ pub fn create_pull_request(
                 base_branch,
                 title
             );
-            let pr_output = Command::new("gh")
+            let pr_output = std::process::Command::new("gh")
                 .arg("pr")
                 .arg("create")
                 .arg("--base")
@@ -1093,7 +1094,7 @@ pub fn create_pull_request(
         GitPlatform::GitLab => {
             log::info!("[git] Creating GitLab MR via push options");
             // Get current branch
-            let branch_output = Command::new("git")
+            let branch_output = git_command()
                 .arg("-C")
                 .arg(path)
                 .arg("rev-parse")
@@ -1118,7 +1119,7 @@ pub fn create_pull_request(
                 current_branch,
                 base_branch
             );
-            let push_output = Command::new("git")
+            let push_output = git_command()
                 .arg("-C")
                 .arg(path)
                 .arg("push")
@@ -1181,7 +1182,7 @@ pub fn create_pull_request(
 /// Fetch from remote origin (updates remote-tracking branches)
 pub fn fetch_remote(path: &Path) -> Result<(), String> {
     log::info!("[git] Fetching remote origin: path={}", path.display());
-    let output = Command::new("git")
+    let output = git_command()
         .arg("-C")
         .arg(path)
         .arg("fetch")
@@ -1209,7 +1210,7 @@ pub fn check_remote_branch_exists(path: &Path, branch_name: &str) -> Result<bool
     // Check locally if the remote-tracking branch exists (no network call).
     // Remote-tracking branches are updated by git fetch/pull/push operations,
     // so this is accurate enough for UI button state.
-    let output = Command::new("git")
+    let output = git_command()
         .arg("-C")
         .arg(path)
         .arg("branch")
@@ -1245,7 +1246,7 @@ pub fn get_remote_branches(path: &Path) -> Result<Vec<String>, String> {
 
     // Fetch from remote to ensure we have the latest branch info
     log::info!("[git] Step 1/2: git fetch origin");
-    let fetch_output = Command::new("git")
+    let fetch_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("fetch")
@@ -1261,7 +1262,7 @@ pub fn get_remote_branches(path: &Path) -> Result<Vec<String>, String> {
 
     // Get list of remote branches
     log::info!("[git] Step 2/2: git ls-remote --heads origin");
-    let ls_remote_output = Command::new("git")
+    let ls_remote_output = git_command()
         .arg("-C")
         .arg(path)
         .arg("ls-remote")
@@ -1299,7 +1300,7 @@ pub fn get_git_diff(path: &Path) -> Result<String, String> {
     log::info!("[git] Getting diff for: {}", path.display());
 
     // Get staged diff
-    let staged = Command::new("git")
+    let staged = git_command()
         .arg("-C")
         .arg(path)
         .args(["diff", "--cached", "--stat"])
@@ -1307,7 +1308,7 @@ pub fn get_git_diff(path: &Path) -> Result<String, String> {
         .map_err(|e| format!("Failed to get staged diff: {}", e))?;
 
     // Get unstaged diff (tracked files)
-    let unstaged = Command::new("git")
+    let unstaged = git_command()
         .arg("-C")
         .arg(path)
         .args(["diff", "--stat"])
@@ -1315,7 +1316,7 @@ pub fn get_git_diff(path: &Path) -> Result<String, String> {
         .map_err(|e| format!("Failed to get unstaged diff: {}", e))?;
 
     // Get untracked files
-    let untracked = Command::new("git")
+    let untracked = git_command()
         .arg("-C")
         .arg(path)
         .args(["ls-files", "--others", "--exclude-standard"])
@@ -1323,7 +1324,7 @@ pub fn get_git_diff(path: &Path) -> Result<String, String> {
         .map_err(|e| format!("Failed to get untracked files: {}", e))?;
 
     // Also get a compact diff of actual content changes (limited size for AI)
-    let content_diff = Command::new("git")
+    let content_diff = git_command()
         .arg("-C")
         .arg(path)
         .args(["diff", "HEAD", "--no-color", "-U2"])
@@ -1376,7 +1377,7 @@ pub fn commit_all(path: &Path, message: &str) -> Result<String, String> {
     log::info!("[git] Committing all changes at: {}", path.display());
 
     // git add -A
-    let add_output = Command::new("git")
+    let add_output = git_command()
         .arg("-C")
         .arg(path)
         .args(["add", "-A"])
@@ -1389,7 +1390,7 @@ pub fn commit_all(path: &Path, message: &str) -> Result<String, String> {
     }
 
     // git commit -m
-    let commit_output = Command::new("git")
+    let commit_output = git_command()
         .arg("-C")
         .arg(path)
         .args(["commit", "-m", message])

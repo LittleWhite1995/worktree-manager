@@ -1,10 +1,9 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use crate::config::{get_window_workspace_config, save_workspace_config_internal};
 use crate::git_ops;
 use crate::types::{CloneProjectRequest, ProjectConfig, SwitchBranchRequest};
-use crate::utils::{normalize_path, parse_repo_url};
+use crate::utils::{git_command, normalize_path, parse_repo_url};
 
 // ==================== Tauri 命令：Git 操作 ====================
 
@@ -30,7 +29,7 @@ pub(crate) fn switch_branch(request: SwitchBranchRequest) -> Result<(), String> 
 
     // Step 1: Fetch to ensure we have latest refs
     log::info!("[git] Step 1/3: git fetch origin");
-    let fetch_output = Command::new("git")
+    let fetch_output = git_command()
         .args(["fetch", "origin"])
         .current_dir(&path)
         .output()
@@ -48,7 +47,7 @@ pub(crate) fn switch_branch(request: SwitchBranchRequest) -> Result<(), String> 
 
     // Step 2: Checkout the branch
     log::info!("[git] Step 2/3: git checkout {}", request.branch);
-    let checkout_output = Command::new("git")
+    let checkout_output = git_command()
         .args(["checkout", &request.branch])
         .current_dir(&path)
         .output()
@@ -67,7 +66,7 @@ pub(crate) fn switch_branch(request: SwitchBranchRequest) -> Result<(), String> 
 
     // Step 3: Pull latest changes
     log::info!("[git] Step 3/3: git pull origin {}", request.branch);
-    let pull_output = Command::new("git")
+    let pull_output = git_command()
         .args(["pull", "origin", &request.branch])
         .current_dir(&path)
         .output()
@@ -134,7 +133,7 @@ pub fn clone_project_impl(window_label: &str, request: CloneProjectRequest) -> R
 
     // Step 1: Clone the repository
     log::info!("[git] Step 1/3: git clone to {}", target_path.display());
-    let clone_output = Command::new("git")
+    let clone_output = git_command()
         .args(["clone", &git_url, target_path.to_str().unwrap()])
         .output()
         .map_err(|e| format!("Failed to clone repository: {}", e))?;
@@ -148,7 +147,7 @@ pub fn clone_project_impl(window_label: &str, request: CloneProjectRequest) -> R
 
     // Step 2: Checkout base branch if not already on it
     log::info!("[git] Step 2/3: git checkout {}", request.base_branch);
-    let checkout_output = Command::new("git")
+    let checkout_output = git_command()
         .args(["checkout", &request.base_branch])
         .current_dir(&target_path)
         .output()
@@ -291,12 +290,12 @@ pub fn switch_branch_internal(request: &SwitchBranchRequest) -> Result<(), Strin
         ));
     }
     log::info!("[git] Step 1/3: git fetch origin");
-    let _ = Command::new("git")
+    let _ = git_command()
         .args(["fetch", "origin"])
         .current_dir(&path)
         .output();
     log::info!("[git] Step 2/3: git checkout {}", request.branch);
-    let checkout_output = Command::new("git")
+    let checkout_output = git_command()
         .args(["checkout", &request.branch])
         .current_dir(&path)
         .output()
@@ -311,7 +310,7 @@ pub fn switch_branch_internal(request: &SwitchBranchRequest) -> Result<(), Strin
         return Err(format!("Failed to checkout {}: {}", request.branch, stderr));
     }
     log::info!("[git] Step 3/3: git pull origin {}", request.branch);
-    let _ = Command::new("git")
+    let _ = git_command()
         .args(["pull", "origin", &request.branch])
         .current_dir(&path)
         .output();

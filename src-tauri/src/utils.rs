@@ -9,11 +9,28 @@ use crate::types::ScannedFolder;
 // Git command timeout (30 seconds)
 pub(crate) const GIT_COMMAND_TIMEOUT_SECS: u64 = 30;
 
+/// Create a `Command` for git that hides the console window on Windows.
+/// Use this instead of `Command::new("git")` everywhere.
+pub(crate) fn git_command() -> Command {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut cmd = Command::new("git");
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Command::new("git")
+    }
+}
+
 pub(crate) fn run_git_command_with_timeout(
     args: &[&str],
     cwd: &str,
 ) -> Result<std::process::Output, String> {
-    let mut child = Command::new("git")
+    let mut child = git_command()
         .args(args)
         .current_dir(cwd)
         .stdout(std::process::Stdio::piped())

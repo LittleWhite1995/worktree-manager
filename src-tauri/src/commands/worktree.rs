@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
 use crate::commands::window::broadcast_lock_state;
 use crate::config::{
@@ -15,7 +14,7 @@ use crate::types::{
     MainProjectStatus, MainWorkspaceOccupation, MainWorkspaceStatus, ProjectConfig, ProjectStatus,
     ScannedFolder, WorktreeArchiveStatus, WorktreeListItem,
 };
-use crate::utils::{normalize_path, run_git_command_with_timeout, scan_dir_for_linkable_folders};
+use crate::utils::{git_command, normalize_path, run_git_command_with_timeout, scan_dir_for_linkable_folders};
 
 /// Cross-platform symlink creation.
 /// On Unix: uses std::os::unix::fs::symlink.
@@ -304,7 +303,7 @@ pub fn create_worktree_impl(
         run_git_command_with_timeout(&["fetch", "origin"], main_proj_path.to_str().unwrap())?;
 
         // Check if branch already exists
-        let branch_check = Command::new("git")
+        let branch_check = git_command()
             .args([
                 "-C",
                 main_proj_path.to_str().unwrap(),
@@ -326,7 +325,7 @@ pub fn create_worktree_impl(
                 request.name,
                 proj_req.name
             );
-            Command::new("git")
+            git_command()
                 .args([
                     "-C",
                     main_proj_path.to_str().unwrap(),
@@ -344,7 +343,7 @@ pub fn create_worktree_impl(
                 proj_req.name,
                 proj_req.base_branch
             );
-            Command::new("git")
+            git_command()
                 .args([
                     "-C",
                     main_proj_path.to_str().unwrap(),
@@ -390,7 +389,7 @@ pub fn create_worktree_impl(
                 create_symlink(&main_folder, &wt_folder).ok();
 
                 // Remove from git index if it's tracked
-                Command::new("git")
+                git_command()
                     .args([
                         "-C",
                         wt_proj_path.to_str().unwrap(),
@@ -480,7 +479,7 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                     "[worktree] Removing git worktree for project '{}'",
                     proj_name
                 );
-                let output = Command::new("git")
+                let output = git_command()
                     .args([
                         "-C",
                         main_proj_path.to_str().unwrap(),
@@ -703,7 +702,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
 
                 // Check if branch exists
                 let branch_name = restored_name;
-                let branch_check = Command::new("git")
+                let branch_check = git_command()
                     .args([
                         "-C",
                         main_proj_path.to_str().unwrap(),
@@ -724,7 +723,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                 }
 
                 // Prune stale worktrees first
-                Command::new("git")
+                git_command()
                     .args(["-C", main_proj_path.to_str().unwrap(), "worktree", "prune"])
                     .output()
                     .ok();
@@ -736,7 +735,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                         proj_name,
                         branch_name
                     );
-                    Command::new("git")
+                    git_command()
                         .args([
                             "-C",
                             main_proj_path.to_str().unwrap(),
@@ -761,7 +760,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                         branch_name,
                         base_branch
                     );
-                    Command::new("git")
+                    git_command()
                         .args([
                             "-C",
                             main_proj_path.to_str().unwrap(),
@@ -889,7 +888,7 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
                 }
 
                 // Try to delete the branch (it may not exist in all projects)
-                let output = Command::new("git")
+                let output = git_command()
                     .args([
                         "-C",
                         proj_path.to_str().unwrap(),
@@ -1007,7 +1006,7 @@ pub fn add_project_to_worktree_impl(
     run_git_command_with_timeout(&["fetch", "origin"], main_proj_path.to_str().unwrap())?;
 
     // Check if branch already exists
-    let branch_check = Command::new("git")
+    let branch_check = git_command()
         .args([
             "-C",
             main_proj_path.to_str().unwrap(),
@@ -1033,7 +1032,7 @@ pub fn add_project_to_worktree_impl(
             request.worktree_name,
             request.project_name
         );
-        Command::new("git")
+        git_command()
             .args([
                 "-C",
                 main_proj_path.to_str().unwrap(),
@@ -1051,7 +1050,7 @@ pub fn add_project_to_worktree_impl(
             request.project_name,
             request.base_branch
         );
-        Command::new("git")
+        git_command()
             .args([
                 "-C",
                 main_proj_path.to_str().unwrap(),
@@ -1096,7 +1095,7 @@ pub fn add_project_to_worktree_impl(
             create_symlink(&main_folder, &wt_folder).ok();
 
             // Remove from git index if it's tracked
-            Command::new("git")
+            git_command()
                 .args([
                     "-C",
                     wt_proj_path.to_str().unwrap(),
@@ -1249,7 +1248,7 @@ pub fn deploy_to_main_impl(
             "[deploy] Detaching HEAD in worktree project '{}'",
             proj_name
         );
-        let detach_output = Command::new("git")
+        let detach_output = git_command()
             .args(["-C", wt_proj_path.to_str().unwrap(), "checkout", "--detach"])
             .output();
 
@@ -1290,7 +1289,7 @@ pub fn deploy_to_main_impl(
             proj_name,
             wt_branch
         );
-        let switch_output = Command::new("git")
+        let switch_output = git_command()
             .args([
                 "-C",
                 main_proj_path.to_str().unwrap(),
@@ -1410,11 +1409,11 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
 
         // If force, fully discard all changes (staged, tracked, and untracked)
         if force {
-            Command::new("git")
+            git_command()
                 .args(["-C", main_proj_path.to_str().unwrap(), "reset", "HEAD"])
                 .output()
                 .ok();
-            Command::new("git")
+            git_command()
                 .args([
                     "-C",
                     main_proj_path.to_str().unwrap(),
@@ -1424,13 +1423,13 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
                 ])
                 .output()
                 .ok();
-            Command::new("git")
+            git_command()
                 .args(["-C", main_proj_path.to_str().unwrap(), "clean", "-fd"])
                 .output()
                 .ok();
         }
 
-        let output = Command::new("git")
+        let output = git_command()
             .args([
                 "-C",
                 main_proj_path.to_str().unwrap(),
@@ -1464,7 +1463,7 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
             branch
         );
 
-        let output = Command::new("git")
+        let output = git_command()
             .args(["-C", wt_proj_path.to_str().unwrap(), "checkout", branch])
             .output();
 
