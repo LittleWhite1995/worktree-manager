@@ -27,7 +27,7 @@ export const MobileTabBar: FC<MobileTabBarProps> = ({
 
     return (
         <div
-            className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/50"
+            className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/50 relative z-[60]"
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
             <div className="flex items-stretch h-14">
@@ -41,10 +41,10 @@ export const MobileTabBar: FC<MobileTabBarProps> = ({
                             key={id}
                             onClick={() => !disabled && onTabChange(id)}
                             className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative ${disabled
-                                    ? 'text-slate-700 cursor-not-allowed'
-                                    : active
-                                        ? 'text-blue-400'
-                                        : 'text-slate-500 active:text-slate-300'
+                                ? 'text-slate-700 cursor-not-allowed'
+                                : active
+                                    ? 'text-blue-400'
+                                    : 'text-slate-500 active:text-slate-300'
                                 }`}
                             disabled={disabled}
                         >

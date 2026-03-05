@@ -509,6 +509,22 @@ async fn h_pty_create(Json(args): Json<Value>) -> Response {
     let cwd = args["cwd"].as_str().unwrap_or("").to_string();
     let cols = args["cols"].as_u64().unwrap_or(80) as u16;
     let rows = args["rows"].as_u64().unwrap_or(24) as u16;
+
+    // Make create idempotent: if session already exists, skip
+    {
+        let session_id_clone = session_id.clone();
+        let already_exists = tokio::task::spawn_blocking(move || {
+            PTY_MANAGER.lock().ok().map(|m| m.has_session(&session_id_clone)).unwrap_or(false)
+        }).await.unwrap_or(false);
+        if already_exists {
+            log::info!(
+                "[pty] Session already exists (HTTP), skipping create: id={}, requested cols={}, rows={}",
+                session_id, cols, rows
+            );
+            return result_ok(Ok::<(), String>(()));
+        }
+    }
+
     result_ok(with_pty_manager(move |m| m.create_session(&session_id, &cwd, cols, rows)).await)
 }
 

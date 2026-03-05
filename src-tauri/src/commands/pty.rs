@@ -7,6 +7,22 @@ pub(crate) fn pty_create(
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
+    // Make create idempotent: if session already exists, skip
+    {
+        let manager = PTY_MANAGER
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
+        if manager.has_session(&session_id) {
+            log::info!(
+                "[pty] Session already exists, skipping create: id={}, requested cols={}, rows={}",
+                session_id,
+                cols,
+                rows
+            );
+            return Ok(());
+        }
+    }
+
     log::info!(
         "[pty] Creating session: id={}, cwd={}, cols={}, rows={}",
         session_id,
@@ -42,9 +58,40 @@ pub(crate) fn pty_read(session_id: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub(crate) fn pty_resize(session_id: String, cols: u16, rows: u16) -> Result<(), String> {
+pub(crate) fn pty_resize(
+    session_id: String,
+    cols: u16,
+    rows: u16,
+    client_id: Option<String>,
+) -> Result<(), String> {
+    // "Last active client wins resize" — same gating as HTTP/WS handlers.
+    let active_client_id = crate::TERMINAL_STATES
+        .lock()
+        .ok()
+        .and_then(|states| states.values().find_map(|ts| ts.client_id.clone()));
+
+    let is_active = if let Some(ref req_cid) = client_id {
+        active_client_id.as_deref() == Some(req_cid)
+    } else {
+        // No clientId provided (legacy) — always allow
+        true
+    };
+
+    if !is_active {
+        log::info!(
+            "[pty] ❌ REJECTED RESIZE (tauri invoke): client={:?} session={} size={}x{} (active_client={:?})",
+            client_id,
+            session_id,
+            cols,
+            rows,
+            active_client_id
+        );
+        return Ok(());
+    }
+
     log::info!(
-        "[pty] ✅ RESIZE (tauri invoke): session={} size={}x{}",
+        "[pty] ✅ RESIZE (tauri invoke): client={:?} session={} size={}x{}",
+        client_id,
         session_id,
         cols,
         rows

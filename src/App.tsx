@@ -568,10 +568,11 @@ function App() {
 
               {/* Terminal view */}
               {mobileView === 'terminal' && (
-                <div className="h-full flex flex-col">
+                <div className="h-full">
                   <TerminalPanel
                     visible={true}
-                    height={9999}
+                    height={0}
+                    isFullscreen={true}
                     onStartResize={() => { }}
                     terminalTabs={terminalHook.terminalTabs}
                     activatedTerminals={terminalHook.activatedTerminals}
