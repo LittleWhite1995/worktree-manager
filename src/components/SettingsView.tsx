@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, User } from 'lucide-react';
+import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, User, Wrench } from 'lucide-react';
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { BranchCombobox } from './BranchCombobox';
 import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder } from '../types';
@@ -40,7 +40,7 @@ interface SettingsViewProps {
   onWmsLogout?: () => void;
 }
 
-type SettingsSection = 'workspaces' | 'share' | 'account' | 'voice' | 'about';
+type SettingsSection = 'workspaces' | 'tools' | 'share' | 'account' | 'voice' | 'about';
 
 export const SettingsView: FC<SettingsViewProps> = ({
   workspaceConfig,
@@ -243,6 +243,45 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const [dashscopeTesting, setDashscopeTesting] = useState(false);
   const [dashscopeTestResult, setDashscopeTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // Tools detection state
+  interface DetectedTool { id: string; name: string; path: string }
+  interface DetectedToolsResult { git: DetectedTool[]; terminals: DetectedTool[]; editors: DetectedTool[] }
+  const [detectedTools, setDetectedTools] = useState<DetectedToolsResult | null>(null);
+  const [toolsDetecting, setToolsDetecting] = useState(false);
+  const [toolPaths, setToolPaths] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('tool_paths') || '{}'); }
+    catch { return {}; }
+  });
+
+  const saveToolPaths = useCallback((updated: Record<string, string>) => {
+    setToolPaths(updated);
+    localStorage.setItem('tool_paths', JSON.stringify(updated));
+    if (updated.git !== undefined) {
+      callBackend('set_git_path', { path: updated.git || '' }).catch(() => { });
+    }
+  }, []);
+
+  const handleDetectTools = useCallback(async () => {
+    setToolsDetecting(true);
+    try {
+      const tools = await callBackend('detect_tools') as DetectedToolsResult;
+      setDetectedTools(tools);
+      setToolPaths(prev => {
+        const updated = { ...prev };
+        if (!updated.git && tools.git.length > 0) updated.git = tools.git[0].path;
+        if (!updated.terminal && tools.terminals.length > 0) updated.terminal = tools.terminals[0].id;
+        if (!updated.editor && tools.editors.length > 0) updated.editor = tools.editors[0].path;
+        localStorage.setItem('tool_paths', JSON.stringify(updated));
+        if (updated.git) callBackend('set_git_path', { path: updated.git }).catch(() => { });
+        return updated;
+      });
+    } catch (e) {
+      console.error('detect_tools failed:', e);
+    } finally {
+      setToolsDetecting(false);
+    }
+  }, []);
+
   // Load mic devices
   const loadMicDevices = useCallback(async () => {
     try {
@@ -338,6 +377,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   // ==================== Menu items ====================
   const menuItems = [
     { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" /> },
+    { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
     ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" /> }] : []),
     ...(isTauri() ? [{ id: 'account' as SettingsSection, label: t('settings.accountNav', '账户'), icon: <User className="w-3.5 h-3.5" /> }] : []),
     { id: 'voice' as SettingsSection, label: t('settings.voiceNav'), icon: <Mic className="w-3.5 h-3.5" /> },
@@ -454,30 +494,6 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       >{t('common.add')}</Button>
                     </div>
                     <p className="text-[10px] text-slate-600 mt-1">{t('settings.linkedWorktreeItemsHint')}</p>
-                  </div>
-                  {/* Default Terminal (all platforms) */}
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">{t('settings.defaultTerminal', '默认终端')}</label>
-                    <Select
-                      value={localStorage.getItem('preferred_terminal') || 'auto'}
-                      onValueChange={(value) => {
-                        localStorage.setItem('preferred_terminal', value);
-                        // Force re-render
-                        setConfig(prev => ({ ...prev }));
-                      }}
-                    >
-                      <SelectTrigger className="w-full h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">{t('settings.terminalAuto', '自动检测')}</SelectItem>
-                        <SelectItem value="cmd">CMD</SelectItem>
-                        <SelectItem value="powershell">PowerShell</SelectItem>
-                        <SelectItem value="windowsterminal">Windows Terminal</SelectItem>
-                        <SelectItem value="gitbash">Git Bash</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[10px] text-slate-600 mt-1">{t('settings.defaultTerminalHint', '打开终端时使用的默认终端程序')}</p>
                   </div>
                 </div>
 
@@ -660,6 +676,105 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ==================== Tools Section ==================== */}
+            {activeSection === 'tools' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-slate-100">{t('settings.toolsTitle', '工具路径配置')}</h2>
+                  <Button variant="secondary" size="sm" onClick={handleDetectTools} disabled={toolsDetecting} className="gap-1.5">
+                    <RefreshCw className={`w-3.5 h-3.5 ${toolsDetecting ? 'animate-spin' : ''}`} />
+                    {toolsDetecting ? t('settings.detecting', '检测中...') : t('settings.autoDetect', '自动检测')}
+                  </Button>
+                </div>
+
+                {/* Git */}
+                <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-slate-300">Git</h3>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">{t('settings.gitPath', 'Git 可执行文件路径')}</label>
+                    {detectedTools && detectedTools.git.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {detectedTools.git.map((g, i) => (
+                          <button key={i} type="button"
+                            className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${toolPaths.git === g.path ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' : 'bg-slate-700/50 border-slate-600/50 text-slate-400 hover:text-slate-200'}`}
+                            onClick={() => saveToolPaths({ ...toolPaths, git: g.path })}
+                          >{g.name}: {g.path}</button>
+                        ))}
+                      </div>
+                    )}
+                    <Input type="text" value={toolPaths.git || ''} placeholder={t('settings.gitPathPlaceholder', '留空自动检测，如 /usr/bin/git')}
+                      onChange={(e) => saveToolPaths({ ...toolPaths, git: e.target.value })}
+                      className="h-8 text-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Terminal */}
+                <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-slate-300">{t('settings.terminalTitle', '终端')}</h3>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">{t('settings.defaultTerminal', '默认终端')}</label>
+                    {detectedTools && detectedTools.terminals.length > 0 ? (
+                      <Select value={toolPaths.terminal || 'auto'}
+                        onValueChange={(value) => {
+                          saveToolPaths({ ...toolPaths, terminal: value });
+                          localStorage.setItem('preferred_terminal', value);
+                        }}
+                      >
+                        <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">{t('settings.terminalAuto', '自动检测')}</SelectItem>
+                          {detectedTools.terminals.map((term) => (
+                            <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Select value={localStorage.getItem('preferred_terminal') || 'auto'}
+                        onValueChange={(value) => {
+                          localStorage.setItem('preferred_terminal', value);
+                          saveToolPaths({ ...toolPaths, terminal: value });
+                        }}
+                      >
+                        <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">{t('settings.terminalAuto', '自动检测')}</SelectItem>
+                          <SelectItem value="cmd">CMD</SelectItem>
+                          <SelectItem value="powershell">PowerShell</SelectItem>
+                          <SelectItem value="windowsterminal">Windows Terminal</SelectItem>
+                          <SelectItem value="gitbash">Git Bash</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <p className="text-[10px] text-slate-600 mt-1">{t('settings.defaultTerminalHint', '打开终端时使用的默认终端程序')}</p>
+                  </div>
+                </div>
+
+                {/* Editor/IDE */}
+                <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-slate-300">{t('settings.editorTitle', '编辑器 / IDE')}</h3>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">{t('settings.editorPath', '编辑器可执行文件路径')}</label>
+                    {detectedTools && detectedTools.editors.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {detectedTools.editors.map((ed, i) => (
+                          <button key={i} type="button"
+                            className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${toolPaths.editor === ed.path ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' : 'bg-slate-700/50 border-slate-600/50 text-slate-400 hover:text-slate-200'}`}
+                            onClick={() => saveToolPaths({ ...toolPaths, editor: ed.path })}
+                          >{ed.name}</button>
+                        ))}
+                      </div>
+                    )}
+                    <Input type="text" value={toolPaths.editor || ''} placeholder={t('settings.editorPathPlaceholder', '留空使用默认编辑器')}
+                      onChange={(e) => saveToolPaths({ ...toolPaths, editor: e.target.value })}
+                      className="h-8 text-sm font-mono"
+                    />
+                    <p className="text-[10px] text-slate-600 mt-1">{t('settings.editorPathHint', '自定义编辑器路径会覆盖编辑器类型选择')}</p>
+                  </div>
+                </div>
               </div>
             )}
 

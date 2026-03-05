@@ -232,7 +232,12 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
 
   const openInEditor = useCallback(async (path: string, editor: EditorType) => {
     try {
-      await callBackend("open_in_editor", { request: { path, editor } });
+      let customPath: string | undefined;
+      try {
+        const toolPaths = JSON.parse(localStorage.getItem('tool_paths') || '{}');
+        if (toolPaths.editor) customPath = toolPaths.editor;
+      } catch { /* ignore */ }
+      await callBackend("open_in_editor", { request: { path, editor }, customPath });
     } catch (e) {
       setError(String(e));
     }

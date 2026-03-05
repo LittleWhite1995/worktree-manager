@@ -9,32 +9,47 @@ use crate::types::ScannedFolder;
 // Git command timeout (30 seconds)
 pub(crate) const GIT_COMMAND_TIMEOUT_SECS: u64 = 30;
 
-/// Create a `Command` for git that:
-/// - Hides the console window on Windows (CREATE_NO_WINDOW)
-/// - Resolves git path on Windows even if git is not in PATH
-pub(crate) fn git_command() -> Command {
+use std::sync::Mutex;
+
+// Custom git path set by user (empty = auto-detect)
+static CUSTOM_GIT_PATH: Mutex<String> = Mutex::new(String::new());
+
+/// Set a custom git executable path. Empty string reverts to auto-detect.
+pub(crate) fn set_custom_git_path(path: &str) {
+    if let Ok(mut p) = CUSTOM_GIT_PATH.lock() {
+        *p = path.to_string();
+        log::info!("[git] Custom git path set to: '{}'", path);
+    }
+}
+
+/// Get the resolved git executable path.
+fn resolve_git_path() -> String {
+    // Check custom path first
+    if let Ok(custom) = CUSTOM_GIT_PATH.lock() {
+        if !custom.is_empty() {
+            return custom.clone();
+        }
+    }
+
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         use std::sync::OnceLock;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        static GIT_PATH: OnceLock<String> = OnceLock::new();
-
-        let git = GIT_PATH.get_or_init(|| {
+        static DETECTED_GIT: OnceLock<String> = OnceLock::new();
+        return DETECTED_GIT.get_or_init(|| {
             // Try "git" from PATH first
-            if std::process::Command::new("git")
-                .arg("--version")
-                .creation_flags(CREATE_NO_WINDOW)
+            #[allow(unused_mut)]
+            let mut check = std::process::Command::new("git");
+            check.arg("--version")
                 .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .is_ok()
+                .stderr(std::process::Stdio::null());
             {
+                use std::os::windows::process::CommandExt;
+                const CREATE_NO_WINDOW: u32 = 0x08000000;
+                check.creation_flags(CREATE_NO_WINDOW);
+            }
+            if check.status().is_ok() {
                 return "git".to_string();
             }
-
-            // Search common Windows install locations
             let candidates = [
                 r"C:\Program Files\Git\cmd\git.exe",
                 r"C:\Program Files (x86)\Git\cmd\git.exe",
@@ -45,7 +60,6 @@ pub(crate) fn git_command() -> Command {
                     return path.to_string();
                 }
             }
-            // Check %LOCALAPPDATA%\Programs\Git
             if let Ok(local) = std::env::var("LOCALAPPDATA") {
                 let p = format!(r"{}\Programs\Git\cmd\git.exe", local);
                 if std::path::Path::new(&p).exists() {
@@ -53,18 +67,33 @@ pub(crate) fn git_command() -> Command {
                     return p;
                 }
             }
-
             log::warn!("[git] git not found in PATH or common locations, using 'git'");
             "git".to_string()
-        });
+        }).clone();
+    }
 
-        let mut cmd = Command::new(git.as_str());
+    #[cfg(not(target_os = "windows"))]
+    {
+        "git".to_string()
+    }
+}
+
+/// Create a `Command` for git that:
+/// - Uses custom path if set, otherwise auto-detects
+/// - Hides the console window on Windows (CREATE_NO_WINDOW)
+pub(crate) fn git_command() -> Command {
+    let git = resolve_git_path();
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut cmd = Command::new(&git);
         cmd.creation_flags(CREATE_NO_WINDOW);
         cmd
     }
     #[cfg(not(target_os = "windows"))]
     {
-        Command::new("git")
+        Command::new(&git)
     }
 }
 

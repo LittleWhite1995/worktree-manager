@@ -427,7 +427,18 @@ async fn h_open_in_editor(Json(args): Json<Value>) -> Response {
             return (StatusCode::BAD_REQUEST, format!("Invalid request: {}", e)).into_response()
         }
     };
-    result_ok(crate::open_in_editor_internal(&request))
+    let custom_path = args["customPath"].as_str().map(|s| s.to_string());
+    result_ok(crate::open_in_editor_internal(&request, custom_path.as_deref()))
+}
+
+async fn h_detect_tools() -> Response {
+    result_json(Ok(crate::detect_tools_internal()))
+}
+
+async fn h_set_git_path(Json(args): Json<Value>) -> Response {
+    let path = args["path"].as_str().unwrap_or("").to_string();
+    crate::set_git_path_internal(&path);
+    result_void_ok()
 }
 
 async fn h_reveal_in_finder(Json(args): Json<Value>) -> Response {
@@ -1956,6 +1967,8 @@ pub fn create_router(cert_pem: Option<String>) -> Router {
         .route("/api/open_in_editor", post(h_open_in_editor))
         .route("/api/reveal_in_finder", post(h_reveal_in_finder))
         .route("/api/open_log_dir", post(h_open_log_dir))
+        .route("/api/detect_tools", post(h_detect_tools))
+        .route("/api/set_git_path", post(h_set_git_path))
         // Multi-window management
         .route("/api/get_opened_workspaces", post(h_get_opened_workspaces))
         .route("/api/unregister_window", post(h_unregister_window))

@@ -22,8 +22,8 @@ pub use commands::sharing::{
     start_wms_tunnel_internal, stop_wms_tunnel_internal, wms_manual_reconnect_internal, WmsConfig,
 };
 pub use commands::system::{
-    open_in_editor_internal, open_in_terminal_internal, open_log_dir_internal,
-    reveal_in_finder_internal,
+    detect_tools_internal, open_in_editor_internal, open_in_terminal_internal,
+    open_log_dir_internal, reveal_in_finder_internal, set_git_path_internal,
 };
 pub use commands::window::{
     lock_worktree_impl, set_window_workspace_impl, unlock_worktree_impl, unregister_window_impl,
@@ -166,6 +166,8 @@ pub fn run() {
             open_in_editor,
             open_log_dir,
             reveal_in_finder,
+            detect_tools,
+            set_git_path,
             // 多窗口管理
             set_window_workspace,
             get_opened_workspaces,

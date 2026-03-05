@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use serde::Serialize;
+
 use crate::types::OpenEditorRequest;
 use crate::utils::normalize_path;
 
@@ -144,13 +146,28 @@ fn editor_app_name(editor: &str) -> &'static str {
     }
 }
 
-pub(crate) fn open_editor_at_path(request: &OpenEditorRequest) -> Result<(), String> {
+pub(crate) fn open_editor_at_path(request: &OpenEditorRequest, custom_path: Option<&str>) -> Result<(), String> {
     let path = &request.path;
     log::info!(
-        "[system] Opening editor: type={}, path={}",
-        request.editor,
-        path
+        "[system] Opening editor: type={}, path={}, custom={:?}",
+        request.editor, path, custom_path
     );
+
+    // If custom path is provided, use it directly
+    if let Some(exe) = custom_path {
+        if !exe.is_empty() {
+            match Command::new(exe).arg(path).spawn() {
+                Ok(_) => {
+                    log::info!("[system] Spawned custom editor '{}' for: {}", exe, path);
+                    return Ok(());
+                }
+                Err(e) => {
+                    log::error!("[system] Failed to spawn custom editor '{}': {}", exe, e);
+                    return Err(format!("无法打开编辑器 {}: {}", exe, e));
+                }
+            }
+        }
+    }
 
     #[cfg(target_os = "macos")]
     {
@@ -193,8 +210,8 @@ pub(crate) fn open_editor_at_path(request: &OpenEditorRequest) -> Result<(), Str
 }
 
 #[tauri::command]
-pub(crate) fn open_in_editor(request: OpenEditorRequest) -> Result<(), String> {
-    open_editor_at_path(&request)
+pub(crate) fn open_in_editor(request: OpenEditorRequest, custom_path: Option<String>) -> Result<(), String> {
+    open_editor_at_path(&request, custom_path.as_deref())
 }
 
 #[tauri::command]
@@ -316,14 +333,242 @@ fn get_platform_log_dir() -> Result<PathBuf, String> {
     }
 }
 
+// ==================== Tool Detection ====================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DetectedTool {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DetectedTools {
+    pub git: Vec<DetectedTool>,
+    pub terminals: Vec<DetectedTool>,
+    pub editors: Vec<DetectedTool>,
+}
+
+fn check_executable(name: &str) -> Option<String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let output = Command::new("where")
+            .arg(name)
+            .creation_flags(CREATE_NO_WINDOW)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let s = String::from_utf8_lossy(&output.stdout);
+            return s.lines().next().map(|l| l.trim().to_string());
+        }
+        None
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = Command::new("which")
+            .arg(name)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let s = String::from_utf8_lossy(&output.stdout);
+            return s.lines().next().map(|l| l.trim().to_string());
+        }
+        None
+    }
+}
+
+fn detect_git() -> Vec<DetectedTool> {
+    let mut results = Vec::new();
+
+    if let Some(path) = check_executable("git") {
+        results.push(DetectedTool { id: "git".into(), name: "Git".into(), path });
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            (r"C:\Program Files\Git\cmd\git.exe", "Git (Program Files)"),
+            (r"C:\Program Files (x86)\Git\cmd\git.exe", "Git (x86)"),
+        ];
+        for (p, name) in &candidates {
+            if std::path::Path::new(p).exists() && !results.iter().any(|r| r.path == *p) {
+                results.push(DetectedTool { id: "git".into(), name: name.to_string(), path: p.to_string() });
+            }
+        }
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let p = format!(r"{}\Programs\Git\cmd\git.exe", local);
+            if std::path::Path::new(&p).exists() && !results.iter().any(|r| r.path == p) {
+                results.push(DetectedTool { id: "git".into(), name: "Git (User)".into(), path: p });
+            }
+        }
+    }
+
+    results
+}
+
+fn detect_terminals() -> Vec<DetectedTool> {
+    let mut results = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        results.push(DetectedTool { id: "terminal".into(), name: "Terminal.app".into(), path: "/System/Applications/Utilities/Terminal.app".into() });
+        if std::path::Path::new("/Applications/iTerm.app").exists() {
+            results.push(DetectedTool { id: "iterm2".into(), name: "iTerm2".into(), path: "/Applications/iTerm.app".into() });
+        }
+        if std::path::Path::new("/Applications/Warp.app").exists() {
+            results.push(DetectedTool { id: "warp".into(), name: "Warp".into(), path: "/Applications/Warp.app".into() });
+        }
+        if std::path::Path::new("/Applications/Alacritty.app").exists() {
+            results.push(DetectedTool { id: "alacritty".into(), name: "Alacritty".into(), path: "/Applications/Alacritty.app".into() });
+        }
+        if std::path::Path::new("/Applications/kitty.app").exists() {
+            results.push(DetectedTool { id: "kitty".into(), name: "kitty".into(), path: "/Applications/kitty.app".into() });
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        results.push(DetectedTool { id: "cmd".into(), name: "CMD".into(), path: "cmd.exe".into() });
+        results.push(DetectedTool { id: "powershell".into(), name: "PowerShell".into(), path: "powershell.exe".into() });
+        if check_executable("wt").is_some() {
+            results.push(DetectedTool { id: "windowsterminal".into(), name: "Windows Terminal".into(), path: "wt.exe".into() });
+        }
+        // Git Bash
+        let git_bash_candidates = [
+            r"C:\Program Files\Git\git-bash.exe",
+            r"C:\Program Files (x86)\Git\git-bash.exe",
+        ];
+        for p in &git_bash_candidates {
+            if std::path::Path::new(p).exists() {
+                results.push(DetectedTool { id: "gitbash".into(), name: "Git Bash".into(), path: p.to_string() });
+                break;
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let terminals = [
+            ("gnome-terminal", "GNOME Terminal"),
+            ("konsole", "Konsole"),
+            ("xfce4-terminal", "XFCE Terminal"),
+            ("xterm", "XTerm"),
+            ("alacritty", "Alacritty"),
+            ("kitty", "kitty"),
+            ("wezterm", "WezTerm"),
+            ("tilix", "Tilix"),
+        ];
+        for (cmd, name) in &terminals {
+            if let Some(path) = check_executable(cmd) {
+                results.push(DetectedTool { id: cmd.to_string(), name: name.to_string(), path });
+            }
+        }
+    }
+
+    results
+}
+
+fn detect_editors() -> Vec<DetectedTool> {
+    let mut results = Vec::new();
+
+    let editors = [
+        ("code", "vscode", "Visual Studio Code"),
+        ("cursor", "cursor", "Cursor"),
+        ("antigravity", "antigravity", "Antigravity"),
+        ("idea", "idea", "IntelliJ IDEA"),
+        ("zed", "zed", "Zed"),
+        ("sublime_text", "sublime", "Sublime Text"),
+        ("atom", "atom", "Atom"),
+        ("nvim", "neovim", "Neovim"),
+        ("vim", "vim", "Vim"),
+    ];
+
+    for (cmd, id, name) in &editors {
+        if let Some(path) = check_executable(cmd) {
+            results.push(DetectedTool { id: id.to_string(), name: name.to_string(), path });
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let mac_apps = [
+            ("/Applications/Visual Studio Code.app", "vscode", "Visual Studio Code"),
+            ("/Applications/Cursor.app", "cursor", "Cursor"),
+            ("/Applications/Antigravity.app", "antigravity", "Antigravity"),
+            ("/Applications/Zed.app", "zed", "Zed"),
+            ("/Applications/Sublime Text.app", "sublime", "Sublime Text"),
+        ];
+        for (app_path, id, name) in &mac_apps {
+            if std::path::Path::new(app_path).exists() && !results.iter().any(|r| r.id == *id) {
+                results.push(DetectedTool { id: id.to_string(), name: name.to_string(), path: app_path.to_string() });
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let win_locations = [
+            (r"Microsoft VS Code\Code.exe", "vscode", "Visual Studio Code"),
+            (r"Cursor\Cursor.exe", "cursor", "Cursor"),
+            (r"Programs\Microsoft VS Code\Code.exe", "vscode", "Visual Studio Code"),
+        ];
+        for base in &[std::env::var("LOCALAPPDATA").ok(), std::env::var("PROGRAMFILES").ok(), std::env::var("PROGRAMFILES(X86)").ok()] {
+            if let Some(base) = base {
+                for (rel, id, name) in &win_locations {
+                    let full = format!(r"{}\{}", base, rel);
+                    if std::path::Path::new(&full).exists() && !results.iter().any(|r| r.id == *id) {
+                        results.push(DetectedTool { id: id.to_string(), name: name.to_string(), path: full });
+                    }
+                }
+            }
+        }
+    }
+
+    results
+}
+
+#[tauri::command]
+pub(crate) fn detect_tools() -> DetectedTools {
+    log::info!("[system] Detecting available tools...");
+    let tools = DetectedTools {
+        git: detect_git(),
+        terminals: detect_terminals(),
+        editors: detect_editors(),
+    };
+    log::info!(
+        "[system] Detected: {} git, {} terminals, {} editors",
+        tools.git.len(), tools.terminals.len(), tools.editors.len()
+    );
+    tools
+}
+
+pub fn detect_tools_internal() -> DetectedTools {
+    detect_tools()
+}
+
+#[tauri::command]
+pub(crate) fn set_git_path(path: String) {
+    crate::utils::set_custom_git_path(&path);
+}
+
+pub fn set_git_path_internal(path: &str) {
+    crate::utils::set_custom_git_path(path);
+}
+
 // ==================== HTTP Server 共享接口 ====================
 
 pub fn open_in_terminal_internal(path: &str, terminal: Option<&str>) -> Result<(), String> {
     open_in_terminal(path.to_string(), terminal.map(|s| s.to_string()))
 }
 
-pub fn open_in_editor_internal(request: &OpenEditorRequest) -> Result<(), String> {
-    open_editor_at_path(request)
+pub fn open_in_editor_internal(request: &OpenEditorRequest, custom_path: Option<&str>) -> Result<(), String> {
+    open_editor_at_path(request, custom_path)
 }
 
 pub fn reveal_in_finder_internal(path: &str) -> Result<(), String> {
