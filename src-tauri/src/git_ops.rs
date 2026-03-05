@@ -1408,3 +1408,143 @@ pub fn commit_all(path: &Path, message: &str) -> Result<String, String> {
     log::info!("[git] Commit successful: {}", stdout);
     Ok(format!("Committed: {}", message))
 }
+
+// ==================== Changed Files API ====================
+
+#[derive(Debug, Serialize, Clone)]
+pub struct ChangedFile {
+    pub path: String,
+    pub status: String,   // "M" | "A" | "D" | "R" | "?" (untracked) | "C" (copied)
+    pub staged: bool,
+}
+
+/// Get list of changed files in a git repo using `git status --porcelain=v1`.
+pub fn get_changed_files(path: &Path) -> Result<Vec<ChangedFile>, String> {
+    let output = git_command()
+        .arg("-C")
+        .arg(path)
+        .args(["status", "--porcelain=v1"])
+        .output()
+        .map_err(|e| format!("Failed to get git status: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git status failed: {}", stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut files = Vec::new();
+
+    for line in stdout.lines() {
+        if line.len() < 4 {
+            continue;
+        }
+        let index_status = line.chars().nth(0).unwrap_or(' ');
+        let worktree_status = line.chars().nth(1).unwrap_or(' ');
+        let file_path = line[3..].to_string();
+
+        // Handle rename: "R  old -> new"
+        let file_path = if file_path.contains(" -> ") {
+            file_path.split(" -> ").last().unwrap_or(&file_path).to_string()
+        } else {
+            file_path
+        };
+
+        // Determine status and staged state
+        let (status, staged) = match (index_status, worktree_status) {
+            ('?', '?') => ("?".to_string(), false),     // untracked
+            ('A', _) => ("A".to_string(), true),         // added (staged)
+            ('D', _) => ("D".to_string(), true),         // deleted (staged)
+            ('R', _) => ("R".to_string(), true),         // renamed (staged)
+            ('C', _) => ("C".to_string(), true),         // copied (staged)
+            ('M', _) => ("M".to_string(), true),         // modified (staged)
+            (_, 'M') => ("M".to_string(), false),        // modified (unstaged)
+            (_, 'D') => ("D".to_string(), false),        // deleted (unstaged)
+            _ => ("M".to_string(), false),               // fallback
+        };
+
+        files.push(ChangedFile {
+            path: file_path,
+            status,
+            staged,
+        });
+    }
+
+    Ok(files)
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct FileDiff {
+    pub file_path: String,
+    pub old_content: String,
+    pub new_content: String,
+    pub is_new: bool,
+    pub is_deleted: bool,
+    pub is_binary: bool,
+}
+
+/// Get old (HEAD) and new (working tree) content for a single file for side-by-side diff.
+pub fn get_file_diff(path: &Path, file_path: &str) -> Result<FileDiff, String> {
+    let full_path = path.join(file_path);
+
+    // Try to get old content from HEAD
+    let old_output = git_command()
+        .arg("-C")
+        .arg(path)
+        .args(["show", &format!("HEAD:{}", file_path)])
+        .output();
+
+    let old_content = match old_output {
+        Ok(out) if out.status.success() => {
+            // Check if binary
+            let raw = &out.stdout;
+            if raw.contains(&0u8) {
+                return Ok(FileDiff {
+                    file_path: file_path.to_string(),
+                    old_content: String::new(),
+                    new_content: String::new(),
+                    is_new: false,
+                    is_deleted: false,
+                    is_binary: true,
+                });
+            }
+            String::from_utf8_lossy(raw).to_string()
+        }
+        _ => String::new(), // File doesn't exist in HEAD (new file)
+    };
+
+    let is_new = old_content.is_empty();
+
+    // Get new content from working tree
+    let new_content = if full_path.exists() {
+        match std::fs::read(&full_path) {
+            Ok(bytes) => {
+                if bytes.contains(&0u8) {
+                    return Ok(FileDiff {
+                        file_path: file_path.to_string(),
+                        old_content: String::new(),
+                        new_content: String::new(),
+                        is_new,
+                        is_deleted: false,
+                        is_binary: true,
+                    });
+                }
+                String::from_utf8_lossy(&bytes).to_string()
+            }
+            Err(_) => String::new(),
+        }
+    } else {
+        String::new() // File deleted
+    };
+
+    let is_deleted = new_content.is_empty() && !is_new;
+
+    Ok(FileDiff {
+        file_path: file_path.to_string(),
+        old_content,
+        new_content,
+        is_new,
+        is_deleted,
+        is_binary: false,
+    })
+}

@@ -311,6 +311,22 @@ pub(crate) async fn commit_all(path: String, message: String) -> Result<String, 
     }).await
 }
 
+#[tauri::command]
+pub(crate) async fn get_changed_files(path: String) -> Result<Vec<git_ops::ChangedFile>, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::get_changed_files(Path::new(&normalized))
+    }).await
+}
+
+#[tauri::command]
+pub(crate) async fn get_file_diff(path: String, file_path: String) -> Result<git_ops::FileDiff, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::get_file_diff(Path::new(&normalized), &file_path)
+    }).await
+}
+
 // ==================== HTTP Server 共享接口 ====================
 
 pub fn switch_branch_internal(request: &SwitchBranchRequest) -> Result<(), String> {

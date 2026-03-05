@@ -300,6 +300,19 @@ async fn h_get_branch_diff_stats(Json(args): Json<Value>) -> Response {
     Json(json!(stats)).into_response()
 }
 
+async fn h_get_changed_files(Json(args): Json<Value>) -> Response {
+    let path = args["path"].as_str().unwrap_or("").to_string();
+    let normalized = normalize_path(&path);
+    result_json(git_ops::get_changed_files(std::path::Path::new(&normalized)))
+}
+
+async fn h_get_file_diff(Json(args): Json<Value>) -> Response {
+    let path = args["path"].as_str().unwrap_or("").to_string();
+    let file_path = args["filePath"].as_str().unwrap_or("").to_string();
+    let normalized = normalize_path(&path);
+    result_json(git_ops::get_file_diff(std::path::Path::new(&normalized), &file_path))
+}
+
 async fn h_check_remote_branch_exists(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
     let branch_name = args["branchName"].as_str().unwrap_or("").to_string();
@@ -1961,6 +1974,8 @@ pub fn create_router(cert_pem: Option<String>) -> Router {
         .route("/api/merge_to_base_branch", post(h_merge_to_base_branch))
         .route("/api/create_pull_request", post(h_create_pull_request))
         .route("/api/get_remote_branches", post(h_get_remote_branches))
+        .route("/api/get_changed_files", post(h_get_changed_files))
+        .route("/api/get_file_diff", post(h_get_file_diff))
         // Scan
         .route("/api/scan_linked_folders", post(h_scan_linked_folders))
         // System utilities

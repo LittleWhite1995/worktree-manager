@@ -593,3 +593,15 @@ export async function loadWorkspaceConfigByPath(path: string): Promise<import('.
 export async function saveWorkspaceConfigByPath(path: string, config: import('../types').WorkspaceConfig): Promise<void> {
   return callBackend<void>('save_workspace_config_by_path', { path, config });
 }
+
+// ---------------------------------------------------------------------------
+// Changed Files
+// ---------------------------------------------------------------------------
+
+export async function getChangedFiles(path: string): Promise<import('../types').ChangedFile[]> {
+  return callBackend<import('../types').ChangedFile[]>('get_changed_files', { path });
+}
+
+export async function getFileDiff(path: string, filePath: string): Promise<import('../types').FileDiff> {
+  return callBackend<import('../types').FileDiff>('get_file_diff', { path, filePath });
+}

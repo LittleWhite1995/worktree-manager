@@ -160,6 +160,8 @@ pub fn run() {
             get_remote_branches,
             get_git_diff,
             commit_all,
+            get_changed_files,
+            get_file_diff,
             generate_commit_message,
             // 工具
             open_in_terminal,

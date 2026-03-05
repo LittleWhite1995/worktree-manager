@@ -161,3 +161,18 @@ export interface DeployToMainResult {
   switched_projects: string[];
   failed_projects: { project_name: string; error: string }[];
 }
+
+export interface ChangedFile {
+  path: string;
+  status: string;  // "M" | "A" | "D" | "R" | "?" | "C"
+  staged: boolean;
+}
+
+export interface FileDiff {
+  file_path: string;
+  old_content: string;
+  new_content: string;
+  is_new: boolean;
+  is_deleted: boolean;
+  is_binary: boolean;
+}

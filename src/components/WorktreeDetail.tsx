@@ -29,6 +29,7 @@ import {
 } from './Icons';
 import { Badge } from '@/components/ui/badge';
 import { GitOperations } from './GitOperations';
+import { ChangedFilesPanel } from './ChangedFilesPanel';
 import { EDITORS } from '../constants';
 import { isTauri } from '@/lib/backend';
 import type {
@@ -171,6 +172,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [exitError, setExitError] = useState<string | null>(null);
+  const [changedFilesExpanded, setChangedFilesExpanded] = useState(false);
 
   const handleDeploy = useCallback(async (name: string) => {
     try {
@@ -529,6 +531,29 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
             })}
           </div>
         )}
+
+        {/* Changed Files Panel */}
+        <div className="mt-4">
+          <ChangedFilesPanel
+            projects={mainWorkspace.projects.map(p => ({
+              name: p.name,
+              path: p.path,
+              current_branch: p.current_branch,
+              base_branch: p.base_branch,
+              test_branch: p.test_branch,
+              has_uncommitted: p.has_uncommitted,
+              uncommitted_count: p.uncommitted_count,
+              is_merged_to_test: p.is_merged_to_test,
+              is_merged_to_base: p.is_merged_to_base,
+              ahead_of_base: p.ahead_of_base,
+              behind_base: p.behind_base,
+              ahead_of_test: p.ahead_of_test,
+              unpushed_commits: p.unpushed_commits,
+            }))}
+            expanded={changedFilesExpanded}
+            onToggle={() => setChangedFilesExpanded(v => !v)}
+          />
+        </div>
       </div>
     );
   }
@@ -698,6 +723,15 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
               <span className="text-sm">{t('detail.addProject')}</span>
             </button>
           )}
+        </div>
+
+        {/* Changed Files Panel */}
+        <div className="mt-4">
+          <ChangedFilesPanel
+            projects={selectedWorktree.projects}
+            expanded={changedFilesExpanded}
+            onToggle={() => setChangedFilesExpanded(v => !v)}
+          />
         </div>
       </div>
     );
