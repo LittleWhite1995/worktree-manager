@@ -41,6 +41,59 @@ fn get_default_shell() -> String {
     }
 }
 
+/// Resolve a terminal preference ID to a shell executable path.
+/// IDs like "cmd", "powershell", "gitbash", "windowsterminal" come from the frontend settings.
+/// If the ID is "auto" or empty, falls back to get_default_shell().
+fn resolve_shell_from_id(id: &str) -> String {
+    match id {
+        "auto" | "" => get_default_shell(),
+        #[cfg(target_os = "windows")]
+        "cmd" => "cmd.exe".to_string(),
+        #[cfg(target_os = "windows")]
+        "powershell" => {
+            let ps_paths = [
+                "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+                "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            ];
+            for ps in &ps_paths {
+                if std::path::Path::new(ps).exists() {
+                    return ps.to_string();
+                }
+            }
+            "powershell.exe".to_string()
+        }
+        #[cfg(target_os = "windows")]
+        "gitbash" => {
+            let candidates = [
+                r"C:\Program Files\Git\bin\bash.exe",
+                r"C:\Program Files (x86)\Git\bin\bash.exe",
+            ];
+            for path in &candidates {
+                if std::path::Path::new(path).exists() {
+                    return path.to_string();
+                }
+            }
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                let p = format!(r"{}\Programs\Git\bin\bash.exe", local);
+                if std::path::Path::new(&p).exists() {
+                    return p;
+                }
+            }
+            // Fallback
+            "bash.exe".to_string()
+        }
+        // For macOS/Linux terminal IDs or unknown IDs, check if it's an absolute path
+        other => {
+            if std::path::Path::new(other).exists() {
+                other.to_string()
+            } else {
+                log::warn!("[pty] Unknown terminal id '{}', using default shell", other);
+                get_default_shell()
+            }
+        }
+    }
+}
+
 /// Split raw bytes into valid UTF-8 text + incomplete trailing bytes.
 ///
 /// Invalid bytes in the middle are replaced with U+FFFD (same as `from_utf8_lossy`).
@@ -133,6 +186,7 @@ impl PtyManager {
         cwd: &str,
         cols: u16,
         rows: u16,
+        shell: Option<&str>,
     ) -> Result<(), String> {
         // Properly close existing session if any
         if self.has_session(id) {
@@ -150,11 +204,14 @@ impl PtyManager {
             })
             .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
-        // Get the user's shell
-        let shell = get_default_shell();
-        log::info!("PTY session '{}' using shell: {}", id, shell);
+        // Use user-specified shell or fall back to default
+        let shell_path = match shell {
+            Some(s) if !s.is_empty() => resolve_shell_from_id(s),
+            _ => get_default_shell(),
+        };
+        log::info!("PTY session '{}' using shell: {}", id, shell_path);
 
-        let mut cmd = CommandBuilder::new(&shell);
+        let mut cmd = CommandBuilder::new(&shell_path);
         cmd.cwd(cwd);
 
         // Set environment variables for better terminal support

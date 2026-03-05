@@ -397,7 +397,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
           <Button variant="ghost" size="icon" onClick={onBack} aria-label={t('settings.backLabel')}>
             <BackIcon className="w-5 h-5" />
           </Button>
-          <h1 className="text-lg font-semibold">{t('settings.workspaceSettings')}</h1>
+          <h1 className="text-lg font-semibold">{t('settings.settingsTitle', '设置')}</h1>
         </div>
         {activeSection === 'workspaces' && (
           <Button onClick={handleSave} disabled={saving} size="sm">

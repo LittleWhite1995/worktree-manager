@@ -186,11 +186,13 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         });
 
         if (!exists) {
+          const shell = localStorage.getItem('preferred_terminal') || undefined;
           await callBackend('pty_create', {
             sessionId: sessionIdRef.current,
             cwd: cwdRef.current,
             cols,
             rows,
+            shell: shell && shell !== 'auto' ? shell : undefined,
           });
         }
 

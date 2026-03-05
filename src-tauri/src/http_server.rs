@@ -521,6 +521,7 @@ async fn h_pty_create(Json(args): Json<Value>) -> Response {
     let cwd = args["cwd"].as_str().unwrap_or("").to_string();
     let cols = args["cols"].as_u64().unwrap_or(80) as u16;
     let rows = args["rows"].as_u64().unwrap_or(24) as u16;
+    let shell = args["shell"].as_str().map(|s| s.to_string());
 
     // Make create idempotent: if session already exists, skip
     {
@@ -537,7 +538,7 @@ async fn h_pty_create(Json(args): Json<Value>) -> Response {
         }
     }
 
-    result_ok(with_pty_manager(move |m| m.create_session(&session_id, &cwd, cols, rows)).await)
+    result_ok(with_pty_manager(move |m| m.create_session(&session_id, &cwd, cols, rows, shell.as_deref())).await)
 }
 
 async fn h_pty_write(Json(args): Json<Value>) -> Response {

@@ -6,6 +6,7 @@ pub(crate) fn pty_create(
     cwd: String,
     cols: u16,
     rows: u16,
+    shell: Option<String>,
 ) -> Result<(), String> {
     // Make create idempotent: if session already exists, skip
     {
@@ -24,16 +25,17 @@ pub(crate) fn pty_create(
     }
 
     log::info!(
-        "[pty] Creating session: id={}, cwd={}, cols={}, rows={}",
+        "[pty] Creating session: id={}, cwd={}, cols={}, rows={}, shell={:?}",
         session_id,
         cwd,
         cols,
-        rows
+        rows,
+        shell
     );
     let mut manager = PTY_MANAGER
         .lock()
         .map_err(|e| format!("Lock error: {}", e))?;
-    let result = manager.create_session(&session_id, &cwd, cols, rows);
+    let result = manager.create_session(&session_id, &cwd, cols, rows, shell.as_deref());
     match &result {
         Ok(()) => log::info!("[pty] Session created: {}", session_id),
         Err(e) => log::error!("[pty] Failed to create session {}: {}", session_id, e),
