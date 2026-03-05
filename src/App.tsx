@@ -502,6 +502,7 @@ function App() {
                   onStartRecording={voice.startRecording}
                   onStopRecording={voice.stopRecording}
                   staging={voice.staging}
+                  clientId={terminalHook.clientId}
                 />
               </div>
             </div>
@@ -590,6 +591,7 @@ function App() {
                     onStartRecording={voice.startRecording}
                     onStopRecording={voice.stopRecording}
                     staging={voice.staging}
+                    clientId={terminalHook.clientId}
                   />
                 </div>
               )}

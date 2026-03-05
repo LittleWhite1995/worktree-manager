@@ -527,6 +527,32 @@ async fn h_pty_resize(Json(args): Json<Value>) -> Response {
     let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
     let cols = args["cols"].as_u64().unwrap_or(80) as u16;
     let rows = args["rows"].as_u64().unwrap_or(24) as u16;
+    let request_client_id = args["clientId"].as_str().map(|s| s.to_string());
+
+    // "Last active client wins resize" — same gating as the WebSocket handler.
+    // Only accept resize from the client that most recently broadcast terminal state.
+    let is_active = if let Some(ref req_cid) = request_client_id {
+        crate::TERMINAL_STATES
+            .lock()
+            .ok()
+            .map(|states| {
+                states.values().any(|ts| ts.client_id.as_deref() == Some(req_cid))
+            })
+            .unwrap_or(false)
+    } else {
+        // No clientId provided (legacy/Tauri desktop) — always allow
+        true
+    };
+
+    if !is_active {
+        log::debug!(
+            "[http] Ignoring pty_resize from inactive client {:?} (session={})",
+            request_client_id,
+            session_id
+        );
+        return result_ok(Ok::<(), String>(()));
+    }
+
     result_ok(with_pty_manager(move |m| m.resize_session(&session_id, cols, rows)).await)
 }
 

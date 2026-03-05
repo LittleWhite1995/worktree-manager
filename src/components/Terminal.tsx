@@ -12,13 +12,14 @@ const IS_MOBILE = typeof window !== 'undefined' && 'ontouchstart' in window;
 interface TerminalProps {
   cwd: string;
   visible: boolean;
+  clientId?: string;
 }
 
 export interface TerminalHandle {
   copyContent: () => Promise<void>;
 }
 
-const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible }, ref) => {
+const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId }, ref) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -280,10 +281,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible 
       sessionId: sessionIdRef.current,
       cols,
       rows,
+      ...(clientId ? { clientId } : {}),
     }).catch(() => {
       // PTY resize failed silently
     });
-  }, [visible]);
+  }, [visible, clientId]);
 
   // Manage reading based on visibility
   useEffect(() => {

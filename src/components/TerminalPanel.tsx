@@ -242,6 +242,7 @@ interface TerminalPanelProps {
   onStartRecording?: () => void;
   onStopRecording?: () => void;
   staging?: StagingState | null;
+  clientId?: string;
 }
 
 export const TerminalPanel: FC<TerminalPanelProps> = ({
@@ -268,6 +269,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   onStartRecording,
   onStopRecording,
   staging,
+  clientId,
 }) => {
   const { t } = useTranslation();
   const [showError, setShowError] = useState<string | null>(null);
@@ -495,6 +497,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 <Terminal
                   cwd={path}
                   visible={visible && path === activeTerminalTab}
+                  clientId={clientId}
                 />
               </div>
             ))}

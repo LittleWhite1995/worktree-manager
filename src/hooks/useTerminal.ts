@@ -24,6 +24,7 @@ export interface UseTerminalReturn {
   handleDuplicateTerminal: (path: string) => void;
   handleToggleTerminal: () => void;
   cleanupTerminalsForPath: (pathPrefix: string) => void;
+  clientId: string;
 }
 
 export function useTerminal(
@@ -219,7 +220,7 @@ export function useTerminal(
           activeTabPerWorkspace.current.set(wsRoot, cached.active_terminal_tab);
         }
         visiblePerWorkspace.current.set(wsRoot, cached.terminal_visible);
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     prevWorkspaceRoot.current = currentWorkspaceRoot;
@@ -244,8 +245,8 @@ export function useTerminal(
       !Array.from(newActivatedTerminals).every(t => currentActivated.has(t));
 
     if (activatedChanged ||
-        msg.activeTerminalTab !== activeTerminalTabRef.current ||
-        msg.terminalVisible !== terminalVisibleRef.current) {
+      msg.activeTerminalTab !== activeTerminalTabRef.current ||
+      msg.terminalVisible !== terminalVisibleRef.current) {
       setActivatedTerminals(newActivatedTerminals);
       setActiveTerminalTab(msg.activeTerminalTab);
       setTerminalVisible(msg.terminalVisible);
@@ -268,7 +269,7 @@ export function useTerminal(
         clientId?: string;
       }>('terminal-state-update', (event) => {
         if (event.payload.workspacePath && event.payload.worktreeName &&
-            (event.payload.workspacePath !== workspacePath || event.payload.worktreeName !== worktreeName)) {
+          (event.payload.workspacePath !== workspacePath || event.payload.worktreeName !== worktreeName)) {
           return;
         }
         handleTerminalStateMessage(event.payload);
@@ -282,7 +283,7 @@ export function useTerminal(
         worktreeName,
         (msg) => {
           if (msg.workspacePath && msg.worktreeName &&
-              (msg.workspacePath !== workspacePath || msg.worktreeName !== worktreeName)) {
+            (msg.workspacePath !== workspacePath || msg.worktreeName !== worktreeName)) {
             return;
           }
           handleTerminalStateMessage(msg);
@@ -369,7 +370,7 @@ export function useTerminal(
 
     // Explicitly close PTY session (Terminal component no longer does this on unmount)
     const sessionId = `pty-${path.replace(/[\/#]/g, '-')}`;
-    callBackend('pty_close', { sessionId }).catch(() => {});
+    callBackend('pty_close', { sessionId }).catch(() => { });
 
     let newActiveTab = activeTerminalTabRef.current;
     if (activeTerminalTabRef.current === path) {
@@ -410,7 +411,7 @@ export function useTerminal(
     });
     for (const p of toClose) {
       const sessionId = `pty-${p.replace(/[\/#]/g, '-')}`;
-      callBackend('pty_close', { sessionId }).catch(() => {});
+      callBackend('pty_close', { sessionId }).catch(() => { });
     }
 
     setActiveTerminalTab(keepPath);
@@ -435,7 +436,7 @@ export function useTerminal(
     });
     for (const p of toClose) {
       const sessionId = `pty-${p.replace(/[\/#]/g, '-')}`;
-      callBackend('pty_close', { sessionId }).catch(() => {});
+      callBackend('pty_close', { sessionId }).catch(() => { });
     }
 
     setActiveTerminalTab(null);
@@ -525,5 +526,6 @@ export function useTerminal(
     handleDuplicateTerminal,
     handleToggleTerminal,
     cleanupTerminalsForPath,
+    clientId: clientIdRef.current,
   };
 }
