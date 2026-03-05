@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, memo }
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { callBackend, isTauri } from '../lib/backend';
+import { callBackend, isTauri, openLink } from '../lib/backend';
 import { getWebSocketManager } from '../lib/websocket';
 import { TERMINAL } from '../constants';
 import '@xterm/xterm/css/xterm.css';
@@ -90,11 +90,9 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     });
 
     const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon((_event, uri) => {
-      // In Tauri, window.open() is blocked. Use openLink() which
-      // delegates to @tauri-apps/plugin-opener on desktop.
-      import('../lib/backend').then(({ openLink }) => openLink(uri));
-    });
+    // In Tauri, window.open() is blocked — use openLink() which
+    // delegates to @tauri-apps/plugin-opener on desktop.
+    const webLinksAddon = new WebLinksAddon((_event, uri) => openLink(uri));
 
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
