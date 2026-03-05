@@ -7,9 +7,10 @@ use crate::utils::normalize_path;
 // ==================== Tauri 命令：工具 ====================
 
 #[tauri::command]
-pub(crate) fn open_in_terminal(path: String) -> Result<(), String> {
+pub(crate) fn open_in_terminal(path: String, terminal: Option<String>) -> Result<(), String> {
     let normalized = normalize_path(&path);
-    log::info!("[system] Opening terminal at: {}", normalized);
+    let term = terminal.as_deref().unwrap_or("auto");
+    log::info!("[system] Opening terminal at: {} (type: {})", normalized, term);
 
     #[cfg(target_os = "macos")]
     {
@@ -27,23 +28,71 @@ pub(crate) fn open_in_terminal(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // Try Windows Terminal first, then fallback to cmd
-        let wt_result = Command::new("wt").args(["-d", &normalized]).spawn();
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        if wt_result.is_err() {
-            log::info!("[system] Windows Terminal not available, falling back to cmd");
-            match Command::new("cmd")
-                .args(["/c", "start", "cmd", "/k", &format!("cd /d {}", normalized)])
-                .spawn()
-            {
-                Ok(_) => log::info!("[system] Spawned cmd for: {}", normalized),
-                Err(e) => {
-                    log::error!("[system] Failed to spawn cmd: {}", e);
-                    return Err(format!("Failed to open terminal: {}", e));
+        let result = match term {
+            "cmd" => {
+                Command::new("cmd")
+                    .args(["/c", "start", "cmd", "/k", &format!("cd /d {}", normalized)])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .spawn()
+            }
+            "powershell" => {
+                Command::new("cmd")
+                    .args(["/c", "start", "powershell", "-NoExit", "-Command", &format!("Set-Location '{}'", normalized)])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .spawn()
+            }
+            "windowsterminal" => {
+                Command::new("wt").args(["-d", &normalized]).spawn()
+            }
+            "gitbash" => {
+                // Search common Git Bash locations
+                let candidates = [
+                    r"C:\Program Files\Git\git-bash.exe",
+                    r"C:\Program Files (x86)\Git\git-bash.exe",
+                ];
+                let mut git_bash_path: Option<String> = None;
+                for p in &candidates {
+                    if std::path::Path::new(p).exists() {
+                        git_bash_path = Some(p.to_string());
+                        break;
+                    }
+                }
+                if git_bash_path.is_none() {
+                    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                        let p = format!(r"{}\Programs\Git\git-bash.exe", local);
+                        if std::path::Path::new(&p).exists() {
+                            git_bash_path = Some(p);
+                        }
+                    }
+                }
+                match git_bash_path {
+                    Some(p) => Command::new(p).arg(&format!("--cd={}", normalized)).spawn(),
+                    None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Git Bash not found")),
                 }
             }
-        } else {
-            log::info!("[system] Spawned Windows Terminal for: {}", normalized);
+            _ => {
+                // "auto": try WT first, then cmd
+                let wt_result = Command::new("wt").args(["-d", &normalized]).spawn();
+                if wt_result.is_ok() {
+                    wt_result
+                } else {
+                    Command::new("cmd")
+                        .args(["/c", "start", "cmd", "/k", &format!("cd /d {}", normalized)])
+                        .creation_flags(CREATE_NO_WINDOW)
+                        .spawn()
+                }
+            }
+        };
+
+        match result {
+            Ok(_) => log::info!("[system] Spawned terminal '{}' for: {}", term, normalized),
+            Err(e) => {
+                log::error!("[system] Failed to spawn terminal '{}': {}", term, e);
+                return Err(format!("Failed to open terminal: {}", e));
+            }
         }
     }
 
@@ -51,16 +100,16 @@ pub(crate) fn open_in_terminal(path: String) -> Result<(), String> {
     {
         let terminals = ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"];
         let mut opened = false;
-        for term in &terminals {
-            let result = if *term == "gnome-terminal" {
-                Command::new(term)
+        for t in &terminals {
+            let result = if *t == "gnome-terminal" {
+                Command::new(t)
                     .args(["--working-directory", &normalized])
                     .spawn()
             } else {
-                Command::new(term).current_dir(&normalized).spawn()
+                Command::new(t).current_dir(&normalized).spawn()
             };
             if result.is_ok() {
-                log::info!("[system] Spawned {} for: {}", term, normalized);
+                log::info!("[system] Spawned {} for: {}", t, normalized);
                 opened = true;
                 break;
             }
@@ -269,8 +318,8 @@ fn get_platform_log_dir() -> Result<PathBuf, String> {
 
 // ==================== HTTP Server 共享接口 ====================
 
-pub fn open_in_terminal_internal(path: &str) -> Result<(), String> {
-    open_in_terminal(path.to_string())
+pub fn open_in_terminal_internal(path: &str, terminal: Option<&str>) -> Result<(), String> {
+    open_in_terminal(path.to_string(), terminal.map(|s| s.to_string()))
 }
 
 pub fn open_in_editor_internal(request: &OpenEditorRequest) -> Result<(), String> {

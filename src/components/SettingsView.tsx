@@ -455,6 +455,30 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     </div>
                     <p className="text-[10px] text-slate-600 mt-1">{t('settings.linkedWorktreeItemsHint')}</p>
                   </div>
+                  {/* Default Terminal (all platforms) */}
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">{t('settings.defaultTerminal', '默认终端')}</label>
+                    <Select
+                      value={localStorage.getItem('preferred_terminal') || 'auto'}
+                      onValueChange={(value) => {
+                        localStorage.setItem('preferred_terminal', value);
+                        // Force re-render
+                        setConfig(prev => ({ ...prev }));
+                      }}
+                    >
+                      <SelectTrigger className="w-full h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">{t('settings.terminalAuto', '自动检测')}</SelectItem>
+                        <SelectItem value="cmd">CMD</SelectItem>
+                        <SelectItem value="powershell">PowerShell</SelectItem>
+                        <SelectItem value="windowsterminal">Windows Terminal</SelectItem>
+                        <SelectItem value="gitbash">Git Bash</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-slate-600 mt-1">{t('settings.defaultTerminalHint', '打开终端时使用的默认终端程序')}</p>
+                  </div>
                 </div>
 
                 {/* Projects Config */}

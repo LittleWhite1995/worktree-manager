@@ -9,14 +9,56 @@ use crate::types::ScannedFolder;
 // Git command timeout (30 seconds)
 pub(crate) const GIT_COMMAND_TIMEOUT_SECS: u64 = 30;
 
-/// Create a `Command` for git that hides the console window on Windows.
-/// Use this instead of `Command::new("git")` everywhere.
+/// Create a `Command` for git that:
+/// - Hides the console window on Windows (CREATE_NO_WINDOW)
+/// - Resolves git path on Windows even if git is not in PATH
 pub(crate) fn git_command() -> Command {
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
+        use std::sync::OnceLock;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let mut cmd = Command::new("git");
+
+        static GIT_PATH: OnceLock<String> = OnceLock::new();
+
+        let git = GIT_PATH.get_or_init(|| {
+            // Try "git" from PATH first
+            if std::process::Command::new("git")
+                .arg("--version")
+                .creation_flags(CREATE_NO_WINDOW)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok()
+            {
+                return "git".to_string();
+            }
+
+            // Search common Windows install locations
+            let candidates = [
+                r"C:\Program Files\Git\cmd\git.exe",
+                r"C:\Program Files (x86)\Git\cmd\git.exe",
+            ];
+            for path in &candidates {
+                if std::path::Path::new(path).exists() {
+                    log::info!("[git] Found git at: {}", path);
+                    return path.to_string();
+                }
+            }
+            // Check %LOCALAPPDATA%\Programs\Git
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                let p = format!(r"{}\Programs\Git\cmd\git.exe", local);
+                if std::path::Path::new(&p).exists() {
+                    log::info!("[git] Found git at: {}", p);
+                    return p;
+                }
+            }
+
+            log::warn!("[git] git not found in PATH or common locations, using 'git'");
+            "git".to_string()
+        });
+
+        let mut cmd = Command::new(git.as_str());
         cmd.creation_flags(CREATE_NO_WINDOW);
         cmd
     }

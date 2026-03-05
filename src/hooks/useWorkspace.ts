@@ -240,7 +240,8 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
 
   const openInTerminal = useCallback(async (path: string) => {
     try {
-      await callBackend("open_in_terminal", { path });
+      const terminal = localStorage.getItem('preferred_terminal') || 'auto';
+      await callBackend("open_in_terminal", { path, terminal });
     } catch (e) {
       console.error("Failed to open in Terminal:", e);
     }
