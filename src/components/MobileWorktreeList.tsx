@@ -11,8 +11,6 @@ interface MobileWorktreeListProps {
     selectedWorktree: WorktreeListItem | null;
     onSelectWorktree: (wt: WorktreeListItem) => void;
     onRefresh: () => void;
-    showArchived: boolean;
-    onToggleArchived: () => void;
     lockedWorktrees?: Record<string, string>;
     shareActive?: boolean;
     onOpenCreateModal?: () => void;
@@ -25,8 +23,6 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
     selectedWorktree,
     onSelectWorktree,
     onRefresh,
-    showArchived,
-    onToggleArchived,
     lockedWorktrees = {},
     shareActive = false,
     onOpenCreateModal,
@@ -64,7 +60,6 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
     }, [pullDistance, onRefresh]);
 
     const activeWorktrees = worktrees.filter(w => !w.is_archived);
-    const archivedWorktrees = worktrees.filter(w => w.is_archived);
 
     const getWorktreeStatus = (wt: WorktreeListItem) => {
         if (wt.is_archived) return 'archived';
@@ -171,34 +166,6 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
                     );
                 })}
             </div>
-
-            {/* Archived toggle */}
-            {archivedWorktrees.length > 0 && (
-                <div className="px-3 mt-4">
-                    <button
-                        onClick={onToggleArchived}
-                        className="w-full text-left px-4 py-2.5 rounded-lg bg-slate-800/30 border border-slate-700/20 text-sm text-slate-500 active:bg-slate-700/30 transition-colors"
-                    >
-                        {showArchived ? '▼' : '▶'} {t('sidebar.archivedCount', { count: archivedWorktrees.length })}
-                    </button>
-                    {showArchived && (
-                        <div className="mt-1.5 space-y-1">
-                            {archivedWorktrees.map(wt => (
-                                <button
-                                    key={wt.name}
-                                    onClick={() => onSelectWorktree(wt)}
-                                    className="w-full text-left px-4 py-2.5 rounded-lg bg-slate-800/30 border border-slate-700/20 active:bg-slate-700/30 transition-colors"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-slate-600 shrink-0" />
-                                        <span className="text-sm text-slate-500 truncate">{wt.name}</span>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* Empty state */}
             {activeWorktrees.length === 0 && (

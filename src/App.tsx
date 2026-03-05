@@ -81,7 +81,7 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [isMobileWeb, setIsMobileWeb] = useState(() => !isTauri() && window.matchMedia('(max-width: 639px)').matches);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobileWeb);
-  const [mobileView, setMobileView] = useState<'list' | 'detail' | 'terminal' | 'settings'>('list');
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [terminalFullscreen, setTerminalFullscreen] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [terminalTabMenu, setTerminalTabMenu] = useState<TerminalTabMenuState | null>(null);
@@ -528,15 +528,13 @@ function App() {
                     setMobileView('detail');
                   }}
                   onRefresh={workspace.loadData}
-                  showArchived={modals.showArchived}
-                  onToggleArchived={() => modals.toggleModal('showArchived')}
                   lockedWorktrees={locks.lockedWorktrees}
                   shareActive={share.shareActive}
                   onOpenCreateModal={actions.openCreateModal}
                 />
               )}
 
-              {/* Detail view */}
+              {/* Detail view (with embedded Projects/Terminals tabs) */}
               {mobileView === 'detail' && (
                 <MobileWorktreeDetail
                   selectedWorktree={actions.selectedWorktree}
@@ -548,10 +546,7 @@ function App() {
                   onDelete={actions.selectedWorktree?.is_archived ? () => actions.setDeleteConfirmWorktree(actions.selectedWorktree) : undefined}
                   onOpenInEditor={actions.handleOpenInEditor}
                   onRevealInFinder={workspace.revealInFinder}
-                  onOpenTerminalPanel={(path) => {
-                    terminalHook.handleTerminalTabClick(path);
-                    setMobileView('terminal');
-                  }}
+                  onOpenTerminalPanel={terminalHook.handleTerminalTabClick}
                   onAddProjectToWorktree={() => modals.setModal('showAddProjectToWorktreeModal', true)}
                   onRefresh={workspace.loadData}
                   selectedEditor={actions.selectedEditor}
@@ -564,40 +559,24 @@ function App() {
                   onDeployToMain={mainOccupation.deployToMain}
                   onExitOccupation={mainOccupation.exitOccupation}
                   onRefreshAfterDeploy={() => { actions.handleSelectWorktree(null as any); workspace.loadData(); }}
+                  terminalTabs={terminalHook.terminalTabs}
+                  activatedTerminals={terminalHook.activatedTerminals}
+                  mountedTerminals={terminalHook.mountedTerminals}
+                  activeTerminalTab={terminalHook.activeTerminalTab}
+                  onTerminalTabClick={terminalHook.handleTerminalTabClick}
+                  onTerminalTabContextMenu={handleTerminalTabContextMenu}
+                  onCloseTerminalTab={terminalHook.handleCloseTerminalTab}
+                  onCloseAllTerminalTabs={terminalHook.handleCloseAllTerminalTabs}
+                  clientId={terminalHook.clientId}
+                  voiceStatus={voice.voiceStatus}
+                  voiceError={voice.voiceError}
+                  isKeyHeld={voice.isKeyHeld}
+                  analyserNode={voice.analyserNode}
+                  onToggleVoice={voice.toggleVoice}
+                  onStartRecording={voice.startRecording}
+                  onStopRecording={voice.stopRecording}
+                  staging={voice.staging}
                 />
-              )}
-
-              {/* Terminal view — uses flex layout (not fullscreen) so it
-                  fills the space between header and MobileTabBar naturally,
-                  avoiding bottom whitespace from fixed inset-0 */}
-              {mobileView === 'terminal' && (
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <TerminalPanel
-                    visible={true}
-                    height={0}
-                    fillContainer={true}
-                    onStartResize={() => { }}
-                    terminalTabs={terminalHook.terminalTabs}
-                    activatedTerminals={terminalHook.activatedTerminals}
-                    mountedTerminals={terminalHook.mountedTerminals}
-                    activeTerminalTab={terminalHook.activeTerminalTab}
-                    onTabClick={terminalHook.handleTerminalTabClick}
-                    onTabContextMenu={handleTerminalTabContextMenu}
-                    onCloseTab={terminalHook.handleCloseTerminalTab}
-                    onCloseAllTabs={terminalHook.handleCloseAllTerminalTabs}
-                    onToggle={() => { }}
-                    onCollapse={() => setMobileView('detail')}
-                    voiceStatus={voice.voiceStatus}
-                    voiceError={voice.voiceError}
-                    isKeyHeld={voice.isKeyHeld}
-                    analyserNode={voice.analyserNode}
-                    onToggleVoice={voice.toggleVoice}
-                    onStartRecording={voice.startRecording}
-                    onStopRecording={voice.stopRecording}
-                    staging={voice.staging}
-                    clientId={terminalHook.clientId}
-                  />
-                </div>
               )}
 
             </div>
@@ -606,7 +585,6 @@ function App() {
             <MobileTabBar
               activeTab={mobileView}
               onTabChange={setMobileView}
-              terminalCount={terminalHook.activatedTerminals.size}
               hasSelectedWorktree={!!actions.selectedWorktree}
             />
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle, memo } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -54,6 +54,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const wsSubscribedRef = useRef(false);
   const initializedRef = useRef(false);
   const cwdRef = useRef(actualCwd);
+  const [wsConnected, setWsConnected] = useState(!isTauri() ? getWebSocketManager().isConnected() : true);
 
   useImperativeHandle(ref, () => ({
     copyContent: async () => {
@@ -333,12 +334,42 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     };
   }, [stopReading]);
 
+  // Browser mode: track WS connection state and re-subscribe on reconnect
+  useEffect(() => {
+    if (isTauri()) return;
+    const wsMgr = getWebSocketManager();
+    const unsub = wsMgr.onConnectionStateChange((connected) => {
+      setWsConnected(connected);
+      // On reconnect, re-subscribe if we had an active session
+      if (connected && initializedRef.current && wsSubscribedRef.current) {
+        console.log('[terminal] WS reconnected, re-subscribing PTY:', sessionIdRef.current);
+        wsMgr.subscribePty(sessionIdRef.current, (data) => {
+          if (data && xtermRef.current) {
+            xtermRef.current.write(data);
+          }
+        });
+      }
+    });
+    return unsub;
+  }, []);
+
   return (
-    <div
-      ref={terminalRef}
-      className="h-full w-full overflow-hidden"
-      style={{ padding: '4px 8px', background: '#0f172a' }}
-    />
+    <div className="h-full w-full relative overflow-hidden">
+      <div
+        ref={terminalRef}
+        className="h-full w-full overflow-hidden"
+        style={{ padding: '4px 8px', background: '#0f172a' }}
+      />
+      {/* WS connection status overlay (browser mode only) */}
+      {!isTauri() && !wsConnected && (
+        <div className="absolute inset-0 flex items-end justify-center pointer-events-none z-10 pb-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-900/80 backdrop-blur-sm border border-amber-700/50 text-amber-300 text-xs font-medium shadow-lg pointer-events-auto">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Reconnecting...
+          </div>
+        </div>
+      )}
+    </div>
   );
 });
 
