@@ -12,7 +12,13 @@
 // Environment detection
 // ---------------------------------------------------------------------------
 
-export const isTauri = (): boolean => '__TAURI_INTERNALS__' in window;
+export const isTauri = (): boolean => {
+  if (!('__TAURI_INTERNALS__' in window)) return false;
+  // On iOS Tauri, the backend is an empty shell — force HTTP mode
+  // so all commands go through the tunnel to the desktop backend.
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) return false;
+  return true;
+};
 
 export async function openLink(url: string): Promise<void> {
   if (isTauri()) {
