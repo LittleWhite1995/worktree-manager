@@ -156,6 +156,20 @@ pub(crate) fn open_editor_at_path(request: &OpenEditorRequest, custom_path: Opti
     // If custom path is provided, use it directly
     if let Some(exe) = custom_path {
         if !exe.is_empty() {
+            // On macOS, .app bundles need to be opened via `open -a`
+            #[cfg(target_os = "macos")]
+            if exe.ends_with(".app") {
+                match Command::new("open").args(["-a", exe, path]).spawn() {
+                    Ok(_) => {
+                        log::info!("[system] Spawned custom editor via open -a '{}' for: {}", exe, path);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        log::error!("[system] Failed to open editor app '{}': {}", exe, e);
+                        return Err(format!("无法打开编辑器 {}: {}", exe, e));
+                    }
+                }
+            }
             match Command::new(exe).arg(path).spawn() {
                 Ok(_) => {
                     log::info!("[system] Spawned custom editor '{}' for: {}", exe, path);
