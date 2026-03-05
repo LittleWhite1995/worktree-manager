@@ -206,6 +206,29 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         // Start reading from PTY
         startReading();
 
+        // Schedule a resize after layout settles to ensure correct dimensions.
+        // During initPty, fitAddon.fit() may run before CSS layout is complete
+        // (especially in fullscreen/fixed containers), giving default 80x24.
+        // The RAF + timeout guarantees the container has its final dimensions.
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            if (fitAddonRef.current && xtermRef.current) {
+              fitAddonRef.current.fit();
+              const newCols = xtermRef.current.cols;
+              const newRows = xtermRef.current.rows;
+              if (newCols !== cols || newRows !== rows || exists) {
+                // Dimensions changed after layout, or session was reused — send resize
+                callBackend('pty_resize', {
+                  sessionId: sessionIdRef.current,
+                  cols: newCols,
+                  rows: newRows,
+                  ...(clientId ? { clientId } : {}),
+                }).catch(() => { });
+              }
+            }
+          }, 100);
+        });
+
       } catch (e) {
         // Show error in terminal UI instead of console
         term.write(`\r\n\x1b[31mFailed to create terminal: ${e}\x1b[0m\r\n`);
