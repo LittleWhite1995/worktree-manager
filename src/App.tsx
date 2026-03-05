@@ -401,7 +401,7 @@ function App() {
                   onToggleArchived={() => modals.toggleModal('showArchived')}
                   onContextMenu={actions.handleContextMenu}
                   onRefresh={workspace.loadData}
-                  refreshing={workspace.loading}
+                  refreshing={workspace.refreshing}
                   onOpenSettings={openSettings}
                   onOpenCreateModal={actions.openCreateModal}
                   updaterState={updater.state}

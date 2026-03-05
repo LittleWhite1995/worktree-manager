@@ -20,6 +20,7 @@ export interface UseWorkspaceReturn {
   mainWorkspace: MainWorkspaceStatus | null;
   configPath: string;
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   setError: (error: string | null) => void;
   loadWorkspaces: () => Promise<void>;
@@ -62,6 +63,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
   const [mainWorkspace, setMainWorkspace] = useState<MainWorkspaceStatus | null>(null);
   const [configPath, setConfigPath] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const initialLoadDone = useRef(false);
   const loadVersion = useRef(0);
@@ -99,7 +101,12 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
   const loadData = useCallback(async () => {
     const version = ++loadVersion.current;
     const t0 = performance.now();
-    setLoading(true);
+    // Only show full-page loading on initial load, use refreshing for subsequent
+    if (!initialLoadDone.current) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     setError(null);
     try {
       const [cfg, wts, main, path] = await Promise.all([
@@ -117,6 +124,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
       setWorktrees(wts);
       setMainWorkspace(main);
       setConfigPath(path);
+      initialLoadDone.current = true;
       console.log(`[ws] loadData: ${(performance.now() - t0).toFixed(1)}ms (${wts.length} worktrees)`);
     } catch (e) {
       if (version !== loadVersion.current) return;
@@ -124,6 +132,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     } finally {
       if (version === loadVersion.current) {
         setLoading(false);
+        setRefreshing(false);
       }
     }
   }, []);
@@ -312,6 +321,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     mainWorkspace,
     configPath,
     loading,
+    refreshing,
     error,
     setError,
     loadWorkspaces,
