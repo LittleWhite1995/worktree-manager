@@ -9,6 +9,30 @@ import '@xterm/xterm/css/xterm.css';
 
 const IS_MOBILE = typeof window !== 'undefined' && 'ontouchstart' in window;
 
+const TERMINAL_THEME = {
+  background: '#0f172a',
+  foreground: '#cbd5e1',
+  cursor: '#cbd5e1',
+  cursorAccent: '#0f172a',
+  selectionBackground: '#334155',
+  black: '#1e293b',
+  red: '#f87171',
+  green: '#4ade80',
+  yellow: '#facc15',
+  blue: '#60a5fa',
+  magenta: '#c084fc',
+  cyan: '#22d3ee',
+  white: '#f1f5f9',
+  brightBlack: '#475569',
+  brightRed: '#fca5a5',
+  brightGreen: '#86efac',
+  brightYellow: '#fde047',
+  brightBlue: '#93c5fd',
+  brightMagenta: '#d8b4fe',
+  brightCyan: '#67e8f9',
+  brightWhite: '#ffffff',
+} as const;
+
 interface TerminalProps {
   cwd: string;
   visible: boolean;
@@ -31,55 +55,24 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const initializedRef = useRef(false);
   const cwdRef = useRef(actualCwd);
 
-  // Expose copyContent method
   useImperativeHandle(ref, () => ({
     copyContent: async () => {
-      if (!xtermRef.current) return;
       const term = xtermRef.current;
-      // Select all content
+      if (!term) return;
       term.selectAll();
-      // Get selection
       const selection = term.getSelection();
       if (selection) {
-        try {
-          await navigator.clipboard.writeText(selection);
-        } catch {
-          // Clipboard write failed silently
-        }
+        try { await navigator.clipboard.writeText(selection); } catch { /* noop */ }
       }
-      // Clear selection after copying
       term.clearSelection();
     }
   }), []);
 
-  // Initialize terminal
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) return;
 
     const term = new XTerm({
-      theme: {
-        background: '#0f172a',
-        foreground: '#cbd5e1',
-        cursor: '#cbd5e1',
-        cursorAccent: '#0f172a',
-        selectionBackground: '#334155',
-        black: '#1e293b',
-        red: '#f87171',
-        green: '#4ade80',
-        yellow: '#facc15',
-        blue: '#60a5fa',
-        magenta: '#c084fc',
-        cyan: '#22d3ee',
-        white: '#f1f5f9',
-        brightBlack: '#475569',
-        brightRed: '#fca5a5',
-        brightGreen: '#86efac',
-        brightYellow: '#fde047',
-        brightBlue: '#93c5fd',
-        brightMagenta: '#d8b4fe',
-        brightCyan: '#67e8f9',
-        brightWhite: '#ffffff',
-      },
+      theme: TERMINAL_THEME,
       fontSize: IS_MOBILE ? 12 : 13,
       fontFamily: '"Maple Mono NF CN", Menlo, Monaco, "Courier New", monospace',
       cursorBlink: true,
@@ -99,16 +92,13 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
     term.open(terminalRef.current);
 
-    // 让 Alt/Option+V 穿透 xterm，冒泡到 window 供语音输入使用
-    term.attachCustomKeyEventHandler((e) => {
-      if (e.altKey && e.code === 'KeyV') return false;
-      return true;
-    });
+    // Let Alt+V pass through xterm for voice input
+    term.attachCustomKeyEventHandler((e) => !(e.altKey && e.code === 'KeyV'));
 
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Mobile: single-finger scroll to browse terminal history
+    // Mobile: single-finger touch scroll
     if (IS_MOBILE && terminalRef.current) {
       let touchStartY = 0;
       let scrollAccum = 0;
@@ -128,7 +118,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         if (e.touches.length === 1) {
           const nowY = e.touches[0].clientY;
           const dy = touchStartY - nowY;
-          // Start scrolling after a small threshold to avoid false triggers
+          // 8px threshold to avoid false triggers
           if (!isDragging && Math.abs(dy) > 8) {
             isDragging = true;
           }
@@ -152,7 +142,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       }, { passive: true });
     }
 
-    // Handle user input
+
     term.onData(async (data) => {
       try {
         if (!isTauri()) {
@@ -163,9 +153,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
             data,
           });
         }
-      } catch {
-        // PTY write failed silently
-      }
+      } catch { /* noop */ }
     });
 
     return () => {
@@ -174,7 +162,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     };
   }, []);
 
-  // Create PTY session when first visible
+  // Create PTY session on first visibility
   useEffect(() => {
     if (!xtermRef.current || !visible || initializedRef.current) return;
 
@@ -184,22 +172,20 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       if (!term || !fitAddon) return;
 
       try {
-        // Wait for bundled font to be loaded before measuring terminal dimensions
+        // Wait for fonts before measuring dimensions
         await document.fonts.ready;
 
-        // Fit first to get correct dimensions
         fitAddon.fit();
 
         const cols = term.cols;
         const rows = term.rows;
 
-        // Check if PTY session already exists (e.g., created by another client)
+
         const exists = await callBackend<boolean>('pty_exists', {
           sessionId: sessionIdRef.current,
         });
 
         if (!exists) {
-          // Create new PTY session
           await callBackend('pty_create', {
             sessionId: sessionIdRef.current,
             cwd: cwdRef.current,
@@ -210,13 +196,10 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
         initializedRef.current = true;
 
-        // Start reading from PTY
         startReading();
 
-        // Schedule a resize after layout settles to ensure correct dimensions.
-        // During initPty, fitAddon.fit() may run before CSS layout is complete
-        // (especially in fullscreen/fixed containers), giving default 80x24.
-        // The RAF + timeout guarantees the container has its final dimensions.
+        // Deferred resize: fitAddon.fit() during init may run before CSS layout
+        // is complete, giving default 80×24. RAF + timeout ensures final dimensions.
         requestAnimationFrame(() => {
           setTimeout(() => {
             if (fitAddonRef.current && xtermRef.current) {
@@ -224,7 +207,6 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               const newCols = xtermRef.current.cols;
               const newRows = xtermRef.current.rows;
               if (newCols !== cols || newRows !== rows || exists) {
-                // Dimensions changed after layout, or session was reused — send resize
                 callBackend('pty_resize', {
                   sessionId: sessionIdRef.current,
                   cols: newCols,
@@ -237,7 +219,6 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         });
 
       } catch (e) {
-        // Show error in terminal UI instead of console
         term.write(`\r\n\x1b[31mFailed to create terminal: ${e}\x1b[0m\r\n`);
       }
     };
@@ -245,11 +226,10 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     initPty();
   }, [visible]);
 
-  // Start/stop reading based on visibility
+
   const startReading = useCallback(() => {
     if (!isTauri()) {
-      // Browser mode: WS subscribe is idempotent — skip if already subscribed.
-      // The WS pty_subscribe handler sends replay buffer, so no separate HTTP call needed.
+      // Browser mode: WS subscribe is idempotent
       if (wsSubscribedRef.current) return;
       wsSubscribedRef.current = true;
       getWebSocketManager().subscribePty(sessionIdRef.current, (data) => {
@@ -258,10 +238,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         }
       });
     } else {
-      // Tauri desktop mode: poll via invoke
-      // Use chained setTimeout instead of setInterval to prevent request accumulation.
-      // With setInterval, if pty_read takes >100ms the calls pile up and block the event loop.
-      if (readerIntervalRef.current) return; // Already reading
+      // Tauri desktop: chained setTimeout polling (avoids request pile-up from setInterval)
+      if (readerIntervalRef.current) return;
 
       const scheduleNext = () => {
         readerIntervalRef.current = window.setTimeout(readLoop, TERMINAL.POLL_INTERVAL_MS);
@@ -275,10 +253,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
           if (data && xtermRef.current) {
             xtermRef.current.write(data);
           }
-        } catch {
-          // PTY read failed silently
-        }
-        // Schedule next read only after current one completes
+        } catch { /* noop */ }
+
         if (readerIntervalRef.current !== null) {
           scheduleNext();
         }
@@ -299,7 +275,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     }
   }, []);
 
-  // Handle resize
+
   const handleResize = useCallback(() => {
     if (!fitAddonRef.current || !xtermRef.current || !visible || !initializedRef.current) return;
 
@@ -312,20 +288,16 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       cols,
       rows,
       ...(clientId ? { clientId } : {}),
-    }).catch(() => {
-      // PTY resize failed silently
-    });
+    }).catch(() => { /* noop */ });
   }, [visible, clientId]);
 
-  // Manage reading based on visibility
+
   useEffect(() => {
     if (!initializedRef.current) return;
 
     if (visible) {
-      // Browser WS subscription is persistent (managed at init/unmount), only Tauri needs visibility toggle
       if (isTauri()) startReading();
-      // Trigger resize when terminal becomes visible to ensure proper display
-      // Use a small delay to ensure DOM is fully rendered
+      // Small delay ensures DOM is fully rendered before resize
       const resizeTimer = setTimeout(() => {
         handleResize();
       }, 50);
@@ -335,7 +307,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     }
   }, [visible, startReading, stopReading, handleResize]);
 
-  // ResizeObserver for container size changes (handles visibility, window resize, layout changes)
+  // ResizeObserver for container size changes
   useEffect(() => {
     if (!terminalRef.current) return;
 
@@ -352,9 +324,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     };
   }, [visible, handleResize]);
 
-  // Cleanup on unmount — only stop reading, NEVER close PTY.
-  // PTY sessions persist independently (like tmux) and are shared across clients.
-  // Cleanup happens only on worktree archive or app shutdown.
+  // Cleanup on unmount — stop reading only (PTY sessions persist like tmux)
   useEffect(() => {
     return () => {
       stopReading();

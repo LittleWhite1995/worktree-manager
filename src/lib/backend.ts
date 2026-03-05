@@ -1,17 +1,4 @@
-/**
- * Backend API adapter layer.
- *
- * Detects whether the app is running inside Tauri (desktop) or a plain browser.
- * - Tauri mode  → delegates to `invoke()` from `@tauri-apps/api/core`
- * - Browser mode → sends HTTP POST to `/api/{command}` with JSON body
- *
- * A session ID is used in browser mode to simulate Tauri's per-window state.
- */
-
-// ---------------------------------------------------------------------------
 // Environment detection
-// ---------------------------------------------------------------------------
-
 export const isTauri = (): boolean => {
   if (!('__TAURI_INTERNALS__' in window)) return false;
   // On iOS Tauri, the backend is an empty shell — force HTTP mode

@@ -36,16 +36,17 @@ export const MobileTabBar: FC<MobileTabBarProps> = ({
                     const active = activeTab === id;
                     const showBadge = id === 'terminal' && terminalCount > 0;
 
+                    const tabClassName = disabled
+                        ? 'text-slate-700 cursor-not-allowed'
+                        : active
+                            ? 'text-blue-400'
+                            : 'text-slate-500 active:text-slate-300';
+
                     return (
                         <button
                             key={id}
                             onClick={() => !disabled && onTabChange(id)}
-                            className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors relative ${disabled
-                                ? 'text-slate-700 cursor-not-allowed'
-                                : active
-                                    ? 'text-blue-400'
-                                    : 'text-slate-500 active:text-slate-300'
-                                }`}
+                            className={`flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-all active:scale-95 ${tabClassName}`}
                             disabled={disabled}
                         >
                             <span className="relative">
