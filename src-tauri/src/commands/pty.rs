@@ -43,6 +43,12 @@ pub(crate) fn pty_read(session_id: String) -> Result<String, String> {
 
 #[tauri::command]
 pub(crate) fn pty_resize(session_id: String, cols: u16, rows: u16) -> Result<(), String> {
+    log::info!(
+        "[pty] ✅ RESIZE (tauri invoke): session={} size={}x{}",
+        session_id,
+        cols,
+        rows
+    );
     let manager = PTY_MANAGER
         .lock()
         .map_err(|e| format!("Lock error: {}", e))?;
