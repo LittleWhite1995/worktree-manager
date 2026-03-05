@@ -90,7 +90,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     });
 
     const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
+    const webLinksAddon = new WebLinksAddon((_event, uri) => {
+      // In Tauri, window.open() is blocked. Use openLink() which
+      // delegates to @tauri-apps/plugin-opener on desktop.
+      import('../lib/backend').then(({ openLink }) => openLink(uri));
+    });
 
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
