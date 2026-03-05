@@ -5,10 +5,22 @@ use crate::git_ops;
 use crate::types::{CloneProjectRequest, ProjectConfig, SwitchBranchRequest};
 use crate::utils::{git_command, normalize_path, parse_repo_url};
 
+// ==================== Helper: spawn_blocking wrapper ====================
+
+/// Run a blocking closure on tokio's blocking threadpool, converting JoinError to String.
+async fn blocking<F, T>(f: F) -> Result<T, String>
+where
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+}
+
 // ==================== Tauri 命令：Git 操作 ====================
 
-#[tauri::command]
-pub(crate) fn switch_branch(request: SwitchBranchRequest) -> Result<(), String> {
+fn switch_branch_sync(request: SwitchBranchRequest) -> Result<(), String> {
     log::info!(
         "[git] Switching branch: path='{}', target='{}'",
         request.project_path,
@@ -88,6 +100,11 @@ pub(crate) fn switch_branch(request: SwitchBranchRequest) -> Result<(), String> 
         request.project_path
     );
     Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn switch_branch(request: SwitchBranchRequest) -> Result<(), String> {
+    blocking(move || switch_branch_sync(request)).await
 }
 
 pub fn clone_project_impl(window_label: &str, request: CloneProjectRequest) -> Result<(), String> {
@@ -185,89 +202,113 @@ pub fn clone_project_impl(window_label: &str, request: CloneProjectRequest) -> R
 }
 
 #[tauri::command]
-pub(crate) fn clone_project(
+pub(crate) async fn clone_project(
     window: tauri::Window,
     request: CloneProjectRequest,
 ) -> Result<(), String> {
-    clone_project_impl(window.label(), request)
+    let label = window.label().to_string();
+    blocking(move || clone_project_impl(&label, request)).await
 }
 
 // ==================== Tauri 命令：Git 高级操作 ====================
 
 #[tauri::command]
-pub(crate) fn sync_with_base_branch(path: String, base_branch: String) -> Result<String, String> {
-    let normalized = normalize_path(&path);
-    git_ops::sync_with_base_branch(Path::new(&normalized), &base_branch)
+pub(crate) async fn sync_with_base_branch(path: String, base_branch: String) -> Result<String, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::sync_with_base_branch(Path::new(&normalized), &base_branch)
+    }).await
 }
 
 #[tauri::command]
-pub(crate) fn push_to_remote(path: String) -> Result<String, String> {
-    let normalized = normalize_path(&path);
-    git_ops::push_to_remote(Path::new(&normalized))
+pub(crate) async fn push_to_remote(path: String) -> Result<String, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::push_to_remote(Path::new(&normalized))
+    }).await
 }
 
 #[tauri::command]
-pub(crate) fn merge_to_test_branch(path: String, test_branch: String) -> Result<String, String> {
-    let normalized = normalize_path(&path);
-    git_ops::merge_to_test_branch(Path::new(&normalized), &test_branch)
+pub(crate) async fn merge_to_test_branch(path: String, test_branch: String) -> Result<String, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::merge_to_test_branch(Path::new(&normalized), &test_branch)
+    }).await
 }
 
 #[tauri::command]
-pub(crate) fn merge_to_base_branch(path: String, base_branch: String) -> Result<String, String> {
-    let normalized = normalize_path(&path);
-    git_ops::merge_to_base_branch(Path::new(&normalized), &base_branch)
+pub(crate) async fn merge_to_base_branch(path: String, base_branch: String) -> Result<String, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::merge_to_base_branch(Path::new(&normalized), &base_branch)
+    }).await
 }
 
 #[tauri::command]
-pub(crate) fn get_branch_diff_stats(path: String, base_branch: String) -> git_ops::BranchDiffStats {
-    let normalized = normalize_path(&path);
-    git_ops::get_branch_diff_stats(Path::new(&normalized), &base_branch)
+pub(crate) async fn get_branch_diff_stats(path: String, base_branch: String) -> Result<git_ops::BranchDiffStats, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::get_branch_diff_stats(Path::new(&normalized), &base_branch)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?;
+    Ok(result)
 }
 
 #[tauri::command]
-pub(crate) fn create_pull_request(
+pub(crate) async fn create_pull_request(
     path: String,
     base_branch: String,
     title: String,
     body: String,
 ) -> Result<String, String> {
-    let normalized = normalize_path(&path);
-    git_ops::create_pull_request(Path::new(&normalized), &base_branch, &title, &body)
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::create_pull_request(Path::new(&normalized), &base_branch, &title, &body)
+    }).await
 }
 
 #[tauri::command]
 pub(crate) async fn fetch_project_remote(path: String) -> Result<(), String> {
-    let normalized = normalize_path(&path);
-    tokio::task::spawn_blocking(move || git_ops::fetch_remote(Path::new(&normalized)))
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::fetch_remote(Path::new(&normalized))
+    }).await
 }
 
 #[tauri::command]
-pub(crate) fn check_remote_branch_exists(
+pub(crate) async fn check_remote_branch_exists(
     path: String,
     branch_name: String,
 ) -> Result<bool, String> {
-    let normalized = normalize_path(&path);
-    git_ops::check_remote_branch_exists(Path::new(&normalized), &branch_name)
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::check_remote_branch_exists(Path::new(&normalized), &branch_name)
+    }).await
 }
 
 #[tauri::command]
-pub(crate) fn get_remote_branches(path: String) -> Result<Vec<String>, String> {
-    let normalized = normalize_path(&path);
-    git_ops::get_remote_branches(Path::new(&normalized))
+pub(crate) async fn get_remote_branches(path: String) -> Result<Vec<String>, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::get_remote_branches(Path::new(&normalized))
+    }).await
 }
 
 #[tauri::command]
-pub(crate) fn get_git_diff(path: String) -> Result<String, String> {
-    let normalized = normalize_path(&path);
-    git_ops::get_git_diff(Path::new(&normalized))
+pub(crate) async fn get_git_diff(path: String) -> Result<String, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::get_git_diff(Path::new(&normalized))
+    }).await
 }
 
 #[tauri::command]
-pub(crate) fn commit_all(path: String, message: String) -> Result<String, String> {
-    let normalized = normalize_path(&path);
-    git_ops::commit_all(Path::new(&normalized), &message)
+pub(crate) async fn commit_all(path: String, message: String) -> Result<String, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::commit_all(Path::new(&normalized), &message)
+    }).await
 }
 
 // ==================== HTTP Server 共享接口 ====================

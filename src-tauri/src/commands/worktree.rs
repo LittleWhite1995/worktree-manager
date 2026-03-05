@@ -79,11 +79,14 @@ pub fn list_worktrees_impl(
 }
 
 #[tauri::command]
-pub(crate) fn list_worktrees(
+pub(crate) async fn list_worktrees(
     window: tauri::Window,
     include_archived: bool,
 ) -> Result<Vec<WorktreeListItem>, String> {
-    list_worktrees_impl(window.label(), include_archived)
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || list_worktrees_impl(&label, include_archived))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 fn scan_worktrees_dir(
@@ -229,10 +232,13 @@ pub fn get_main_workspace_status_impl(window_label: &str) -> Result<MainWorkspac
 }
 
 #[tauri::command]
-pub(crate) fn get_main_workspace_status(
+pub(crate) async fn get_main_workspace_status(
     window: tauri::Window,
 ) -> Result<MainWorkspaceStatus, String> {
-    get_main_workspace_status_impl(window.label())
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || get_main_workspace_status_impl(&label))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 pub fn create_worktree_impl(
@@ -413,11 +419,14 @@ pub fn create_worktree_impl(
 }
 
 #[tauri::command]
-pub(crate) fn create_worktree(
+pub(crate) async fn create_worktree(
     window: tauri::Window,
     request: CreateWorktreeRequest,
 ) -> Result<String, String> {
-    create_worktree_impl(window.label(), request)
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || create_worktree_impl(&label, request))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), String> {
@@ -539,8 +548,11 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
 }
 
 #[tauri::command]
-pub(crate) fn archive_worktree(window: tauri::Window, name: String) -> Result<(), String> {
-    archive_worktree_impl(window.label(), name)
+pub(crate) async fn archive_worktree(window: tauri::Window, name: String) -> Result<(), String> {
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || archive_worktree_impl(&label, name))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 pub fn check_worktree_status_impl(
@@ -621,11 +633,14 @@ pub fn check_worktree_status_impl(
 }
 
 #[tauri::command]
-pub(crate) fn check_worktree_status(
+pub(crate) async fn check_worktree_status(
     window: tauri::Window,
     name: String,
 ) -> Result<WorktreeArchiveStatus, String> {
-    check_worktree_status_impl(window.label(), name)
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || check_worktree_status_impl(&label, name))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), String> {
@@ -825,8 +840,11 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
 }
 
 #[tauri::command]
-pub(crate) fn restore_worktree(window: tauri::Window, name: String) -> Result<(), String> {
-    restore_worktree_impl(window.label(), name)
+pub(crate) async fn restore_worktree(window: tauri::Window, name: String) -> Result<(), String> {
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || restore_worktree_impl(&label, name))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result<(), String> {
@@ -930,8 +948,11 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
 }
 
 #[tauri::command]
-pub(crate) fn delete_archived_worktree(window: tauri::Window, name: String) -> Result<(), String> {
-    delete_archived_worktree_impl(window.label(), name)
+pub(crate) async fn delete_archived_worktree(window: tauri::Window, name: String) -> Result<(), String> {
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || delete_archived_worktree_impl(&label, name))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 // ==================== 向已有 Worktree 添加项目 ====================
@@ -1118,11 +1139,14 @@ pub fn add_project_to_worktree_impl(
 }
 
 #[tauri::command]
-pub(crate) fn add_project_to_worktree(
+pub(crate) async fn add_project_to_worktree(
     window: tauri::Window,
     request: AddProjectToWorktreeRequest,
 ) -> Result<(), String> {
-    add_project_to_worktree_impl(window.label(), request)
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || add_project_to_worktree_impl(&label, request))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 // ==================== 智能扫描 ====================
@@ -1355,11 +1379,14 @@ pub fn deploy_to_main_impl(
 }
 
 #[tauri::command]
-pub(crate) fn deploy_to_main(
+pub(crate) async fn deploy_to_main(
     window: tauri::Window,
     worktree_name: String,
 ) -> Result<DeployToMainResult, String> {
-    deploy_to_main_impl(window.label(), worktree_name)
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || deploy_to_main_impl(&label, worktree_name))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), String> {
@@ -1503,8 +1530,11 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
 }
 
 #[tauri::command]
-pub(crate) fn exit_main_occupation(window: tauri::Window, force: bool) -> Result<(), String> {
-    exit_main_occupation_impl(window.label(), force)
+pub(crate) async fn exit_main_occupation(window: tauri::Window, force: bool) -> Result<(), String> {
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || exit_main_occupation_impl(&label, force))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
 pub fn get_main_occupation_impl(
@@ -1517,8 +1547,11 @@ pub fn get_main_occupation_impl(
 }
 
 #[tauri::command]
-pub(crate) fn get_main_occupation(
+pub(crate) async fn get_main_occupation(
     window: tauri::Window,
 ) -> Result<Option<MainWorkspaceOccupation>, String> {
-    get_main_occupation_impl(window.label())
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || get_main_occupation_impl(&label))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }

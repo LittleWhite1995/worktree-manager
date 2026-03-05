@@ -695,6 +695,7 @@ interface WorktreeSidebarProps {
   onToggleArchived: () => void;
   onContextMenu: (e: React.MouseEvent, worktree: WorktreeListItem) => void;
   onRefresh: () => void;
+  refreshing?: boolean;
   onOpenSettings: () => void;
   onOpenCreateModal: () => void;
   updaterState: UpdaterState;
@@ -778,6 +779,7 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
   occupation,
   hasNgrokToken = false,
   wmsUserName,
+  refreshing = false,
 }) => {
   const { t } = useTranslation();
   const _isTauri = isTauri();
@@ -1087,7 +1089,7 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
                 aria-label={t('sidebar.refreshWorktrees')}
                 className="h-8 w-8"
               >
-                <RefreshIcon className="w-4 h-4" />
+                <RefreshIcon className={`w-4 h-4${refreshing ? ' animate-spin' : ''}`} />
               </Button>
               {onToggleCollapsed && (
                 <Button
