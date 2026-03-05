@@ -270,7 +270,11 @@ export const SettingsView: FC<SettingsViewProps> = ({
         const updated = { ...prev };
         if (!updated.git && tools.git.length > 0) updated.git = tools.git[0].path;
         if (!updated.terminal && tools.terminals.length > 0) updated.terminal = tools.terminals[0].id;
-        if (!updated.editor && tools.editors.length > 0) updated.editor = tools.editors[0].path;
+        // Auto-fill per-IDE editor paths
+        for (const ed of tools.editors) {
+          const key = `editor_${ed.id}`;
+          if (!updated[key]) updated[key] = ed.path;
+        }
         localStorage.setItem('tool_paths', JSON.stringify(updated));
         if (updated.git) callBackend('set_git_path', { path: updated.git }).catch(() => { });
         return updated;
@@ -733,47 +737,44 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Select value={localStorage.getItem('preferred_terminal') || 'auto'}
-                        onValueChange={(value) => {
-                          localStorage.setItem('preferred_terminal', value);
-                          saveToolPaths({ ...toolPaths, terminal: value });
-                        }}
-                      >
-                        <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto">{t('settings.terminalAuto', '自动检测')}</SelectItem>
-                          <SelectItem value="cmd">CMD</SelectItem>
-                          <SelectItem value="powershell">PowerShell</SelectItem>
-                          <SelectItem value="windowsterminal">Windows Terminal</SelectItem>
-                          <SelectItem value="gitbash">Git Bash</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="text-xs text-slate-500 bg-slate-900/50 border border-slate-700/30 rounded-md px-3 py-2">
+                        {t('settings.terminalAutoHint', '当前使用自动检测。点击上方「自动检测」按钮可发现已安装的终端。')}
+                      </div>
                     )}
                     <p className="text-[10px] text-slate-600 mt-1">{t('settings.defaultTerminalHint', '打开终端时使用的默认终端程序')}</p>
                   </div>
                 </div>
 
-                {/* Editor/IDE */}
+                {/* Editor/IDE — per-editor config */}
                 <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 space-y-3">
                   <h3 className="text-sm font-medium text-slate-300">{t('settings.editorTitle', '编辑器 / IDE')}</h3>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">{t('settings.editorPath', '编辑器可执行文件路径')}</label>
-                    {detectedTools && detectedTools.editors.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {detectedTools.editors.map((ed, i) => (
-                          <button key={i} type="button"
-                            className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${toolPaths.editor === ed.path ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' : 'bg-slate-700/50 border-slate-600/50 text-slate-400 hover:text-slate-200'}`}
-                            onClick={() => saveToolPaths({ ...toolPaths, editor: ed.path })}
-                          >{ed.name}</button>
-                        ))}
+                  <p className="text-[10px] text-slate-600">{t('settings.editorConfigHint', '为每个编辑器配置命令或完整路径。留空使用默认值，自动检测可自动填充。')}</p>
+                  {([
+                    { id: 'vscode', name: 'Visual Studio Code', defaultCmd: 'code' },
+                    { id: 'cursor', name: 'Cursor', defaultCmd: 'cursor' },
+                    { id: 'antigravity', name: 'Antigravity', defaultCmd: 'antigravity' },
+                    { id: 'idea', name: 'IntelliJ IDEA', defaultCmd: 'idea' },
+                  ] as const).map((editor) => {
+                    const pathKey = `editor_${editor.id}`;
+                    const detected = detectedTools?.editors.find(e => e.id === editor.id);
+                    return (
+                      <div key={editor.id} className="flex items-center gap-3 py-1.5 border-t border-slate-700/20 first:border-0 first:pt-0">
+                        <div className="w-32 shrink-0">
+                          <span className="text-xs text-slate-300">{editor.name}</span>
+                          {detected && (
+                            <button type="button" className="block text-[9px] text-blue-400/70 hover:text-blue-400 truncate max-w-[128px] transition-colors"
+                              onClick={() => saveToolPaths({ ...toolPaths, [pathKey]: detected.path })}
+                              title={`使用检测到的路径: ${detected.path}`}
+                            >✓ {detected.path}</button>
+                          )}
+                        </div>
+                        <Input type="text" value={toolPaths[pathKey] || ''} placeholder={editor.defaultCmd}
+                          onChange={(e) => saveToolPaths({ ...toolPaths, [pathKey]: e.target.value })}
+                          className="h-7 text-xs font-mono flex-1"
+                        />
                       </div>
-                    )}
-                    <Input type="text" value={toolPaths.editor || ''} placeholder={t('settings.editorPathPlaceholder', '留空使用默认编辑器')}
-                      onChange={(e) => saveToolPaths({ ...toolPaths, editor: e.target.value })}
-                      className="h-8 text-sm font-mono"
-                    />
-                    <p className="text-[10px] text-slate-600 mt-1">{t('settings.editorPathHint', '自定义编辑器路径会覆盖编辑器类型选择')}</p>
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

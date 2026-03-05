@@ -235,7 +235,8 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
       let customPath: string | undefined;
       try {
         const toolPaths = JSON.parse(localStorage.getItem('tool_paths') || '{}');
-        if (toolPaths.editor) customPath = toolPaths.editor;
+        const perEditorKey = `editor_${editor}`;
+        if (toolPaths[perEditorKey]) customPath = toolPaths[perEditorKey];
       } catch { /* ignore */ }
       await callBackend("open_in_editor", { request: { path, editor }, customPath });
     } catch (e) {
