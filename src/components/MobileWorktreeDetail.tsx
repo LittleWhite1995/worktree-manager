@@ -88,11 +88,11 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
     onClearError,
     restoring = false,
     occupation,
-    deploying = false,
+    deploying: _deploying = false,
     exiting = false,
-    onDeployToMain,
+    onDeployToMain: _onDeployToMain,
     onExitOccupation,
-    onRefreshAfterDeploy,
+    onRefreshAfterDeploy: _onRefreshAfterDeploy,
     // Terminal props
     terminalTabs = [],
     activatedTerminals = new Set<string>(),
@@ -166,9 +166,12 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
         >
             {/* Header */}
             <div className="shrink-0 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700/50 px-3 py-2.5 flex items-center gap-2">
-                <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-lg active:bg-slate-700/50 transition-colors">
-                    <BackIcon className="w-5 h-5" />
-                </button>
+                {/* Hide back button when inside iframe (iOS app already has one) */}
+                {window.parent === window && (
+                    <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-lg active:bg-slate-700/50 transition-colors">
+                        <BackIcon className="w-5 h-5" />
+                    </button>
+                )}
                 <div className="flex-1 min-w-0">
                     <h2 className="text-base font-semibold truncate">{selectedWorktree.name}</h2>
                     <button onClick={() => handleCopyPath(selectedWorktree.path)} className="text-[10px] text-slate-500 truncate block max-w-full text-left">
@@ -177,42 +180,7 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
                 </div>
             </div>
 
-            {/* Tab switcher: Projects | Terminals */}
-            {!isArchived && (
-                <div className="shrink-0 flex border-b border-slate-700/50 bg-slate-900/80">
-                    <button
-                        onClick={() => setActiveTab('projects')}
-                        className={`flex-1 py-2.5 text-xs font-medium text-center transition-colors relative ${activeTab === 'projects'
-                            ? 'text-blue-400'
-                            : 'text-slate-500 active:text-slate-300'
-                            }`}
-                    >
-                        <FolderGit2 className="w-3.5 h-3.5 inline mr-1.5" />
-                        Projects
-                        {activeTab === 'projects' && (
-                            <span className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-blue-400" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('terminals')}
-                        className={`flex-1 py-2.5 text-xs font-medium text-center transition-colors relative ${activeTab === 'terminals'
-                            ? 'text-blue-400'
-                            : 'text-slate-500 active:text-slate-300'
-                            }`}
-                    >
-                        <TerminalIcon className="w-3.5 h-3.5 inline mr-1.5" />
-                        Terminals
-                        {activatedTerminals.size > 0 && (
-                            <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-blue-600 text-[9px] text-white font-bold px-1 leading-none">
-                                {activatedTerminals.size}
-                            </span>
-                        )}
-                        {activeTab === 'terminals' && (
-                            <span className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-blue-400" />
-                        )}
-                    </button>
-                </div>
-            )}
+
 
             {/* Tab Content */}
             <div className="flex-1 min-h-0 overflow-hidden">
@@ -362,23 +330,7 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
                             )}
                         </div>
 
-                        {/* Deploy to main */}
-                        {!isArchived && !isMainWorkspace && onDeployToMain && (
-                            <div className="px-3 pt-4">
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    className="w-full h-10"
-                                    onClick={async () => {
-                                        await onDeployToMain(selectedWorktree.name);
-                                        onRefreshAfterDeploy?.();
-                                    }}
-                                    disabled={deploying}
-                                >
-                                    {deploying ? t('deploy.deploying') : t('deploy.deployToMain')}
-                                </Button>
-                            </div>
-                        )}
+
 
                         {/* Archive */}
                         {!isArchived && onArchive && (
@@ -432,7 +384,7 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
                         )}
 
                         {/* Terminal panel */}
-                        <div className="flex-1 min-h-0">
+                        <div className="flex-1 min-h-0 flex flex-col">
                             {activatedTerminals.size > 0 ? (
                                 <TerminalPanel
                                     visible={true}
@@ -470,6 +422,50 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Bottom tab bar: Projects | Terminals */}
+            {!isArchived && (
+                <div
+                    className="shrink-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/50"
+                    style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+                >
+                    <div className="flex items-stretch h-12">
+                        <button
+                            onClick={() => setActiveTab('projects')}
+                            className={`flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-all active:scale-95 ${activeTab === 'projects'
+                                ? 'text-blue-400'
+                                : 'text-slate-500 active:text-slate-300'
+                                }`}
+                        >
+                            <FolderGit2 className="w-5 h-5" />
+                            <span className="text-[10px] font-medium leading-none">Projects</span>
+                            {activeTab === 'projects' && (
+                                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-blue-400" />
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('terminals')}
+                            className={`flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-all active:scale-95 ${activeTab === 'terminals'
+                                ? 'text-blue-400'
+                                : 'text-slate-500 active:text-slate-300'
+                                }`}
+                        >
+                            <div className="relative">
+                                <TerminalIcon className="w-5 h-5" />
+                                {activatedTerminals.size > 0 && (
+                                    <span className="absolute -top-1 -right-2.5 inline-flex items-center justify-center min-w-[14px] h-[14px] rounded-full bg-blue-600 text-[8px] text-white font-bold px-0.5 leading-none">
+                                        {activatedTerminals.size}
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-[10px] font-medium leading-none">Terminals</span>
+                            {activeTab === 'terminals' && (
+                                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-blue-400" />
+                            )}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

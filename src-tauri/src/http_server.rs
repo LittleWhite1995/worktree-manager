@@ -2058,6 +2058,9 @@ pub fn create_router(cert_pem: Option<String>) -> Router {
             .layer(Extension(Arc::new(pem)));
     }
 
+    // Middleware: prevent caching of HTML (index.html) so iOS WebView always loads fresh content.
+    // JS/CSS assets use content-hash filenames from Vite, so they're naturally cache-busted.
+
     router
         .layer(axum::middleware::from_fn(auth_middleware))
         .layer(axum::middleware::from_fn(localhost_only_middleware))
@@ -2065,7 +2068,30 @@ pub fn create_router(cert_pem: Option<String>) -> Router {
         // Limit request body to 1MB
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
         .fallback_service(serve_dir)
+        .layer(axum::middleware::from_fn(no_cache_html_middleware))
         .layer(cors)
+}
+
+async fn no_cache_html_middleware(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let mut resp = next.run(req).await;
+    let is_html = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .map(|ct| ct.contains("text/html"))
+        .unwrap_or(false);
+    if is_html {
+        let headers = resp.headers_mut();
+        headers.insert(
+            "Cache-Control",
+            "no-cache, no-store, must-revalidate".parse().unwrap(),
+        );
+        headers.insert("Pragma", "no-cache".parse().unwrap());
+    }
+    resp
 }
 
 // ---------------------------------------------------------------------------

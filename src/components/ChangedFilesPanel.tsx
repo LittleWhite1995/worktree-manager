@@ -77,7 +77,33 @@ function buildTree(
         }
     }
 
+    // Collapse single-child directory chains (GitLab-style)
+    collapseTree(root);
     return root;
+}
+
+/**
+ * Recursively merges single-child directory chains.
+ * e.g., src -> main -> java -> com  becomes  src/main/java/com
+ * Keeps project root nodes (depth 1) separate for clarity.
+ */
+function collapseTree(node: TreeNode): void {
+    for (const [, child] of node.children) {
+        collapseTree(child);
+    }
+
+    // Merge: if this node is a directory with exactly one child that is also a
+    // directory (not a file), merge the child into this node.
+    if (!node.file && node.children.size === 1) {
+        const [, onlyChild] = Array.from(node.children.entries())[0];
+        if (!onlyChild.file && onlyChild.children.size > 0) {
+            // Don't collapse project root into the virtual root
+            if (node.path === '') return;
+            node.name = `${node.name}/${onlyChild.name}`;
+            node.path = onlyChild.path;
+            node.children = onlyChild.children;
+        }
+    }
 }
 
 // ==================== Diff computation ====================
@@ -209,7 +235,7 @@ const FileTreeItem: FC<{
                     ? 'bg-blue-500/20 text-blue-300'
                     : 'hover:bg-slate-700/50 text-slate-300'
                     }`}
-                style={{ paddingLeft: `${depth * 16 + 8}px` }}
+                style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 onClick={() => onSelect(file.projectName, file.path, node.path)}
             >
                 <span className={`font-mono text-[10px] font-bold ${STATUS_COLORS[file.status] || 'text-slate-500'}`}>
@@ -226,7 +252,7 @@ const FileTreeItem: FC<{
         <div>
             <button
                 className="w-full flex items-center gap-1.5 px-2 py-1 text-left text-xs hover:bg-slate-700/50 text-slate-400 transition-colors rounded-sm"
-                style={{ paddingLeft: `${depth * 16 + 8}px` }}
+                style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 onClick={() => onToggleExpand(node.path)}
             >
                 <svg
@@ -286,6 +312,79 @@ function countFiles(node: TreeNode): number {
     return count;
 }
 
+// ==================== Syntax Highlighting ====================
+
+import hljs from 'highlight.js/lib/core';
+import 'highlight.js/styles/vs2015.css';
+
+// Register commonly used languages
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import java from 'highlight.js/lib/languages/java';
+import xml from 'highlight.js/lib/languages/xml';
+import css from 'highlight.js/lib/languages/css';
+import json from 'highlight.js/lib/languages/json';
+import sql from 'highlight.js/lib/languages/sql';
+import python from 'highlight.js/lib/languages/python';
+import rust from 'highlight.js/lib/languages/rust';
+import go from 'highlight.js/lib/languages/go';
+import csharp from 'highlight.js/lib/languages/csharp';
+import shell from 'highlight.js/lib/languages/shell';
+import yaml from 'highlight.js/lib/languages/yaml';
+import properties from 'highlight.js/lib/languages/properties';
+import markdown from 'highlight.js/lib/languages/markdown';
+
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('java', java);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('csharp', csharp);
+hljs.registerLanguage('shell', shell);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('properties', properties);
+hljs.registerLanguage('markdown', markdown);
+
+// File extension → hljs language mapping
+function detectLanguage(filePath: string): string | undefined {
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    const map: Record<string, string> = {
+        ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', mjs: 'javascript',
+        java: 'java', kt: 'java',
+        rs: 'rust',
+        py: 'python',
+        go: 'go',
+        cs: 'csharp',
+        c: 'csharp', cpp: 'csharp', h: 'csharp',
+        sql: 'sql',
+        sh: 'shell', bash: 'shell', zsh: 'shell',
+        xml: 'xml', html: 'xml', htm: 'xml', svg: 'xml', vue: 'xml', jsp: 'xml', aspx: 'xml',
+        css: 'css', scss: 'css', less: 'css',
+        json: 'json',
+        yaml: 'yaml', yml: 'yaml', toml: 'yaml',
+        properties: 'properties', ini: 'properties', conf: 'properties', cfg: 'properties',
+        md: 'markdown', mdx: 'markdown',
+    };
+    return map[ext];
+}
+
+// Highlight a single line using highlight.js — returns HTML string
+function highlightLine(line: string, lang: string | undefined): React.ReactNode {
+    if (!line || !lang) return line;
+    try {
+        const result = hljs.highlight(line, { language: lang, ignoreIllegals: true });
+        return <span dangerouslySetInnerHTML={{ __html: result.value }} />;
+    } catch {
+        return line;
+    }
+}
+
+
 // ==================== DiffView ====================
 
 const DiffView: FC<{
@@ -307,6 +406,7 @@ const DiffView: FC<{
     }
 
     const pairs = computeSideBySideDiff(diff.old_content, diff.new_content);
+    const lang = detectLanguage(diff.file_path);
 
     // Limit rendering to avoid lag
     const MAX_LINES = 2000;
@@ -346,8 +446,8 @@ const DiffView: FC<{
                             <span className="w-4 shrink-0 text-center text-slate-600 select-none">
                                 {pair.left.type === 'remove' ? '−' : ' '}
                             </span>
-                            <pre className="flex-1 whitespace-pre-wrap break-all pr-2 text-slate-300">
-                                {pair.left.content}
+                            <pre className="flex-1 whitespace-pre-wrap break-all pr-2">
+                                {highlightLine(pair.left.content, lang)}
                             </pre>
                         </div>
                     ))}
@@ -370,8 +470,8 @@ const DiffView: FC<{
                             <span className="w-4 shrink-0 text-center text-slate-600 select-none">
                                 {pair.right.type === 'add' ? '+' : ' '}
                             </span>
-                            <pre className="flex-1 whitespace-pre-wrap break-all pr-2 text-slate-300">
-                                {pair.right.content}
+                            <pre className="flex-1 whitespace-pre-wrap break-all pr-2">
+                                {highlightLine(pair.right.content, lang)}
                             </pre>
                         </div>
                     ))}
@@ -387,18 +487,17 @@ const DiffView: FC<{
     );
 };
 
+
 // ==================== ChangedFilesPanel ====================
 
 interface ChangedFilesPanelProps {
     projects: ProjectStatus[];
-    expanded: boolean;
-    onToggle: () => void;
+    focusProject?: string | null;
 }
 
 export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
     projects,
-    expanded,
-    onToggle,
+    focusProject,
 }) => {
     const { t } = useTranslation();
     const [allFiles, setAllFiles] = useState<
@@ -418,9 +517,9 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
         0
     );
 
-    // Load all changed files when expanded
+    // Load all changed files
     useEffect(() => {
-        if (!expanded || totalChanges === 0) return;
+        if (totalChanges === 0) return;
 
         let cancelled = false;
         setLoadingFiles(true);
@@ -463,7 +562,7 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
         return () => {
             cancelled = true;
         };
-    }, [expanded, projects, totalChanges]);
+    }, [projects, totalChanges]);
 
     // Load diff for a selected file
     const loadDiff = useCallback(
@@ -556,6 +655,33 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
         );
     }, [allFiles, diffs, projects]);
 
+    // Auto-load all diffs once files are fetched
+    useEffect(() => {
+        if (allFiles.length > 0 && !loadingFiles && diffs.size === 0) {
+            loadAllDiffs();
+        }
+    }, [allFiles, loadingFiles]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Auto-focus on a specific project's first file when focusProject is set
+    useEffect(() => {
+        if (!focusProject || allFiles.length === 0 || loadingFiles) return;
+        const projectFiles = allFiles.filter(f => f.projectName === focusProject);
+        if (projectFiles.length === 0) return;
+        const firstFile = projectFiles[0];
+        const key = `${firstFile.projectName}/${firstFile.path}`;
+        // If diff is already loaded, just select and scroll
+        if (diffs.has(key)) {
+            setSelectedFile(key);
+            setTimeout(() => {
+                const el = document.getElementById(`diff-${CSS.escape(key)}`);
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        } else {
+            // Load diff then scroll
+            loadDiff(firstFile.projectName, firstFile.path, key);
+        }
+    }, [focusProject, allFiles, loadingFiles, diffs.size]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Resize handler for tree panel
     const handleMouseDown = useCallback(() => {
         resizingRef.current = true;
@@ -577,21 +703,9 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
     if (totalChanges === 0) return null;
 
     return (
-        <div className="border-t border-slate-700/50">
-            {/* Toggle header */}
-            <button
-                className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-slate-700/30 transition-colors"
-                onClick={onToggle}
-            >
-                <svg
-                    className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                >
-                    <path d="M9 18l6-6-6-6" />
-                </svg>
+        <div className="h-full flex flex-col">
+            {/* Header bar */}
+            <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-slate-700/50 bg-slate-800/30">
                 <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                 </svg>
@@ -601,120 +715,110 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
                 <span className="text-xs text-slate-500 bg-slate-700/50 px-2 py-0.5 rounded-full">
                     {totalChanges}
                 </span>
-                {expanded && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-auto h-6 text-[11px] text-blue-400 hover:text-blue-300"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            loadAllDiffs();
-                        }}
-                    >
-                        {t('detail.loadAllDiffs', 'Load All Diffs')}
-                    </Button>
-                )}
-            </button>
-
-            {/* Expanded content */}
-            {expanded && (
-                <div
-                    className="flex border-t border-slate-700/50"
-                    style={{ height: 'calc(100vh - 200px)', minHeight: '400px' }}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-6 text-[11px] text-blue-400 hover:text-blue-300"
+                    onClick={loadAllDiffs}
                 >
-                    {/* File tree sidebar */}
-                    <div
-                        className="shrink-0 border-r border-slate-700/50 overflow-y-auto bg-slate-800/30"
-                        style={{ width: `${treeWidth}px` }}
-                    >
-                        {loadingFiles ? (
-                            <div className="flex items-center justify-center py-8">
-                                <svg
-                                    className="w-5 h-5 text-slate-500 animate-spin"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                >
-                                    <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeDasharray="60"
-                                        strokeDashoffset="15"
-                                    />
-                                </svg>
-                            </div>
-                        ) : (
-                            <div className="py-1">
-                                {/* Summary */}
-                                <div className="px-3 py-1.5 flex items-center gap-2 text-[11px] text-slate-500 border-b border-slate-700/30 mb-1">
-                                    {['M', 'A', 'D', '?'].map((s) => {
-                                        const count = allFiles.filter((f) => f.status === s).length;
-                                        if (count === 0) return null;
-                                        return (
-                                            <span
-                                                key={s}
-                                                className={`px-1.5 py-0.5 rounded border ${STATUS_BG[s] || 'bg-slate-700/30 border-slate-700'}`}
-                                            >
-                                                <span className={STATUS_COLORS[s]}>{count}</span>{' '}
-                                                <span className="text-slate-500">
-                                                    {STATUS_LABELS[s]}
-                                                </span>
+                    {t('detail.loadAllDiffs', 'Load All Diffs')}
+                </Button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-h-0 flex">
+                {/* File tree sidebar */}
+                <div
+                    className="shrink-0 border-r border-slate-700/50 overflow-y-auto bg-slate-800/30"
+                    style={{ width: `${treeWidth}px` }}
+                >
+                    {loadingFiles ? (
+                        <div className="flex items-center justify-center py-8">
+                            <svg
+                                className="w-5 h-5 text-slate-500 animate-spin"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                            >
+                                <circle
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeDasharray="60"
+                                    strokeDashoffset="15"
+                                />
+                            </svg>
+                        </div>
+                    ) : (
+                        <div className="py-1">
+                            {/* Summary */}
+                            <div className="px-3 py-1.5 flex items-center gap-2 text-[11px] text-slate-500 border-b border-slate-700/30 mb-1">
+                                {['M', 'A', 'D', '?'].map((s) => {
+                                    const count = allFiles.filter((f) => f.status === s).length;
+                                    if (count === 0) return null;
+                                    return (
+                                        <span
+                                            key={s}
+                                            className={`px-1.5 py-0.5 rounded border ${STATUS_BG[s] || 'bg-slate-700/30 border-slate-700'}`}
+                                        >
+                                            <span className={STATUS_COLORS[s]}>{count}</span>{' '}
+                                            <span className="text-slate-500">
+                                                {STATUS_LABELS[s]}
                                             </span>
-                                        );
-                                    })}
-                                </div>
-                                {Array.from(tree.children.values())
-                                    .sort((a, b) => a.name.localeCompare(b.name))
-                                    .map((child) => (
-                                        <FileTreeItem
-                                            key={child.path}
-                                            node={child}
-                                            depth={0}
-                                            selectedFile={selectedFile}
-                                            onSelect={handleSelectFile}
-                                            expandedPaths={expandedPaths}
-                                            onToggleExpand={handleToggleExpand}
-                                        />
-                                    ))}
+                                        </span>
+                                    );
+                                })}
                             </div>
-                        )}
-                    </div>
-
-                    {/* Resize handle */}
-                    <div
-                        className="w-1 shrink-0 cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors"
-                        onMouseDown={handleMouseDown}
-                    />
-
-                    {/* Diff content */}
-                    <div className="flex-1 overflow-y-auto" ref={diffContainerRef}>
-                        {diffs.size === 0 && loadingDiffs.size === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-2">
-                                <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                                    <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                </svg>
-                                <p className="text-sm">{t('detail.selectFileToDiff', 'Select a file to view diff')}</p>
-                            </div>
-                        ) : (
-                            <div>
-                                {Array.from(diffs.entries()).map(([key, diff]) => (
-                                    <DiffView key={key} diff={diff} fileKey={key} />
+                            {Array.from(tree.children.values())
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map((child) => (
+                                    <FileTreeItem
+                                        key={child.path}
+                                        node={child}
+                                        depth={0}
+                                        selectedFile={selectedFile}
+                                        onSelect={handleSelectFile}
+                                        expandedPaths={expandedPaths}
+                                        onToggleExpand={handleToggleExpand}
+                                    />
                                 ))}
-                                {loadingDiffs.size > 0 && (
-                                    <div className="flex items-center justify-center py-4 gap-2 text-slate-500">
-                                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="60" strokeDashoffset="15" />
-                                        </svg>
-                                        <span className="text-xs">Loading {loadingDiffs.size} diff(s)...</span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
-            )}
+
+                {/* Resize handle */}
+                <div
+                    className="w-1 shrink-0 cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 transition-colors"
+                    onMouseDown={handleMouseDown}
+                />
+
+                {/* Diff content */}
+                <div className="flex-1 overflow-y-auto" ref={diffContainerRef}>
+                    {diffs.size === 0 && loadingDiffs.size === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-2">
+                            <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                                <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                            <p className="text-sm">{t('detail.selectFileToDiff', 'Select a file to view diff')}</p>
+                        </div>
+                    ) : (
+                        <div>
+                            {Array.from(diffs.entries()).map(([key, diff]) => (
+                                <DiffView key={key} diff={diff} fileKey={key} />
+                            ))}
+                            {loadingDiffs.size > 0 && (
+                                <div className="flex items-center justify-center py-4 gap-2 text-slate-500">
+                                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="60" strokeDashoffset="15" />
+                                    </svg>
+                                    <span className="text-xs">Loading {loadingDiffs.size} diff(s)...</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };

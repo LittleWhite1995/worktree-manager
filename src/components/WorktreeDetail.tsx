@@ -40,10 +40,10 @@ import type {
   EditorType,
 } from '../types';
 
-const StatusBadges: FC<{ project: ProjectStatus }> = ({ project }) => {
+const StatusBadges: FC<{ project: ProjectStatus; onClickUncommitted?: () => void }> = ({ project, onClickUncommitted }) => {
   const { t } = useTranslation();
-  const badges: { label: string; variant: 'warning' | 'success' | 'default' | 'error' }[] = [];
-  if (project.has_uncommitted) badges.push({ label: t('detail.uncommitted', { count: project.uncommitted_count }), variant: 'warning' });
+  const badges: { label: string; variant: 'warning' | 'success' | 'default' | 'error'; onClick?: () => void }[] = [];
+  if (project.has_uncommitted) badges.push({ label: t('detail.uncommitted', { count: project.uncommitted_count }), variant: 'warning', onClick: onClickUncommitted });
   if (project.unpushed_commits > 0) badges.push({ label: t('detail.unpushedCommits', { count: project.unpushed_commits }), variant: 'warning' });
   if (project.ahead_of_base > 0) badges.push({ label: t('detail.notMergedToBase', { branch: project.base_branch, count: project.ahead_of_base }), variant: 'default' });
   if (project.ahead_of_test > 0) badges.push({ label: t('detail.notMergedToTest', { branch: project.test_branch, count: project.ahead_of_test }), variant: 'default' });
@@ -51,7 +51,16 @@ const StatusBadges: FC<{ project: ProjectStatus }> = ({ project }) => {
   if (badges.length === 0) return <Badge variant="success">{t('detail.clean')}</Badge>;
   return (
     <div className="flex flex-wrap gap-1 justify-end">
-      {badges.map((b, i) => <Badge key={i} variant={b.variant === 'error' ? 'warning' : b.variant}>{b.label}</Badge>)}
+      {badges.map((b, i) => (
+        <Badge
+          key={i}
+          variant={b.variant === 'error' ? 'warning' : b.variant}
+          className={b.onClick ? 'cursor-pointer hover:opacity-80' : ''}
+          onClick={b.onClick ? (e) => { e.stopPropagation(); b.onClick!(); } : undefined}
+        >
+          {b.label}
+        </Badge>
+      ))}
     </div>
   );
 };
@@ -172,7 +181,13 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [exitError, setExitError] = useState<string | null>(null);
-  const [changedFilesExpanded, setChangedFilesExpanded] = useState(false);
+  const [detailView, setDetailView] = useState<'projects' | 'changedFiles'>('projects');
+  const [focusProject, setFocusProject] = useState<string | null>(null);
+
+  const handleNavigateToChangedFiles = useCallback((projectName: string) => {
+    setFocusProject(projectName);
+    setDetailView('changedFiles');
+  }, []);
 
   const handleDeploy = useCallback(async (name: string) => {
     try {
@@ -329,162 +344,71 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
             </div>
           )}
         </div>
-        {occupation ? (
-          /* Deployed state: show only deployed projects in worktree-style cards */
-          <div className="space-y-2">
-            {mainWorkspace.projects
-              .filter(proj => occupation.original_branches[proj.name])
-              .map(proj => {
-                const projectPath = proj.path;
-                const projAsStatus = {
-                  name: proj.name,
-                  path: proj.path,
-                  current_branch: proj.current_branch,
-                  base_branch: proj.base_branch,
-                  test_branch: proj.test_branch,
-                  has_uncommitted: proj.has_uncommitted,
-                  uncommitted_count: proj.uncommitted_count,
-                  is_merged_to_test: proj.is_merged_to_test,
-                  is_merged_to_base: proj.is_merged_to_base,
-                  ahead_of_base: proj.ahead_of_base,
-                  behind_base: proj.behind_base,
-                  ahead_of_test: proj.ahead_of_test,
-                  unpushed_commits: proj.unpushed_commits,
-                };
-                const status = getProjectStatus(projAsStatus);
-                return (
-                  <div key={proj.name} className={`bg-slate-800/50 border border-slate-700/50 border-l-2 ${statusBorderColor[status]} rounded-lg p-4 group hover:border-t-slate-600 hover:border-r-slate-600 hover:border-b-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <div className="font-medium text-slate-200">{proj.name}</div>
-                          <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-0.5">
-                            <GitBranchIcon className="w-3.5 h-3.5" />
-                            <span className="select-text">{proj.current_branch}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <StatusBadges project={projAsStatus} />
-                          <div className="text-xs text-slate-500 mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
-                        </div>
-                        {isTauri() && (
-                          <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => onOpenInEditor(projectPath)}
-                              title={t('detail.openInEditorLabel', { editor: selectedEditorName })}
-                              aria-label={t('detail.openInEditorProject', { editor: selectedEditorName, name: proj.name })}
-                              className="h-7 w-7"
-                            >
-                              <FolderIcon className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => onOpenInTerminal(projectPath)}
-                              title={t('detail.openExternalTerminal')}
-                              aria-label={t('detail.openExternalTerminalProject', { name: proj.name })}
-                              className="h-7 w-7"
-                            >
-                              <TerminalIcon className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-slate-700/50">
-                      <GitOperations
-                        projectPath={projectPath}
-                        baseBranch={proj.base_branch}
-                        testBranch={proj.test_branch}
-                        currentBranch={proj.current_branch}
-                        onRefresh={onRefresh}
-                        onOpenTerminal={onOpenTerminalPanel}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+
+        {/* Tab switcher */}
+        {(() => {
+          const totalChanges = mainWorkspace.projects.reduce((sum, p) => sum + p.uncommitted_count, 0);
+          return (
+            <div className="flex items-center gap-1 mb-3 border-b border-slate-700/50 pb-1">
+              <button
+                className={`px-3 py-1.5 text-sm rounded-t transition-colors ${detailView === 'projects'
+                  ? 'text-blue-400 border-b-2 border-blue-400 font-medium'
+                  : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                onClick={() => setDetailView('projects')}
+              >
+                {t('detail.projects', 'Projects')}
+              </button>
+              <button
+                className={`px-3 py-1.5 text-sm rounded-t transition-colors flex items-center gap-1.5 ${detailView === 'changedFiles'
+                  ? 'text-blue-400 border-b-2 border-blue-400 font-medium'
+                  : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                onClick={() => setDetailView('changedFiles')}
+                disabled={totalChanges === 0}
+              >
+                {t('detail.changedFilesReview', 'Changed Files Review')}
+                {totalChanges > 0 && (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full leading-none">
+                    {totalChanges}
+                  </span>
+                )}
+              </button>
+            </div>
+          );
+        })()}
+
+        {detailView === 'changedFiles' ? (
+          <div style={{ height: 'calc(100vh - 200px)', minHeight: '400px' }}>
+            <ChangedFilesPanel
+              projects={mainWorkspace.projects.map(p => ({
+                name: p.name,
+                path: p.path,
+                current_branch: p.current_branch,
+                base_branch: p.base_branch,
+                test_branch: p.test_branch,
+                has_uncommitted: p.has_uncommitted,
+                uncommitted_count: p.uncommitted_count,
+                is_merged_to_test: p.is_merged_to_test,
+                is_merged_to_base: p.is_merged_to_base,
+                ahead_of_base: p.ahead_of_base,
+                behind_base: p.behind_base,
+                ahead_of_test: p.ahead_of_test,
+                unpushed_commits: p.unpushed_commits,
+              }))}
+              focusProject={focusProject}
+            />
           </div>
         ) : (
-          /* Normal state: show all projects in grid layout */
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {mainWorkspace.projects.map(proj => {
-              const projectPath = proj.path;
-              const isSwitching = switchingBranch === proj.name;
-
-              const handleSwitchBranch = async (branch: string) => {
-                setSwitchingBranch(proj.name);
-                try {
-                  await onSwitchBranch(projectPath, branch);
-                } finally {
-                  setSwitchingBranch(null);
-                }
-              };
-
-              return (
-                <div key={proj.name} className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 group hover:border-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-200">{proj.name}</span>
-                    <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
-                      {isTauri() && (
-                        <button
-                          onClick={() => onRevealInFinder(projectPath)}
-                          className="p-1 hover:bg-slate-600 rounded text-slate-400 hover:text-slate-200 transition-colors"
-                          title={t('detail.openInFinderLabel')}
-                          aria-label={t('detail.openInFinderProject', { name: proj.name })}
-                        >
-                          <FolderIcon className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {proj.has_uncommitted && <WarningIcon className="w-4 h-4 text-amber-500" />}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-1.5 text-slate-400 text-sm">
-                      <GitBranchIcon className="w-3.5 h-3.5" />
-                      <span className="select-text">{proj.current_branch}</span>
-                      {isSwitching && <RefreshIcon className="w-3 h-3 animate-spin ml-1" />}
-                    </div>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <Button
-                        variant={proj.current_branch === proj.base_branch ? 'default' : 'ghost'}
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        disabled={isSwitching || proj.current_branch === proj.base_branch}
-                        onClick={() => handleSwitchBranch(proj.base_branch)}
-                      >
-                        {proj.current_branch === proj.base_branch && <CheckIcon className="w-3 h-3 mr-1 text-green-400" />}
-                        BASE
-                      </Button>
-                      <Button
-                        variant={proj.current_branch === proj.test_branch ? 'default' : 'ghost'}
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        disabled={isSwitching || proj.current_branch === proj.test_branch}
-                        onClick={() => handleSwitchBranch(proj.test_branch)}
-                      >
-                        {proj.current_branch === proj.test_branch && <CheckIcon className="w-3 h-3 mr-1 text-green-400" />}
-                        TEST
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        disabled={isSwitching}
-                        onClick={() => handleSwitchBranch('HEAD')}
-                        title={t('detail.switchToHead')}
-                      >
-                        HEAD
-                      </Button>
-                    </div>
-                  </div>
-                  {/* Status badges — hide 'not merged to test' for main workspace */}
-                  <div className="mt-2">
-                    <StatusBadges project={{
+          <>
+            {occupation ? (
+              /* Deployed state: show only deployed projects in worktree-style cards */
+              <div className="space-y-2">
+                {mainWorkspace.projects
+                  .filter(proj => occupation.original_branches[proj.name])
+                  .map(proj => {
+                    const projectPath = proj.path;
+                    const projAsStatus = {
                       name: proj.name,
                       path: proj.path,
                       current_branch: proj.current_branch,
@@ -492,68 +416,196 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                       test_branch: proj.test_branch,
                       has_uncommitted: proj.has_uncommitted,
                       uncommitted_count: proj.uncommitted_count,
-                      is_merged_to_test: true,
+                      is_merged_to_test: proj.is_merged_to_test,
                       is_merged_to_base: proj.is_merged_to_base,
                       ahead_of_base: proj.ahead_of_base,
                       behind_base: proj.behind_base,
-                      ahead_of_test: 0,
+                      ahead_of_test: proj.ahead_of_test,
                       unpushed_commits: proj.unpushed_commits,
-                    }} />
-                  </div>
-                  {/* Git operations */}
-                  <div className="mt-3 pt-3 border-t border-slate-700/50">
-                    <GitOperations
-                      projectPath={proj.path}
-                      baseBranch={proj.base_branch}
-                      testBranch={proj.test_branch}
-                      currentBranch={proj.current_branch}
-                      onRefresh={onRefresh}
-                      onOpenTerminal={onOpenTerminalPanel}
-                    />
-                  </div>
-                  {proj.linked_folders && proj.linked_folders.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-slate-700/50">
-                      <div className="text-xs text-slate-500 mb-1">{t('detail.linkedFolders')}</div>
-                      <div className="flex flex-wrap gap-1">
-                        {proj.linked_folders.map((folder, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center px-1.5 py-0.5 bg-slate-700/50 rounded text-xs text-slate-400 select-text"
-                          >
-                            {folder}
-                          </span>
-                        ))}
+                    };
+                    const status = getProjectStatus(projAsStatus);
+                    return (
+                      <div key={proj.name} className={`bg-slate-800/50 border border-slate-700/50 border-l-2 ${statusBorderColor[status]} rounded-lg p-4 group hover:border-t-slate-600 hover:border-r-slate-600 hover:border-b-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <div className="font-medium text-slate-200">{proj.name}</div>
+                              <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-0.5">
+                                <GitBranchIcon className="w-3.5 h-3.5" />
+                                <span className="select-text">{proj.current_branch}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <StatusBadges project={projAsStatus} onClickUncommitted={() => handleNavigateToChangedFiles(proj.name)} />
+                              <div className="text-xs text-slate-500 mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
+                            </div>
+                            {isTauri() && (
+                              <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => onOpenInEditor(projectPath)}
+                                  title={t('detail.openInEditorLabel', { editor: selectedEditorName })}
+                                  aria-label={t('detail.openInEditorProject', { editor: selectedEditorName, name: proj.name })}
+                                  className="h-7 w-7"
+                                >
+                                  <FolderIcon className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => onOpenInTerminal(projectPath)}
+                                  title={t('detail.openExternalTerminal')}
+                                  aria-label={t('detail.openExternalTerminalProject', { name: proj.name })}
+                                  className="h-7 w-7"
+                                >
+                                  <TerminalIcon className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-slate-700/50">
+                          <GitOperations
+                            projectPath={projectPath}
+                            baseBranch={proj.base_branch}
+                            testBranch={proj.test_branch}
+                            currentBranch={proj.current_branch}
+                            onRefresh={onRefresh}
+                            onOpenTerminal={onOpenTerminalPanel}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                    );
+                  })}
+              </div>
+            ) : (
+              /* Normal state: show all projects in grid layout */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {mainWorkspace.projects.map(proj => {
+                  const projectPath = proj.path;
+                  const isSwitching = switchingBranch === proj.name;
 
-        {/* Changed Files Panel */}
-        <div className="mt-4">
-          <ChangedFilesPanel
-            projects={mainWorkspace.projects.map(p => ({
-              name: p.name,
-              path: p.path,
-              current_branch: p.current_branch,
-              base_branch: p.base_branch,
-              test_branch: p.test_branch,
-              has_uncommitted: p.has_uncommitted,
-              uncommitted_count: p.uncommitted_count,
-              is_merged_to_test: p.is_merged_to_test,
-              is_merged_to_base: p.is_merged_to_base,
-              ahead_of_base: p.ahead_of_base,
-              behind_base: p.behind_base,
-              ahead_of_test: p.ahead_of_test,
-              unpushed_commits: p.unpushed_commits,
-            }))}
-            expanded={changedFilesExpanded}
-            onToggle={() => setChangedFilesExpanded(v => !v)}
-          />
-        </div>
+                  const handleSwitchBranch = async (branch: string) => {
+                    setSwitchingBranch(proj.name);
+                    try {
+                      await onSwitchBranch(projectPath, branch);
+                    } finally {
+                      setSwitchingBranch(null);
+                    }
+                  };
+
+                  return (
+                    <div key={proj.name} className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 group hover:border-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-slate-200">{proj.name}</span>
+                        <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
+                          {isTauri() && (
+                            <button
+                              onClick={() => onRevealInFinder(projectPath)}
+                              className="p-1 hover:bg-slate-600 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                              title={t('detail.openInFinderLabel')}
+                              aria-label={t('detail.openInFinderProject', { name: proj.name })}
+                            >
+                              <FolderIcon className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {proj.has_uncommitted && <WarningIcon className="w-4 h-4 text-amber-500" />}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-1.5 text-slate-400 text-sm">
+                          <GitBranchIcon className="w-3.5 h-3.5" />
+                          <span className="select-text">{proj.current_branch}</span>
+                          {isSwitching && <RefreshIcon className="w-3 h-3 animate-spin ml-1" />}
+                        </div>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <Button
+                            variant={proj.current_branch === proj.base_branch ? 'default' : 'ghost'}
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            disabled={isSwitching || proj.current_branch === proj.base_branch}
+                            onClick={() => handleSwitchBranch(proj.base_branch)}
+                          >
+                            {proj.current_branch === proj.base_branch && <CheckIcon className="w-3 h-3 mr-1 text-green-400" />}
+                            BASE
+                          </Button>
+                          <Button
+                            variant={proj.current_branch === proj.test_branch ? 'default' : 'ghost'}
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            disabled={isSwitching || proj.current_branch === proj.test_branch}
+                            onClick={() => handleSwitchBranch(proj.test_branch)}
+                          >
+                            {proj.current_branch === proj.test_branch && <CheckIcon className="w-3 h-3 mr-1 text-green-400" />}
+                            TEST
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            disabled={isSwitching}
+                            onClick={() => handleSwitchBranch('HEAD')}
+                            title={t('detail.switchToHead')}
+                          >
+                            HEAD
+                          </Button>
+                        </div>
+                      </div>
+                      {/* Status badges — hide 'not merged to test' for main workspace */}
+                      <div className="mt-2">
+                        <StatusBadges project={{
+                          name: proj.name,
+                          path: proj.path,
+                          current_branch: proj.current_branch,
+                          base_branch: proj.base_branch,
+                          test_branch: proj.test_branch,
+                          has_uncommitted: proj.has_uncommitted,
+                          uncommitted_count: proj.uncommitted_count,
+                          is_merged_to_test: true,
+                          is_merged_to_base: proj.is_merged_to_base,
+                          ahead_of_base: proj.ahead_of_base,
+                          behind_base: proj.behind_base,
+                          ahead_of_test: 0,
+                          unpushed_commits: proj.unpushed_commits,
+                        }} onClickUncommitted={() => handleNavigateToChangedFiles(proj.name)} />
+                      </div>
+                      {/* Git operations */}
+                      <div className="mt-3 pt-3 border-t border-slate-700/50">
+                        <GitOperations
+                          projectPath={proj.path}
+                          baseBranch={proj.base_branch}
+                          testBranch={proj.test_branch}
+                          currentBranch={proj.current_branch}
+                          onRefresh={onRefresh}
+                          onOpenTerminal={onOpenTerminalPanel}
+                        />
+                      </div>
+                      {proj.linked_folders && proj.linked_folders.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-slate-700/50">
+                          <div className="text-xs text-slate-500 mb-1">{t('detail.linkedFolders')}</div>
+                          <div className="flex flex-wrap gap-1">
+                            {proj.linked_folders.map((folder, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center px-1.5 py-0.5 bg-slate-700/50 rounded text-xs text-slate-400 select-text"
+                              >
+                                {folder}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+          </>
+        )}
       </div>
     );
   }
@@ -658,81 +710,115 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
             )}
           </div>
         </div>
-        <div className="space-y-2">
-          {selectedWorktree.projects.map(proj => (
-            <div key={proj.name} className={`bg-slate-800/50 border border-slate-700/50 border-l-2 ${statusBorderColor[getProjectStatus(proj)]} rounded-lg p-4 group hover:border-t-slate-600 hover:border-r-slate-600 hover:border-b-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <div className="font-medium text-slate-200">{proj.name}</div>
-                    <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-0.5">
-                      <GitBranchIcon className="w-3.5 h-3.5" />
-                      <span className="select-text">{proj.current_branch}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <StatusBadges project={proj} />
-                    <div className="text-xs text-slate-500 mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
-                  </div>
-                  {isTauri() && (
-                    <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onOpenInEditor(proj.path)}
-                        title={t('detail.openInEditorLabel', { editor: selectedEditorName })}
-                        aria-label={t('detail.openInEditorProject', { editor: selectedEditorName, name: proj.name })}
-                        className="h-7 w-7"
-                      >
-                        <FolderIcon className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onOpenInTerminal(proj.path)}
-                        title={t('detail.openExternalTerminal')}
-                        aria-label={t('detail.openExternalTerminalProject', { name: proj.name })}
-                        className="h-7 w-7"
-                      >
-                        <TerminalIcon className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="mt-3 pt-3 border-t border-slate-700/50">
-                <GitOperations
-                  projectPath={proj.path}
-                  baseBranch={proj.base_branch}
-                  testBranch={proj.test_branch}
-                  currentBranch={proj.current_branch}
-                  onRefresh={onRefresh}
-                  onOpenTerminal={onOpenTerminalPanel}
-                />
-              </div>
-            </div>
-          ))}
-          {isTauri() && !selectedWorktree.is_archived && onAddProjectToWorktree && (
-            <button
-              onClick={onAddProjectToWorktree}
-              className="w-full p-3 rounded-lg border border-dashed border-slate-700 hover:border-slate-500 hover:bg-slate-800/30 transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300"
-            >
-              <PlusIcon className="w-4 h-4" />
-              <span className="text-sm">{t('detail.addProject')}</span>
-            </button>
-          )}
-        </div>
 
-        {/* Changed Files Panel */}
-        <div className="mt-4">
-          <ChangedFilesPanel
-            projects={selectedWorktree.projects}
-            expanded={changedFilesExpanded}
-            onToggle={() => setChangedFilesExpanded(v => !v)}
-          />
-        </div>
+        {/* Tab switcher */}
+        {(() => {
+          const totalChanges = selectedWorktree.projects.reduce((sum: number, p: any) => sum + (p.uncommitted_count || 0), 0);
+          return (
+            <div className="flex items-center gap-1 mb-3 border-b border-slate-700/50 pb-1">
+              <button
+                className={`px-3 py-1.5 text-sm rounded-t transition-colors ${detailView === 'projects'
+                  ? 'text-blue-400 border-b-2 border-blue-400 font-medium'
+                  : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                onClick={() => setDetailView('projects')}
+              >
+                {t('detail.projects', 'Projects')}
+              </button>
+              <button
+                className={`px-3 py-1.5 text-sm rounded-t transition-colors flex items-center gap-1.5 ${detailView === 'changedFiles'
+                  ? 'text-blue-400 border-b-2 border-blue-400 font-medium'
+                  : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                onClick={() => setDetailView('changedFiles')}
+                disabled={totalChanges === 0}
+              >
+                {t('detail.changedFilesReview', 'Changed Files Review')}
+                {totalChanges > 0 && (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full leading-none">
+                    {totalChanges}
+                  </span>
+                )}
+              </button>
+            </div>
+          );
+        })()}
+
+        {detailView === 'changedFiles' ? (
+          <div style={{ height: 'calc(100vh - 200px)', minHeight: '400px' }}>
+            <ChangedFilesPanel
+              projects={selectedWorktree.projects}
+              focusProject={focusProject}
+            />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {selectedWorktree.projects.map(proj => (
+              <div key={proj.name} className={`bg-slate-800/50 border border-slate-700/50 border-l-2 ${statusBorderColor[getProjectStatus(proj)]} rounded-lg p-4 group hover:border-t-slate-600 hover:border-r-slate-600 hover:border-b-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="font-medium text-slate-200">{proj.name}</div>
+                      <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-0.5">
+                        <GitBranchIcon className="w-3.5 h-3.5" />
+                        <span className="select-text">{proj.current_branch}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <StatusBadges project={proj} onClickUncommitted={() => handleNavigateToChangedFiles(proj.name)} />
+                      <div className="text-xs text-slate-500 mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
+                    </div>
+                    {isTauri() && (
+                      <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onOpenInEditor(proj.path)}
+                          title={t('detail.openInEditorLabel', { editor: selectedEditorName })}
+                          aria-label={t('detail.openInEditorProject', { editor: selectedEditorName, name: proj.name })}
+                          className="h-7 w-7"
+                        >
+                          <FolderIcon className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onOpenInTerminal(proj.path)}
+                          title={t('detail.openExternalTerminal')}
+                          aria-label={t('detail.openExternalTerminalProject', { name: proj.name })}
+                          className="h-7 w-7"
+                        >
+                          <TerminalIcon className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-700/50">
+                  <GitOperations
+                    projectPath={proj.path}
+                    baseBranch={proj.base_branch}
+                    testBranch={proj.test_branch}
+                    currentBranch={proj.current_branch}
+                    onRefresh={onRefresh}
+                    onOpenTerminal={onOpenTerminalPanel}
+                  />
+                </div>
+              </div>
+            ))}
+            {isTauri() && !selectedWorktree.is_archived && onAddProjectToWorktree && (
+              <button
+                onClick={onAddProjectToWorktree}
+                className="w-full p-3 rounded-lg border border-dashed border-slate-700 hover:border-slate-500 hover:bg-slate-800/30 transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300"
+              >
+                <PlusIcon className="w-4 h-4" />
+                <span className="text-sm">{t('detail.addProject')}</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -44,6 +45,7 @@ export interface TerminalHandle {
 }
 
 const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId }, ref) => {
+  const { t } = useTranslation();
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -55,6 +57,47 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const initializedRef = useRef(false);
   const cwdRef = useRef(actualCwd);
   const [wsConnected, setWsConnected] = useState(!isTauri() ? getWebSocketManager().isConnected() : true);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleCopy = useCallback(async () => {
+    setContextMenu(null);
+    const term = xtermRef.current;
+    if (!term) return;
+    const selection = term.getSelection();
+    if (selection) {
+      try { await navigator.clipboard.writeText(selection); } catch { /* noop */ }
+    }
+    term.clearSelection();
+  }, []);
+
+  const handlePaste = useCallback(async () => {
+    setContextMenu(null);
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        if (!isTauri()) {
+          getWebSocketManager().writePty(sessionIdRef.current, text);
+        } else {
+          await callBackend('pty_write', {
+            sessionId: sessionIdRef.current,
+            data: text,
+          });
+        }
+      }
+    } catch { /* noop */ }
+  }, []);
+
+  const handleClear = useCallback(() => {
+    setContextMenu(null);
+    if (xtermRef.current) {
+      xtermRef.current.clear();
+    }
+  }, []);
 
   useImperativeHandle(ref, () => ({
     copyContent: async () => {
@@ -173,13 +216,22 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       if (!term || !fitAddon) return;
 
       try {
-        // Wait for fonts before measuring dimensions
-        await document.fonts.ready;
+        try {
+          // Promise.race so Safari doesn't hang forever on document.fonts.ready
+          await Promise.race([
+            document.fonts.ready,
+            new Promise(r => setTimeout(r, 100))
+          ]);
+        } catch (e) { /* ignore */ }
 
-        fitAddon.fit();
+        try {
+          fitAddon.fit();
+        } catch (e) {
+          console.warn('[terminal] fitAddon.fit() failed during init', e);
+        }
 
-        const cols = term.cols;
-        const rows = term.rows;
+        const cols = Math.max(term.cols || 80, 2);
+        const rows = Math.max(term.rows || 24, 2);
 
 
         const exists = await callBackend<boolean>('pty_exists', {
@@ -206,9 +258,9 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         requestAnimationFrame(() => {
           setTimeout(() => {
             if (fitAddonRef.current && xtermRef.current) {
-              fitAddonRef.current.fit();
-              const newCols = xtermRef.current.cols;
-              const newRows = xtermRef.current.rows;
+              try { fitAddonRef.current.fit(); } catch (e) { /* ignore */ }
+              const newCols = Math.max(xtermRef.current.cols || 80, 2);
+              const newRows = Math.max(xtermRef.current.rows || 24, 2);
               if (newCols !== cols || newRows !== rows || exists) {
                 callBackend('pty_resize', {
                   sessionId: sessionIdRef.current,
@@ -238,6 +290,18 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       getWebSocketManager().subscribePty(sessionIdRef.current, (data) => {
         if (data && xtermRef.current) {
           xtermRef.current.write(data);
+
+          // Force a few frame refreshes to defeat iOS Safari canvas bugs
+          // where the terminal stays blank if it received data while layout was settling.
+          if (!window._xtermRefreshed) {
+            window._xtermRefreshed = true;
+            setTimeout(() => {
+              if (xtermRef.current) xtermRef.current.refresh(0, xtermRef.current.rows - 1);
+            }, 100);
+            setTimeout(() => {
+              if (xtermRef.current) xtermRef.current.refresh(0, xtermRef.current.rows - 1);
+            }, 500);
+          }
         }
       });
     } else {
@@ -282,9 +346,9 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const handleResize = useCallback(() => {
     if (!fitAddonRef.current || !xtermRef.current || !visible || !initializedRef.current) return;
 
-    fitAddonRef.current.fit();
-    const cols = xtermRef.current.cols;
-    const rows = xtermRef.current.rows;
+    try { fitAddonRef.current.fit(); } catch (e) { /* ignore */ }
+    const cols = Math.max(xtermRef.current.cols || 80, 2);
+    const rows = Math.max(xtermRef.current.rows || 24, 2);
 
     callBackend('pty_resize', {
       sessionId: sessionIdRef.current,
@@ -354,7 +418,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   }, []);
 
   return (
-    <div className="h-full w-full relative overflow-hidden">
+    <div className="h-full w-full relative overflow-hidden" onContextMenu={handleContextMenu}>
       <div
         ref={terminalRef}
         className="h-full w-full overflow-hidden"
@@ -369,8 +433,57 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
           </div>
         </div>
       )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={() => setContextMenu(null)}
+          onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+        >
+          <div
+            className="absolute bg-slate-800 border border-slate-600 rounded-lg shadow-xl py-1 min-w-[140px]"
+            style={{ left: Math.min(contextMenu.x, window.innerWidth - 140), top: Math.min(contextMenu.y, window.innerHeight - 150) }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleCopy}
+              className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+              </svg>
+              {t('terminal.copyContent')}
+            </button>
+            <button
+              onClick={handlePaste}
+              className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              {t('terminal.paste')}
+            </button>
+            <div className="border-t border-slate-700 my-1" />
+            <button
+              onClick={handleClear}
+              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-700 hover:text-red-300 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {t('terminal.clear')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 });
+declare global {
+  interface Window {
+    _xtermRefreshed?: boolean;
+  }
+}
 
 export const Terminal = memo(TerminalInner);

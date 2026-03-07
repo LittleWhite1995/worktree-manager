@@ -95,7 +95,7 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
             {/* Header */}
             <div className="px-4 pt-4 pb-2">
                 <div className="flex items-center justify-between">
-                    <div>
+                    <div className="pl-10">
                         <h1 className="text-lg font-semibold text-slate-100">
                             {currentWorkspace?.name || 'Worktree Manager'}
                         </h1>
@@ -109,7 +109,7 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
                     {onOpenCreateModal && (
                         <button
                             onClick={onOpenCreateModal}
-                            className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-lg font-light active:bg-blue-500/30 transition-colors"
+                            className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-sm font-light active:bg-blue-500/30 transition-colors"
                         >
                             +
                         </button>
@@ -130,14 +130,21 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
                     const isSelected = selectedWorktree?.name === wt.name;
                     const isLocked = !!lockedWorktrees[wt.name];
                     const totalUncommitted = wt.projects.reduce((acc, p) => acc + p.uncommitted_count, 0);
+                    // Only allow selecting locked worktrees (ones open in PC editor)
+                    const hasAnyLocked = Object.keys(lockedWorktrees).length > 0;
+                    const isDisabled = hasAnyLocked && !isLocked;
 
                     return (
                         <button
                             key={wt.name}
-                            onClick={() => onSelectWorktree(wt)}
-                            className={`w-full text-left px-4 py-3 rounded-xl transition-all active:scale-[0.98] ${isSelected
-                                ? 'bg-blue-500/15 border border-blue-500/30'
-                                : 'bg-slate-800/50 border border-slate-700/30 active:bg-slate-700/50'
+                            onClick={() => !isDisabled && onSelectWorktree(wt)}
+                            disabled={isDisabled}
+                            className={`w-full text-left px-4 py-3 rounded-xl transition-all ${isDisabled
+                                ? 'opacity-40 cursor-not-allowed'
+                                : 'active:scale-[0.98]'
+                                } ${isSelected
+                                    ? 'bg-blue-500/15 border border-blue-500/30'
+                                    : 'bg-slate-800/50 border border-slate-700/30 active:bg-slate-700/50'
                                 }`}
                         >
                             <div className="flex items-center gap-3">
@@ -160,7 +167,7 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
                                         {totalUncommitted}
                                     </span>
                                 )}
-                                <span className="text-slate-600 text-sm">›</span>
+                                {!isDisabled && <span className="text-slate-600 text-sm">›</span>}
                             </div>
                         </button>
                     );

@@ -164,6 +164,8 @@
   "terminal.fullscreen": "Fullscreen",
   "terminal.exitFullscreen": "Exit fullscreen",
   "terminal.copyContent": "Copy content",
+  "terminal.paste": "Paste",
+  "terminal.clear": "Clear",
   "terminal.voiceReady": "Voice ready (Alt+V to speak)",
   "terminal.voiceReadyMobile": "Voice ready (hold to speak)",
   "terminal.voiceRecording": "Recording...",

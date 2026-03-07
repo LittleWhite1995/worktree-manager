@@ -20,7 +20,6 @@ import {
   GlobalDialogs,
   MobileWorktreeList,
   MobileWorktreeDetail,
-  MobileTabBar,
 } from "./components";
 import { useWorkspace, useTerminal, useUpdater, useShareFeature, useBrowserAuth, useWorktreeLocks, useModals, useWorkspaceActions, useMainOccupation } from "./hooks";
 import { useVoiceInput } from "./hooks/useVoiceInput";
@@ -580,13 +579,6 @@ function App() {
               )}
 
             </div>
-
-            {/* Bottom tab bar */}
-            <MobileTabBar
-              activeTab={mobileView}
-              onTabChange={setMobileView}
-              hasSelectedWorktree={!!actions.selectedWorktree}
-            />
           </div>
         )}
 
