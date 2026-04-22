@@ -73,8 +73,12 @@ export async function callBackend<T = unknown>(
   args?: Record<string, unknown>,
 ): Promise<T> {
   const t0 = performance.now();
+  const QUIET_COMMANDS = new Set(['pty_read', 'pty_write']);
   const logResult = (result: T) => {
-    console.log(`[ipc] ${command}: ${(performance.now() - t0).toFixed(1)}ms`);
+    const elapsed = performance.now() - t0;
+    if (!QUIET_COMMANDS.has(command) || elapsed > 100) {
+      console.log(`[ipc] ${command}: ${elapsed.toFixed(1)}ms`);
+    }
     return result;
   };
   const logError = (err: unknown) => {

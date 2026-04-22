@@ -200,6 +200,7 @@ function getVoiceButtonTitle(
   isKeyHeld: boolean,
   voiceError?: string | null,
   t?: (key: string, opts?: Record<string, unknown>) => string,
+  voiceWarning?: string | null,
 ): string {
   const _t = t || ((k: string) => k);
   if (voiceStatus === 'recording') {
@@ -208,17 +209,20 @@ function getVoiceButtonTitle(
   if (voiceStatus === 'ready') {
     return IS_MOBILE ? _t('terminal.clickToCloseVoice') : _t('terminal.holdAltVToSpeak');
   }
+  if (voiceWarning) {
+    return voiceWarning;
+  }
   if (voiceError) {
     return _t('terminal.voiceError', { error: voiceError });
   }
   return _t('terminal.enableVoice');
 }
 
-function getVoiceButtonClass(voiceStatus: VoiceStatus): string {
+function getVoiceButtonClass(voiceStatus: VoiceStatus, voiceWarning?: string | null): string {
   switch (voiceStatus) {
     case 'recording': return 'text-red-400 hover:bg-red-900/30';
     case 'ready': return 'text-green-400 hover:bg-green-900/30';
-    case 'error': return 'text-red-400 hover:bg-slate-700';
+    case 'error': return voiceWarning ? 'text-yellow-400 hover:bg-slate-700' : 'text-red-400 hover:bg-slate-700';
     default: return 'text-slate-500 hover:text-slate-300 hover:bg-slate-700';
   }
 }
@@ -244,6 +248,7 @@ interface TerminalPanelProps {
   onToggleFullscreen?: () => void;
   voiceStatus?: VoiceStatus;
   voiceError?: string | null;
+  voiceWarning?: string | null;
   isKeyHeld?: boolean;
   analyserNode?: AnalyserNode | null;
   onToggleVoice?: () => void;
@@ -271,6 +276,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   onToggleFullscreen,
   voiceStatus = 'idle',
   voiceError,
+  voiceWarning,
   isKeyHeld = false,
   analyserNode,
   onToggleVoice,
@@ -280,7 +286,9 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 }) => {
   const { t } = useTranslation();
   const [showError, setShowError] = useState<string | null>(null);
+  const [showWarning, setShowWarning] = useState<string | null>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAltVHint, setShowAltVHint] = useState(false);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -324,6 +332,16 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
     }
     return () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); };
   }, [voiceError]);
+
+  // Show voice warnings (no mic, permission denied) as yellow toast
+  useEffect(() => {
+    if (voiceWarning) {
+      setShowWarning(voiceWarning);
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+      warningTimerRef.current = setTimeout(() => setShowWarning(null), 4000);
+    }
+    return () => { if (warningTimerRef.current) clearTimeout(warningTimerRef.current); };
+  }, [voiceWarning]);
 
   // Show Alt+V hint briefly when entering ready state
   useEffect(() => {
@@ -455,8 +473,8 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                     onToggleVoice?.();
                   }
                 }}
-                className={`p-1.5 rounded transition-colors relative ${getVoiceButtonClass(voiceStatus)}`}
-                title={getVoiceButtonTitle(voiceStatus, isKeyHeld, voiceError, t)}
+                className={`p-1.5 rounded transition-colors relative ${getVoiceButtonClass(voiceStatus, voiceWarning)}`}
+                title={getVoiceButtonTitle(voiceStatus, isKeyHeld, voiceError, t, voiceWarning)}
                 aria-label={t('terminal.voiceOff')}
               >
                 <MicIcon className="w-3.5 h-3.5" />
@@ -528,10 +546,17 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
           </div>
         )}
 
-        {/* 语音错误提示 */}
+        {/* 语音错误提示（红色） */}
         {showError && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-red-900/90 border border-red-700/50 rounded-lg text-sm text-red-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
             {showError}
+          </div>
+        )}
+
+        {/* 语音警告提示（黄色，用于无麦克风等非严重问题） */}
+        {showWarning && !showError && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-yellow-900/90 border border-yellow-700/50 rounded-lg text-sm text-yellow-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+            {showWarning}
           </div>
         )}
 

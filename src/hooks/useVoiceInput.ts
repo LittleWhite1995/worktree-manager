@@ -32,6 +32,7 @@ export interface StagingState {
 export interface UseVoiceInputReturn {
   voiceStatus: VoiceStatus;
   voiceError: string | null;
+  voiceWarning: string | null;
   isKeyHeld: boolean;
   analyserNode: AnalyserNode | null;
   staging: StagingState | null;
@@ -61,6 +62,7 @@ export function useVoiceInput(
 ): UseVoiceInputReturn {
   const [voiceStatus, _setVoiceStatus] = useState<VoiceStatus>('idle');
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceWarning, setVoiceWarning] = useState<string | null>(null);
   const [isKeyHeld, setIsKeyHeld] = useState(false);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
   const [staging, setStaging] = useState<StagingState | null>(null);
@@ -197,6 +199,7 @@ export function useVoiceInput(
     if (busyRef.current) { console.log('[voice] enterReady SKIPPED (busy)'); return; }
     busyRef.current = true;
     setVoiceError(null);
+    setVoiceWarning(null);
 
     // 从后端读取 AI 优化开关（缓存到 ref，录音期间不再重复请求）
     try {
@@ -213,14 +216,22 @@ export function useVoiceInput(
 
       const preferredDeviceId = localStorage.getItem('preferred-mic-device-id');
       console.log('[voice] requesting getUserMedia, preferredDevice:', preferredDeviceId);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          ...(preferredDeviceId ? { deviceId: { exact: preferredDeviceId } } : {}),
-        },
-      });
+      let stream: MediaStream;
+      const baseConstraints = { channelCount: 1 as const, echoCancellation: true, noiseSuppression: true };
+      if (preferredDeviceId) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { ...baseConstraints, deviceId: { exact: preferredDeviceId } },
+          });
+        } catch (e) {
+          // Preferred device unavailable (OverconstrainedError) — fall back to default mic
+          console.warn('[voice] preferred mic unavailable, falling back to default:', e);
+          localStorage.removeItem('preferred-mic-device-id');
+          stream = await navigator.mediaDevices.getUserMedia({ audio: baseConstraints });
+        }
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: baseConstraints });
+      }
       console.log('[voice] getUserMedia OK, tracks:', stream.getAudioTracks().length);
       mediaStreamRef.current = stream;
 
@@ -259,15 +270,18 @@ export function useVoiceInput(
     } catch (e) {
       cleanupAudio();
       const msg = e instanceof Error ? e.message : String(e);
+      const name = e instanceof Error ? e.name : '';
       console.error('[voice] enterReady FAILED:', msg);
-      if (msg.includes('Permission') || msg.includes('NotAllowed')) {
-        setVoiceError(i18next.t('voice.permissionDenied'));
-      } else if (msg.includes('NotFound') || msg.includes('audio-capture')) {
-        setVoiceError(i18next.t('voice.noMicDetected'));
+      if (msg.includes('Permission') || msg.includes('NotAllowed') || name === 'NotAllowedError') {
+        setVoiceWarning(i18next.t('voice.permissionDenied'));
+        setVoiceStatus('idle');
+      } else if (msg.includes('NotFound') || msg.includes('audio-capture') || msg.includes('no device') || name === 'OverconstrainedError' || msg.includes('Overconstrained') || msg.includes('Invalid constraint')) {
+        setVoiceWarning(i18next.t('voice.noMicDetected'));
+        setVoiceStatus('idle');
       } else {
         setVoiceError(msg);
+        setVoiceStatus('error');
       }
-      setVoiceStatus('error');
     } finally {
       busyRef.current = false;
       console.log('[voice] enterReady finally, busyRef reset to false');
@@ -532,5 +546,5 @@ export function useVoiceInput(
     };
   }, [cleanupAudio, clearStaging]);
 
-  return { voiceStatus, voiceError, isKeyHeld, analyserNode, staging, toggleVoice, stopVoice: exitReady, startRecording, stopRecording };
+  return { voiceStatus, voiceError, voiceWarning, isKeyHeld, analyserNode, staging, toggleVoice, stopVoice: exitReady, startRecording, stopRecording };
 }

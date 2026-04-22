@@ -337,6 +337,7 @@ function App() {
                   }}
                   voiceStatus={voice.voiceStatus}
                   voiceError={voice.voiceError}
+                  voiceWarning={voice.voiceWarning}
                   isKeyHeld={voice.isKeyHeld}
                   analyserNode={voice.analyserNode}
                   onToggleVoice={voice.toggleVoice}
@@ -410,6 +411,7 @@ function App() {
                   clientId={terminalHook.clientId}
                   voiceStatus={voice.voiceStatus}
                   voiceError={voice.voiceError}
+                  voiceWarning={voice.voiceWarning}
                   isKeyHeld={voice.isKeyHeld}
                   analyserNode={voice.analyserNode}
                   onToggleVoice={voice.toggleVoice}

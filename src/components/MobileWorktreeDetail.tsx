@@ -55,6 +55,7 @@ interface MobileWorktreeDetailProps {
     clientId?: string;
     voiceStatus?: VoiceStatus;
     voiceError?: string | null;
+    voiceWarning?: string | null;
     isKeyHeld?: boolean;
     analyserNode?: AnalyserNode | null;
     onToggleVoice?: () => void;
@@ -104,6 +105,7 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
     clientId,
     voiceStatus,
     voiceError,
+    voiceWarning,
     isKeyHeld,
     analyserNode,
     onToggleVoice,
@@ -442,6 +444,7 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
                                     onCollapse={toggleTerminalFullscreen}
                                     voiceStatus={voiceStatus}
                                     voiceError={voiceError}
+                                    voiceWarning={voiceWarning}
                                     isKeyHeld={isKeyHeld}
                                     analyserNode={analyserNode}
                                     onToggleVoice={onToggleVoice}
