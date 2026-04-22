@@ -1,37 +1,11 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Terminal as XTerm } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { callBackend, isTauri, openLink, getPlatform } from '../lib/backend';
 import { getWebSocketManager } from '../lib/websocket';
 import { TERMINAL } from '../constants';
-import '@xterm/xterm/css/xterm.css';
-
-const TERMINAL_THEME = {
-  background: '#0f172a',
-  foreground: '#cbd5e1',
-  cursor: '#cbd5e1',
-  cursorAccent: '#0f172a',
-  selectionBackground: '#334155',
-  black: '#1e293b',
-  red: '#f87171',
-  green: '#4ade80',
-  yellow: '#facc15',
-  blue: '#60a5fa',
-  magenta: '#c084fc',
-  cyan: '#22d3ee',
-  white: '#f1f5f9',
-  brightBlack: '#475569',
-  brightRed: '#fca5a5',
-  brightGreen: '#86efac',
-  brightYellow: '#fde047',
-  brightBlue: '#93c5fd',
-  brightMagenta: '#d8b4fe',
-  brightCyan: '#67e8f9',
-  brightWhite: '#ffffff',
-} as const;
+import { TerminalRegistry } from '../terminal';
+import type { TerminalAdapter } from '../terminal';
 
 function writeToPty(sessionId: string, data: string) {
   if (!isTauri()) {
@@ -182,8 +156,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const enableDesktopEventStreaming = false;
   useTranslation();
   const terminalRef = useRef<HTMLDivElement>(null);
-  const xtermRef = useRef<XTerm | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const adapterRef = useRef<TerminalAdapter | null>(null);
   // Extract actual cwd (remove #timestamp suffix if present)
   const actualCwd = cwd.split('#')[0];
   // Session ID is path-based so all clients (desktop + browser) share the same PTY
@@ -237,8 +210,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   }, []);
 
   const handleCopy = useCallback(() => {
-    if (xtermRef.current) {
-      const selection = xtermRef.current.getSelection();
+    if (adapterRef.current) {
+      const selection = adapterRef.current.getSelection();
       if (selection) {
         navigator.clipboard.writeText(selection).catch(() => {});
       }
@@ -249,7 +222,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text && xtermRef.current) {
+      if (text && adapterRef.current) {
         writeToPty(sessionIdRef.current, text);
       }
     } catch {
@@ -259,9 +232,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   }, [handleCloseContextMenu]);
 
   const handleClear = useCallback(() => {
-    if (xtermRef.current) {
-      xtermRef.current.clear();
-    }
+    adapterRef.current?.clear();
     handleCloseContextMenu();
   }, [handleCloseContextMenu]);
 
@@ -274,9 +245,9 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     const windowLabel = isTauri()
       ? await import('@tauri-apps/api/window').then(m => m.getCurrentWindow().label).catch(() => 'unknown')
       : 'browser';
-    const cols = xtermRef.current?.cols ?? 0;
-    const rows = xtermRef.current?.rows ?? 0;
-    const selection = xtermRef.current?.getSelection() ?? '';
+    const cols = adapterRef.current?.cols ?? 0;
+    const rows = adapterRef.current?.rows ?? 0;
+    const selection = adapterRef.current?.getSelection() ?? '';
     setDebugInfo({
       visible: true,
       data: {
@@ -322,87 +293,67 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
   useImperativeHandle(ref, () => ({
     copyContent: async () => {
-      const term = xtermRef.current;
-      if (!term) return;
-      term.selectAll();
-      const selection = term.getSelection();
+      const adapter = adapterRef.current;
+      if (!adapter) return;
+      adapter.selectAll();
+      const selection = adapter.getSelection();
       if (selection) {
         try { await navigator.clipboard.writeText(selection); } catch { /* noop */ }
       }
-      term.clearSelection();
+      adapter.clearSelection();
     }
   }), []);
 
   const handleIncomingData = useCallback((data: string) => {
-    if (!data || !xtermRef.current) return;
+    if (!data || !adapterRef.current) return;
     if (!gotFirstDataRef.current) {
       gotFirstDataRef.current = true;
       setInitStatus(null);
     }
-    xtermRef.current.write(data);
+    adapterRef.current.write(data);
 
-    if (!window._xtermRefreshed) {
-      window._xtermRefreshed = true;
+    if (!window._terminalRefreshed) {
+      window._terminalRefreshed = true;
       setTimeout(() => {
-        if (xtermRef.current) xtermRef.current.refresh(0, xtermRef.current.rows - 1);
+        if (adapterRef.current) adapterRef.current.refresh(0, adapterRef.current.rows - 1);
       }, 100);
       setTimeout(() => {
-        if (xtermRef.current) xtermRef.current.refresh(0, xtermRef.current.rows - 1);
+        if (adapterRef.current) adapterRef.current.refresh(0, adapterRef.current.rows - 1);
       }, 500);
     }
   }, []);
 
   useEffect(() => {
-    if (!terminalRef.current || xtermRef.current) return;
+    if (!terminalRef.current || adapterRef.current) return;
 
     // Sync mobile detection for initial fontSize
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const isSmallScreen = window.innerWidth < 768;
     const isMobileDevice = hasTouch && isSmallScreen;
 
-    const term = new XTerm({
-      theme: TERMINAL_THEME,
+    const adapter = TerminalRegistry.create();
+
+    // In Tauri, window.open() is blocked — use openLink() which
+    // delegates to @tauri-apps/plugin-opener on desktop.
+    adapter.mount(terminalRef.current, {
       fontSize: isMobileDevice ? 12 : 13,
       fontFamily: '"Maple Mono NF CN", Menlo, Monaco, "Courier New", monospace',
       cursorBlink: true,
-      cursorStyle: 'bar',
+      cursorStyle: 'bar' as const,
       scrollback: TERMINAL.SCROLLBACK_LINES,
-      convertEol: true,
-      allowProposedApi: true,
+      linkHandler: (uri) => openLink(uri),
     });
 
-    const fitAddon = new FitAddon();
-    // In Tauri, window.open() is blocked — use openLink() which
-    // delegates to @tauri-apps/plugin-opener on desktop.
-    const webLinksAddon = new WebLinksAddon((_event, uri) => openLink(uri));
-
-    term.loadAddon(fitAddon);
-    term.loadAddon(webLinksAddon);
-
-    term.open(terminalRef.current);
-
     // On mobile, prevent soft keyboard from popping up on casual touch.
-    // Use inputMode="none" which hides the keyboard but still allows xterm to receive input.
-    // Double-tap to explicitly open the keyboard.
+    // Double-tap to explicitly open the keyboard (handled inside the adapter).
     if (isMobileDevice) {
-      const xtermTextarea = terminalRef.current?.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
-      if (xtermTextarea) {
-        xtermTextarea.inputMode = 'none';
-        terminalRef.current?.addEventListener('dblclick', () => {
-          xtermTextarea.inputMode = 'text';
-          xtermTextarea.focus();
-          xtermTextarea.addEventListener('blur', () => {
-            xtermTextarea.inputMode = 'none';
-          }, { once: true });
-        });
-      }
+      adapter.setMobileKeyboardPolicy('none');
     }
 
-    // Let Alt+V pass through xterm for voice input
-    term.attachCustomKeyEventHandler((e) => !(e.altKey && e.code === 'KeyV'));
+    // Let Alt+V pass through for voice input
+    const keyDisposable = adapter.onKeyEvent((e) => !(e.altKey && e.code === 'KeyV'));
 
-    xtermRef.current = term;
-    fitAddonRef.current = fitAddon;
+    adapterRef.current = adapter;
 
     const resetStuckSelection = (forceClear = false) => {
       const selectionState = mouseSelectionRef.current;
@@ -410,8 +361,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       selectionState.pressed = false;
       selectionState.moved = false;
       if (shouldClear) {
-        term.clearSelection();
-        term.focus();
+        adapter.clearSelection();
+        adapter.focus();
       }
     };
 
@@ -486,7 +437,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
             const lineHeight = 16;
             const lines = Math.trunc(scrollAccum / lineHeight);
             if (lines !== 0) {
-              term.scrollLines(lines);
+              adapter.scrollLines(lines);
               scrollAccum -= lines * lineHeight;
             }
             touchStartY = nowY;
@@ -500,8 +451,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       }, { passive: true });
     }
 
-
-    term.onData((data) => {
+    const inputDisposable = adapter.onInput((data) => {
       // Convert full-width characters to half-width for terminal compatibility
       const converted = data.replace(/[\uff01-\uff5e]/g, (ch) =>
         String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
@@ -514,8 +464,10 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       window.removeEventListener('mousemove', handleMouseMove, true);
       window.removeEventListener('mouseup', handleMouseUp, true);
       window.removeEventListener('blur', handleWindowBlur);
-      term.dispose();
-      xtermRef.current = null;
+      inputDisposable.dispose();
+      keyDisposable.dispose();
+      adapter.dispose();
+      adapterRef.current = null;
     };
   }, []);
 
@@ -603,9 +555,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
   // Initialize PTY session
   const initPty = useCallback(async () => {
-    const term = xtermRef.current;
-    const fitAddon = fitAddonRef.current;
-    if (!term || !fitAddon) return;
+    const adapter = adapterRef.current;
+    if (!adapter) return;
 
     setInitStatus('Preparing terminal...');
     setInitError(null);
@@ -620,13 +571,13 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       } catch (_e) { /* ignore */ }
 
       try {
-        fitAddon.fit();
+        adapter.fit();
       } catch (_e) {
-        console.warn('[terminal] fitAddon.fit() failed during init', _e);
+        console.warn('[terminal] adapter.fit() failed during init', _e);
       }
 
-      const cols = Math.max(term.cols || 80, 2);
-      const rows = Math.max(term.rows || 24, 2);
+      const cols = Math.max(adapter.cols || 80, 2);
+      const rows = Math.max(adapter.rows || 24, 2);
 
       setInitStatus('Checking session...');
 
@@ -668,10 +619,10 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       // Deferred resize
       requestAnimationFrame(() => {
         setTimeout(() => {
-          if (fitAddonRef.current && xtermRef.current) {
-            try { fitAddonRef.current.fit(); } catch (_e) { /* ignore */ }
-            const newCols = Math.max(xtermRef.current.cols || 80, 2);
-            const newRows = Math.max(xtermRef.current.rows || 24, 2);
+          if (adapterRef.current) {
+            try { adapterRef.current.fit(); } catch (_e) { /* ignore */ }
+            const newCols = Math.max(adapterRef.current.cols || 80, 2);
+            const newRows = Math.max(adapterRef.current.rows || 24, 2);
             if (newCols !== cols || newRows !== rows || exists) {
               callBackend('pty_resize', {
                 sessionId: sessionIdRef.current,
@@ -702,7 +653,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
   // Create PTY session on first visibility
   useEffect(() => {
-    if (!xtermRef.current || !visible || initializedRef.current) return;
+    if (!adapterRef.current || !visible || initializedRef.current) return;
     initPty();
   }, [visible, initPty]);
 
@@ -728,11 +679,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
 
   const handleResize = useCallback(() => {
-    if (!fitAddonRef.current || !xtermRef.current || !visible || !initializedRef.current) return;
+    if (!adapterRef.current || !visible || !initializedRef.current) return;
 
-    try { fitAddonRef.current.fit(); } catch (_e) { /* ignore */ }
-    const cols = Math.max(xtermRef.current.cols || 80, 2);
-    const rows = Math.max(xtermRef.current.rows || 24, 2);
+    try { adapterRef.current.fit(); } catch (_e) { /* ignore */ }
+    const cols = Math.max(adapterRef.current.cols || 80, 2);
+    const rows = Math.max(adapterRef.current.rows || 24, 2);
 
     callBackend('pty_resize', {
       sessionId: sessionIdRef.current,
@@ -945,7 +896,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 });
 declare global {
   interface Window {
-    _xtermRefreshed?: boolean;
+    _terminalRefreshed?: boolean;
   }
 }
 
