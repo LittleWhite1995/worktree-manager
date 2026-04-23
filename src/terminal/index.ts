@@ -15,3 +15,6 @@ export { XtermAdapter }
 
 TerminalRegistry.register('xterm', { create: () => new XtermAdapter() })
 TerminalRegistry.setDefault('xterm')
+
+export { CommandState } from './shell-integration'
+export type { CommandInfo } from './shell-integration'
