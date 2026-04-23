@@ -14,7 +14,7 @@ import type {
 import { OscParser } from '../shell-integration/osc-parser'
 import { CommandDetection } from '../shell-integration/command-detection'
 import { CommandDecorationAddon } from '../shell-integration/command-decoration'
-import type { CommandInfo, Unsubscribe } from '../shell-integration/types'
+import type { CommandInfo } from '../shell-integration/types'
 
 const XTERM_THEME = {
   background: '#0f172a',
@@ -211,8 +211,9 @@ export class XtermAdapter implements TerminalAdapter {
   }
 
   /** Subscribe to command finished events */
-  onCommandFinished(callback: (cmd: CommandInfo) => void): Unsubscribe | undefined {
-    return this.commandDetection?.onCommandFinished.on(callback)
+  onCommandFinished(callback: (cmd: CommandInfo) => void): Disposable | undefined {
+    const unsub = this.commandDetection?.onCommandFinished.on(callback)
+    return unsub ? { dispose: unsub } : undefined
   }
 
   /** Get the current working directory reported by the shell via OSC 7/633 */
