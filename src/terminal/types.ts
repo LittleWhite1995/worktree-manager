@@ -43,6 +43,10 @@ export interface Disposable {
   dispose(): void
 }
 
+/**
+ * All methods except mount() and dispose() must be called after mount() resolves.
+ * Calling them before mount will silently no-op (optional chaining on internal state).
+ */
 export interface TerminalAdapter {
   mount(container: HTMLElement, options: TerminalOptions): Promise<void>
   dispose(): void

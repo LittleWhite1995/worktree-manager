@@ -195,6 +195,12 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     handleMouseUp: (e: MouseEvent) => void;
     handleWindowBlur: () => void;
   } | null>(null);
+  const touchHandlersRef = useRef<{
+    el: HTMLElement;
+    handleTouchStart: (e: TouchEvent) => void;
+    handleTouchMove: (e: TouchEvent) => void;
+    handleTouchEnd: () => void;
+  } | null>(null);
 
   // Detect mobile device on mount
   useEffect(() => {
@@ -349,6 +355,15 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         window.removeEventListener('mouseup', handlers.handleMouseUp, true);
         window.removeEventListener('blur', handlers.handleWindowBlur);
         mouseHandlersRef.current = null;
+      }
+
+      // Clean up touch handlers
+      const touchH = touchHandlersRef.current;
+      if (touchH) {
+        touchH.el.removeEventListener('touchstart', touchH.handleTouchStart);
+        touchH.el.removeEventListener('touchmove', touchH.handleTouchMove);
+        touchH.el.removeEventListener('touchend', touchH.handleTouchEnd);
+        touchHandlersRef.current = null;
       }
 
       // Clean up disposables
@@ -538,23 +553,23 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         // Store cleanup references
         mouseHandlersRef.current = { handleMouseDown, handleMouseMove, handleMouseUp, handleWindowBlur };
 
-        // Mobile: single-finger touch scroll
-        if (isMobile && terminalRef.current) {
+        // Mobile: single-finger touch scroll (use isMobileDevice from inline check above)
+        if (isMobileDevice && terminalRef.current) {
           let touchStartY = 0;
           let scrollAccum = 0;
           let isDragging = false;
 
           const el = terminalRef.current;
 
-          el.addEventListener('touchstart', (e) => {
+          const handleTouchStart = (e: TouchEvent) => {
             if (e.touches.length === 1) {
               touchStartY = e.touches[0].clientY;
               scrollAccum = 0;
               isDragging = false;
             }
-          }, { passive: true });
+          };
 
-          el.addEventListener('touchmove', (e) => {
+          const handleTouchMove = (e: TouchEvent) => {
             if (e.touches.length === 1) {
               const nowY = e.touches[0].clientY;
               const dy = touchStartY - nowY;
@@ -573,12 +588,18 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
                 touchStartY = nowY;
               }
             }
-          }, { passive: false });
+          };
 
-          el.addEventListener('touchend', () => {
+          const handleTouchEnd = () => {
             isDragging = false;
             scrollAccum = 0;
-          }, { passive: true });
+          };
+
+          el.addEventListener('touchstart', handleTouchStart, { passive: true });
+          el.addEventListener('touchmove', handleTouchMove, { passive: false });
+          el.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+          touchHandlersRef.current = { el, handleTouchStart, handleTouchMove, handleTouchEnd };
         }
 
         // Input handler

@@ -41,6 +41,7 @@ export class XtermAdapter implements TerminalAdapter {
   private fitAddon: FitAddon | null = null
   private container: HTMLElement | null = null
   private mobileKeyboardInitialized = false
+  private dblclickHandler: (() => void) | null = null
 
   get cols(): number {
     return this.term?.cols ?? 80
@@ -79,6 +80,10 @@ export class XtermAdapter implements TerminalAdapter {
   }
 
   dispose(): void {
+    if (this.dblclickHandler && this.container) {
+      this.container.removeEventListener('dblclick', this.dblclickHandler)
+      this.dblclickHandler = null
+    }
     this.term?.dispose()
     this.term = null
     this.fitAddon = null
@@ -169,13 +174,14 @@ export class XtermAdapter implements TerminalAdapter {
 
     if (mode === 'none' && !this.mobileKeyboardInitialized) {
       this.mobileKeyboardInitialized = true
-      this.container.addEventListener('dblclick', () => {
+      this.dblclickHandler = () => {
         textarea.inputMode = 'text'
         textarea.focus()
         textarea.addEventListener('blur', () => {
           textarea.inputMode = 'none'
         }, { once: true })
-      })
+      }
+      this.container.addEventListener('dblclick', this.dblclickHandler)
     }
   }
 }
