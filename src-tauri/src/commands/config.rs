@@ -81,3 +81,16 @@ pub(crate) fn set_skip_git_hooks(skip: bool) -> Result<(), String> {
     config.skip_git_hooks = skip;
     save_global_config_internal(&config)
 }
+
+#[tauri::command]
+pub(crate) fn get_shell_integration_enabled() -> Result<bool, String> {
+    let config = load_global_config();
+    Ok(config.shell_integration_enabled)
+}
+
+#[tauri::command]
+pub(crate) fn set_shell_integration_enabled(enabled: bool) -> Result<(), String> {
+    let mut config = load_global_config();
+    config.shell_integration_enabled = enabled;
+    save_global_config_internal(&config)
+}

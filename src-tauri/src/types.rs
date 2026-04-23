@@ -176,6 +176,8 @@ pub struct GlobalConfig {
     pub git_user_email: Option<String>,
     #[serde(default)]
     pub skip_git_hooks: bool,
+    #[serde(default = "default_true")]
+    pub shell_integration_enabled: bool,
     #[serde(default)]
     pub custom_mirrors: Vec<CustomMirror>,
     #[serde(default)]
@@ -218,6 +220,7 @@ impl Default for GlobalConfig {
             git_user_name: None,
             git_user_email: None,
             skip_git_hooks: false,
+            shell_integration_enabled: true,
             custom_mirrors: vec![],
             cloud: CloudConfig::default(),
         }

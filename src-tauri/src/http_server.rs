@@ -578,6 +578,23 @@ async fn h_set_skip_git_hooks(Json(args): Json<SetSkipGitHooksArgs>) -> Response
     result_ok(crate::commands::config::set_skip_git_hooks(args.skip))
 }
 
+async fn h_get_shell_integration_enabled() -> Response {
+    result_json(crate::commands::config::get_shell_integration_enabled())
+}
+
+#[derive(serde::Deserialize)]
+struct SetShellIntegrationEnabledArgs {
+    enabled: bool,
+}
+
+async fn h_set_shell_integration_enabled(
+    Json(args): Json<SetShellIntegrationEnabledArgs>,
+) -> Response {
+    result_ok(crate::commands::config::set_shell_integration_enabled(
+        args.enabled,
+    ))
+}
+
 async fn h_get_git_user_config(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
     let normalized = normalize_path(&path);

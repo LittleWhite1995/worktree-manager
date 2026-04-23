@@ -508,6 +508,14 @@ export async function setSkipGitHooks(skip: boolean): Promise<void> {
   return callBackend<void>('set_skip_git_hooks', { skip });
 }
 
+export async function getShellIntegrationEnabled(): Promise<boolean> {
+  return callBackend<boolean>('get_shell_integration_enabled');
+}
+
+export async function setShellIntegrationEnabled(enabled: boolean): Promise<void> {
+  return callBackend<void>('set_shell_integration_enabled', { enabled });
+}
+
 /** Generate commit message using AI */
 export async function generateCommitMessage(diff: string): Promise<string> {
   return callBackend<string>('generate_commit_message', { diff });

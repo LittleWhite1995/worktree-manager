@@ -259,6 +259,9 @@ pub fn run() {
             // Git hooks 跳过配置
             get_skip_git_hooks,
             set_skip_git_hooks,
+            // Shell Integration 配置
+            get_shell_integration_enabled,
+            set_shell_integration_enabled,
             // Git 用户本地配置
             get_git_user_config,
             set_git_user_config,
