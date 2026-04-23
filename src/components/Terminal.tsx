@@ -1,37 +1,11 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Terminal as XTerm } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { callBackend, isTauri, openLink, getPlatform } from '../lib/backend';
 import { getWebSocketManager } from '../lib/websocket';
 import { TERMINAL } from '../constants';
-import '@xterm/xterm/css/xterm.css';
-
-const TERMINAL_THEME = {
-  background: '#0f172a',
-  foreground: '#cbd5e1',
-  cursor: '#cbd5e1',
-  cursorAccent: '#0f172a',
-  selectionBackground: '#334155',
-  black: '#1e293b',
-  red: '#f87171',
-  green: '#4ade80',
-  yellow: '#facc15',
-  blue: '#60a5fa',
-  magenta: '#c084fc',
-  cyan: '#22d3ee',
-  white: '#f1f5f9',
-  brightBlack: '#475569',
-  brightRed: '#fca5a5',
-  brightGreen: '#86efac',
-  brightYellow: '#fde047',
-  brightBlue: '#93c5fd',
-  brightMagenta: '#d8b4fe',
-  brightCyan: '#67e8f9',
-  brightWhite: '#ffffff',
-} as const;
+import { TerminalRegistry } from '../terminal';
+import type { TerminalAdapter, Disposable } from '../terminal';
 
 function writeToPty(sessionId: string, data: string) {
   if (!isTauri()) {
@@ -182,12 +156,12 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const enableDesktopEventStreaming = false;
   useTranslation();
   const terminalRef = useRef<HTMLDivElement>(null);
-  const xtermRef = useRef<XTerm | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const adapterRef = useRef<TerminalAdapter | null>(null);
   // Extract actual cwd (remove #timestamp suffix if present)
   const actualCwd = cwd.split('#')[0];
-  // Session ID is path-based so all clients (desktop + browser) share the same PTY
-  const sessionIdRef = useRef<string>(`pty-${actualCwd.replace(/[/#]/g, '-')}`);
+  // Session ID includes the full cwd (with #timestamp for duplicated terminals)
+  // so each terminal tab gets its own PTY session
+  const sessionIdRef = useRef<string>(`pty-${cwd.replace(/[/#]/g, '-')}`);
   const readerIntervalRef = useRef<number | null>(null);
   const wsSubscribedRef = useRef(false);
   const desktopUnlistenRef = useRef<UnlistenFn | null>(null);
@@ -213,6 +187,21 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const [initStatus, setInitStatus] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   const gotFirstDataRef = useRef(false);
+  const mountedRef = useRef(false);
+  const keyDisposableRef = useRef<Disposable | null>(null);
+  const inputDisposableRef = useRef<Disposable | null>(null);
+  const mouseHandlersRef = useRef<{
+    handleMouseDown: (e: MouseEvent) => void;
+    handleMouseMove: (e: MouseEvent) => void;
+    handleMouseUp: (e: MouseEvent) => void;
+    handleWindowBlur: () => void;
+  } | null>(null);
+  const touchHandlersRef = useRef<{
+    el: HTMLElement;
+    handleTouchStart: (e: TouchEvent) => void;
+    handleTouchMove: (e: TouchEvent) => void;
+    handleTouchEnd: () => void;
+  } | null>(null);
 
   // Detect mobile device on mount
   useEffect(() => {
@@ -237,8 +226,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   }, []);
 
   const handleCopy = useCallback(() => {
-    if (xtermRef.current) {
-      const selection = xtermRef.current.getSelection();
+    if (adapterRef.current) {
+      const selection = adapterRef.current.getSelection();
       if (selection) {
         navigator.clipboard.writeText(selection).catch(() => {});
       }
@@ -249,7 +238,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text && xtermRef.current) {
+      if (text && adapterRef.current) {
         writeToPty(sessionIdRef.current, text);
       }
     } catch {
@@ -259,9 +248,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   }, [handleCloseContextMenu]);
 
   const handleClear = useCallback(() => {
-    if (xtermRef.current) {
-      xtermRef.current.clear();
-    }
+    adapterRef.current?.clear();
     handleCloseContextMenu();
   }, [handleCloseContextMenu]);
 
@@ -274,9 +261,9 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     const windowLabel = isTauri()
       ? await import('@tauri-apps/api/window').then(m => m.getCurrentWindow().label).catch(() => 'unknown')
       : 'browser';
-    const cols = xtermRef.current?.cols ?? 0;
-    const rows = xtermRef.current?.rows ?? 0;
-    const selection = xtermRef.current?.getSelection() ?? '';
+    const cols = adapterRef.current?.cols ?? 0;
+    const rows = adapterRef.current?.rows ?? 0;
+    const selection = adapterRef.current?.getSelection() ?? '';
     setDebugInfo({
       visible: true,
       data: {
@@ -322,200 +309,72 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
   useImperativeHandle(ref, () => ({
     copyContent: async () => {
-      const term = xtermRef.current;
-      if (!term) return;
-      term.selectAll();
-      const selection = term.getSelection();
+      const adapter = adapterRef.current;
+      if (!adapter) return;
+      adapter.selectAll();
+      const selection = adapter.getSelection();
       if (selection) {
         try { await navigator.clipboard.writeText(selection); } catch { /* noop */ }
       }
-      term.clearSelection();
+      adapter.clearSelection();
     }
   }), []);
 
   const handleIncomingData = useCallback((data: string) => {
-    if (!data || !xtermRef.current) return;
+    if (!data || !adapterRef.current) return;
     if (!gotFirstDataRef.current) {
       gotFirstDataRef.current = true;
       setInitStatus(null);
     }
-    xtermRef.current.write(data);
+    adapterRef.current.write(data);
 
-    if (!window._xtermRefreshed) {
-      window._xtermRefreshed = true;
+    if (!window._terminalRefreshed) {
+      window._terminalRefreshed = true;
       setTimeout(() => {
-        if (xtermRef.current) xtermRef.current.refresh(0, xtermRef.current.rows - 1);
+        if (adapterRef.current) adapterRef.current.refresh(0, adapterRef.current.rows - 1);
       }, 100);
       setTimeout(() => {
-        if (xtermRef.current) xtermRef.current.refresh(0, xtermRef.current.rows - 1);
+        if (adapterRef.current) adapterRef.current.refresh(0, adapterRef.current.rows - 1);
       }, 500);
     }
   }, []);
 
   useEffect(() => {
-    if (!terminalRef.current || xtermRef.current) return;
+    if (!terminalRef.current || adapterRef.current) return;
 
-    // Sync mobile detection for initial fontSize
-    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    const isSmallScreen = window.innerWidth < 768;
-    const isMobileDevice = hasTouch && isSmallScreen;
-
-    const term = new XTerm({
-      theme: TERMINAL_THEME,
-      fontSize: isMobileDevice ? 12 : 13,
-      fontFamily: '"Maple Mono NF CN", Menlo, Monaco, "Courier New", monospace',
-      cursorBlink: true,
-      cursorStyle: 'bar',
-      scrollback: TERMINAL.SCROLLBACK_LINES,
-      convertEol: true,
-      allowProposedApi: true,
-    });
-
-    const fitAddon = new FitAddon();
-    // In Tauri, window.open() is blocked — use openLink() which
-    // delegates to @tauri-apps/plugin-opener on desktop.
-    const webLinksAddon = new WebLinksAddon((_event, uri) => openLink(uri));
-
-    term.loadAddon(fitAddon);
-    term.loadAddon(webLinksAddon);
-
-    term.open(terminalRef.current);
-
-    // On mobile, prevent soft keyboard from popping up on casual touch.
-    // Use inputMode="none" which hides the keyboard but still allows xterm to receive input.
-    // Double-tap to explicitly open the keyboard.
-    if (isMobileDevice) {
-      const xtermTextarea = terminalRef.current?.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
-      if (xtermTextarea) {
-        xtermTextarea.inputMode = 'none';
-        terminalRef.current?.addEventListener('dblclick', () => {
-          xtermTextarea.inputMode = 'text';
-          xtermTextarea.focus();
-          xtermTextarea.addEventListener('blur', () => {
-            xtermTextarea.inputMode = 'none';
-          }, { once: true });
-        });
-      }
-    }
-
-    // Let Alt+V pass through xterm for voice input
-    term.attachCustomKeyEventHandler((e) => !(e.altKey && e.code === 'KeyV'));
-
-    xtermRef.current = term;
-    fitAddonRef.current = fitAddon;
-
-    const resetStuckSelection = (forceClear = false) => {
-      const selectionState = mouseSelectionRef.current;
-      const shouldClear = forceClear || !selectionState.moved;
-      selectionState.pressed = false;
-      selectionState.moved = false;
-      if (shouldClear) {
-        term.clearSelection();
-        term.focus();
-      }
-    };
-
-    const handleMouseDown = (event: MouseEvent) => {
-      if (event.button !== 0) return;
-      mouseSelectionRef.current = {
-        pressed: true,
-        moved: false,
-        startX: event.clientX,
-        startY: event.clientY,
-      };
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!mouseSelectionRef.current.pressed || mouseSelectionRef.current.moved) return;
-      const dx = Math.abs(event.clientX - mouseSelectionRef.current.startX);
-      const dy = Math.abs(event.clientY - mouseSelectionRef.current.startY);
-      if (dx > 3 || dy > 3) {
-        mouseSelectionRef.current.moved = true;
-      }
-    };
-
-    const handleMouseUp = (event: MouseEvent) => {
-      if (!mouseSelectionRef.current.pressed) return;
-      // Preserve xterm's native word/line selection on double/triple click.
-      const isMultiClickSelection = event.detail > 1;
-      if (isMultiClickSelection) {
-        mouseSelectionRef.current.pressed = false;
-        mouseSelectionRef.current.moved = false;
-        return;
-      }
-      resetStuckSelection(false);
-    };
-
-    const handleWindowBlur = () => {
-      if (!mouseSelectionRef.current.pressed) return;
-      resetStuckSelection(true);
-    };
-
-    terminalRef.current.addEventListener('mousedown', handleMouseDown, true);
-    window.addEventListener('mousemove', handleMouseMove, true);
-    window.addEventListener('mouseup', handleMouseUp, true);
-    window.addEventListener('blur', handleWindowBlur);
-
-    // Mobile: single-finger touch scroll
-    if (isMobile && terminalRef.current) {
-      let touchStartY = 0;
-      let scrollAccum = 0;
-      let isDragging = false;
-
-      const el = terminalRef.current;
-
-      el.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 1) {
-          touchStartY = e.touches[0].clientY;
-          scrollAccum = 0;
-          isDragging = false;
-        }
-      }, { passive: true });
-
-      el.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 1) {
-          const nowY = e.touches[0].clientY;
-          const dy = touchStartY - nowY;
-          // 8px threshold to avoid false triggers
-          if (!isDragging && Math.abs(dy) > 8) {
-            isDragging = true;
-          }
-          if (isDragging) {
-            e.preventDefault();
-            scrollAccum += dy;
-            const lineHeight = 16;
-            const lines = Math.trunc(scrollAccum / lineHeight);
-            if (lines !== 0) {
-              term.scrollLines(lines);
-              scrollAccum -= lines * lineHeight;
-            }
-            touchStartY = nowY;
-          }
-        }
-      }, { passive: false });
-
-      el.addEventListener('touchend', () => {
-        isDragging = false;
-        scrollAccum = 0;
-      }, { passive: true });
-    }
-
-
-    term.onData((data) => {
-      // Convert full-width characters to half-width for terminal compatibility
-      const converted = data.replace(/[\uff01-\uff5e]/g, (ch) =>
-        String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
-      ).replace(/\u3000/g, ' ');
-      writeToPty(sessionIdRef.current, converted);
-    });
+    const adapter = TerminalRegistry.create();
+    adapterRef.current = adapter;
 
     return () => {
-      terminalRef.current?.removeEventListener('mousedown', handleMouseDown, true);
-      window.removeEventListener('mousemove', handleMouseMove, true);
-      window.removeEventListener('mouseup', handleMouseUp, true);
-      window.removeEventListener('blur', handleWindowBlur);
-      term.dispose();
-      xtermRef.current = null;
+      mountedRef.current = false;
+
+      // Clean up mouse handlers
+      const handlers = mouseHandlersRef.current;
+      if (handlers) {
+        terminalRef.current?.removeEventListener('mousedown', handlers.handleMouseDown, true);
+        window.removeEventListener('mousemove', handlers.handleMouseMove, true);
+        window.removeEventListener('mouseup', handlers.handleMouseUp, true);
+        window.removeEventListener('blur', handlers.handleWindowBlur);
+        mouseHandlersRef.current = null;
+      }
+
+      // Clean up touch handlers
+      const touchH = touchHandlersRef.current;
+      if (touchH) {
+        touchH.el.removeEventListener('touchstart', touchH.handleTouchStart);
+        touchH.el.removeEventListener('touchmove', touchH.handleTouchMove);
+        touchH.el.removeEventListener('touchend', touchH.handleTouchEnd);
+        touchHandlersRef.current = null;
+      }
+
+      // Clean up disposables
+      inputDisposableRef.current?.dispose();
+      inputDisposableRef.current = null;
+      keyDisposableRef.current?.dispose();
+      keyDisposableRef.current = null;
+
+      adapter.dispose();
+      adapterRef.current = null;
     };
   }, []);
 
@@ -603,15 +462,158 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
   // Initialize PTY session
   const initPty = useCallback(async () => {
-    const term = xtermRef.current;
-    const fitAddon = fitAddonRef.current;
-    if (!term || !fitAddon) return;
+    const adapter = adapterRef.current;
+    if (!adapter || !terminalRef.current) return;
 
     setInitStatus('Preparing terminal...');
     setInitError(null);
     gotFirstDataRef.current = false;
 
     try {
+      // --- Mount adapter (async to support future WASM-based adapters) ---
+      if (!mountedRef.current) {
+        const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const isSmallScreen = window.innerWidth < 768;
+        const isMobileDevice = hasTouch && isSmallScreen;
+
+        await adapter.mount(terminalRef.current, {
+          fontSize: isMobileDevice ? 12 : 13,
+          fontFamily: '"Maple Mono NF CN", Menlo, Monaco, "Courier New", monospace',
+          cursorBlink: true,
+          cursorStyle: 'bar' as const,
+          scrollback: TERMINAL.SCROLLBACK_LINES,
+          linkHandler: (uri) => openLink(uri),
+        });
+
+        // Check if component was unmounted during async mount
+        if (!adapterRef.current) return;
+
+        mountedRef.current = true;
+
+        // On mobile, prevent soft keyboard from popping up on casual touch.
+        if (isMobileDevice) {
+          adapter.setMobileKeyboardPolicy('none');
+        }
+
+        // Let Alt+V pass through for voice input
+        const keyDisposable = adapter.onKeyEvent((e) => !(e.altKey && e.code === 'KeyV'));
+        keyDisposableRef.current = keyDisposable;
+
+        // Mouse selection handling
+        const resetStuckSelection = (forceClear = false) => {
+          const selectionState = mouseSelectionRef.current;
+          const shouldClear = forceClear || !selectionState.moved;
+          selectionState.pressed = false;
+          selectionState.moved = false;
+          if (shouldClear) {
+            adapter.clearSelection();
+            adapter.focus();
+          }
+        };
+
+        const handleMouseDown = (event: MouseEvent) => {
+          if (event.button !== 0) return;
+          mouseSelectionRef.current = {
+            pressed: true,
+            moved: false,
+            startX: event.clientX,
+            startY: event.clientY,
+          };
+        };
+
+        const handleMouseMove = (event: MouseEvent) => {
+          if (!mouseSelectionRef.current.pressed || mouseSelectionRef.current.moved) return;
+          const dx = Math.abs(event.clientX - mouseSelectionRef.current.startX);
+          const dy = Math.abs(event.clientY - mouseSelectionRef.current.startY);
+          if (dx > 3 || dy > 3) {
+            mouseSelectionRef.current.moved = true;
+          }
+        };
+
+        const handleMouseUp = (event: MouseEvent) => {
+          if (!mouseSelectionRef.current.pressed) return;
+          const isMultiClickSelection = event.detail > 1;
+          if (isMultiClickSelection) {
+            mouseSelectionRef.current.pressed = false;
+            mouseSelectionRef.current.moved = false;
+            return;
+          }
+          resetStuckSelection(false);
+        };
+
+        const handleWindowBlur = () => {
+          if (!mouseSelectionRef.current.pressed) return;
+          resetStuckSelection(true);
+        };
+
+        terminalRef.current.addEventListener('mousedown', handleMouseDown, true);
+        window.addEventListener('mousemove', handleMouseMove, true);
+        window.addEventListener('mouseup', handleMouseUp, true);
+        window.addEventListener('blur', handleWindowBlur);
+
+        // Store cleanup references
+        mouseHandlersRef.current = { handleMouseDown, handleMouseMove, handleMouseUp, handleWindowBlur };
+
+        // Mobile: single-finger touch scroll (use isMobileDevice from inline check above)
+        if (isMobileDevice && terminalRef.current) {
+          let touchStartY = 0;
+          let scrollAccum = 0;
+          let isDragging = false;
+
+          const el = terminalRef.current;
+
+          const handleTouchStart = (e: TouchEvent) => {
+            if (e.touches.length === 1) {
+              touchStartY = e.touches[0].clientY;
+              scrollAccum = 0;
+              isDragging = false;
+            }
+          };
+
+          const handleTouchMove = (e: TouchEvent) => {
+            if (e.touches.length === 1) {
+              const nowY = e.touches[0].clientY;
+              const dy = touchStartY - nowY;
+              if (!isDragging && Math.abs(dy) > 8) {
+                isDragging = true;
+              }
+              if (isDragging) {
+                e.preventDefault();
+                scrollAccum += dy;
+                const lineHeight = 16;
+                const lines = Math.trunc(scrollAccum / lineHeight);
+                if (lines !== 0) {
+                  adapter.scrollLines(lines);
+                  scrollAccum -= lines * lineHeight;
+                }
+                touchStartY = nowY;
+              }
+            }
+          };
+
+          const handleTouchEnd = () => {
+            isDragging = false;
+            scrollAccum = 0;
+          };
+
+          el.addEventListener('touchstart', handleTouchStart, { passive: true });
+          el.addEventListener('touchmove', handleTouchMove, { passive: false });
+          el.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+          touchHandlersRef.current = { el, handleTouchStart, handleTouchMove, handleTouchEnd };
+        }
+
+        // Input handler
+        const inputDisposable = adapter.onInput((data) => {
+          const converted = data.replace(/[\uff01-\uff5e]/g, (ch) =>
+            String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
+          ).replace(/\u3000/g, ' ');
+          writeToPty(sessionIdRef.current, converted);
+        });
+        inputDisposableRef.current = inputDisposable;
+      }
+
+      // --- PTY initialization (same as before) ---
       try {
         await Promise.race([
           document.fonts.ready,
@@ -620,13 +622,13 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       } catch (_e) { /* ignore */ }
 
       try {
-        fitAddon.fit();
+        adapter.fit();
       } catch (_e) {
-        console.warn('[terminal] fitAddon.fit() failed during init', _e);
+        console.warn('[terminal] adapter.fit() failed during init', _e);
       }
 
-      const cols = Math.max(term.cols || 80, 2);
-      const rows = Math.max(term.rows || 24, 2);
+      const cols = Math.max(adapter.cols || 80, 2);
+      const rows = Math.max(adapter.rows || 24, 2);
 
       setInitStatus('Checking session...');
 
@@ -668,10 +670,10 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       // Deferred resize
       requestAnimationFrame(() => {
         setTimeout(() => {
-          if (fitAddonRef.current && xtermRef.current) {
-            try { fitAddonRef.current.fit(); } catch (_e) { /* ignore */ }
-            const newCols = Math.max(xtermRef.current.cols || 80, 2);
-            const newRows = Math.max(xtermRef.current.rows || 24, 2);
+          if (adapterRef.current && mountedRef.current) {
+            try { adapterRef.current.fit(); } catch (_e) { /* ignore */ }
+            const newCols = Math.max(adapterRef.current.cols || 80, 2);
+            const newRows = Math.max(adapterRef.current.rows || 24, 2);
             if (newCols !== cols || newRows !== rows || exists) {
               callBackend('pty_resize', {
                 sessionId: sessionIdRef.current,
@@ -686,7 +688,6 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
       setInitStatus('Waiting for output...');
 
-      // If existing session, data may already be available — give 2s grace period
       if (exists) {
         setTimeout(() => {
           if (!gotFirstDataRef.current) setInitStatus(null);
@@ -702,7 +703,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
   // Create PTY session on first visibility
   useEffect(() => {
-    if (!xtermRef.current || !visible || initializedRef.current) return;
+    if (!adapterRef.current || !visible || initializedRef.current) return;
     initPty();
   }, [visible, initPty]);
 
@@ -728,11 +729,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
 
   const handleResize = useCallback(() => {
-    if (!fitAddonRef.current || !xtermRef.current || !visible || !initializedRef.current) return;
+    if (!adapterRef.current || !mountedRef.current || !visible || !initializedRef.current) return;
 
-    try { fitAddonRef.current.fit(); } catch (_e) { /* ignore */ }
-    const cols = Math.max(xtermRef.current.cols || 80, 2);
-    const rows = Math.max(xtermRef.current.rows || 24, 2);
+    try { adapterRef.current.fit(); } catch (_e) { /* ignore */ }
+    const cols = Math.max(adapterRef.current.cols || 80, 2);
+    const rows = Math.max(adapterRef.current.rows || 24, 2);
 
     callBackend('pty_resize', {
       sessionId: sessionIdRef.current,
@@ -917,7 +918,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               className="fixed inset-0 z-50"
               onClick={handleCloseDebugInfo}
             />
-            <div className="absolute z-[60] top-2 left-2 bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl p-3 min-w-[320px] max-w-[90vw] max-h-[80vh] overflow-auto">
+            <div className="absolute z-[60] top-2 left-2 bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl p-3 min-w-[320px] max-w-[90vw] max-h-[80vh] overflow-auto select-text">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Terminal Debug Info</span>
                 <button
@@ -945,7 +946,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 });
 declare global {
   interface Window {
-    _xtermRefreshed?: boolean;
+    _terminalRefreshed?: boolean;
   }
 }
 

@@ -118,10 +118,10 @@ export function useTerminal(
     .filter(path => path.includes('#'))
     .map(path => {
       const basePath = path.split('#')[0];
+      const suffix = path.split('#')[1];
       const baseTab = baseTabs.find(t => t.path === basePath);
-      const count = Array.from(activatedTerminals).filter(p => p.startsWith(basePath + '#')).length;
       return {
-        name: baseTab ? `${baseTab.name} (${count + 1})` : path.split('/').pop() || 'Terminal',
+        name: baseTab ? `${baseTab.name}-${suffix}` : path.split('/').pop() || 'Terminal',
         path,
         isRoot: false,
         isDuplicate: true
@@ -442,8 +442,12 @@ export function useTerminal(
   }, [scheduleBroadcast, windowId]);
 
   const handleDuplicateTerminal = useCallback((path: string) => {
-    const duplicatePath = `${path}#${Date.now()}`;
-    const newActivated = new Set(activatedTerminalsRef.current).add(duplicatePath);
+    const basePath = path.split('#')[0];
+    const existing = activatedTerminalsRef.current;
+    let n = 2;
+    while (existing.has(`${basePath}#${n}`)) n++;
+    const duplicatePath = `${basePath}#${n}`;
+    const newActivated = new Set(existing).add(duplicatePath);
     setActivatedTerminals(newActivated);
     setActiveTerminalTab(duplicatePath);
     activatedTerminalsRef.current = newActivated;
