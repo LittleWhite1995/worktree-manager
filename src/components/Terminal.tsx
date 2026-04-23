@@ -140,6 +140,8 @@ interface TerminalProps {
   cwd: string;
   visible: boolean;
   clientId?: string;
+  onShellIntegrationDetected?: () => void;
+  onCwdChanged?: (cwd: string) => void;
 }
 
 interface PtyOutputEventPayload {
@@ -149,9 +151,10 @@ interface PtyOutputEventPayload {
 
 export interface TerminalHandle {
   copyContent: () => Promise<void>;
+  scrollToCommand: (direction: 'prev' | 'next') => void;
 }
 
-const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId }, ref) => {
+const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId, onShellIntegrationDetected, onCwdChanged }, ref) => {
   // Keep desktop PTY on polling until the event-stream path can preserve replay semantics.
   const enableDesktopEventStreaming = false;
   useTranslation();
@@ -188,6 +191,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const [initError, setInitError] = useState<string | null>(null);
   const gotFirstDataRef = useRef(false);
   const mountedRef = useRef(false);
+  const shellIntDetectedRef = useRef(false);
+  const onShellIntDetectedRef = useRef(onShellIntegrationDetected);
+  onShellIntDetectedRef.current = onShellIntegrationDetected;
+  const onCwdChangedRef = useRef(onCwdChanged);
+  onCwdChangedRef.current = onCwdChanged;
   const keyDisposableRef = useRef<Disposable | null>(null);
   const inputDisposableRef = useRef<Disposable | null>(null);
   const mouseHandlersRef = useRef<{
@@ -317,7 +325,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         try { await navigator.clipboard.writeText(selection); } catch { /* noop */ }
       }
       adapter.clearSelection();
-    }
+    },
+    scrollToCommand: (direction: 'prev' | 'next') => {
+      const adapter = adapterRef.current as any;
+      adapter?.scrollToCommand?.(direction);
+    },
   }), []);
 
   const handleIncomingData = useCallback((data: string) => {
@@ -372,6 +384,10 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       inputDisposableRef.current = null;
       keyDisposableRef.current?.dispose();
       keyDisposableRef.current = null;
+
+      // Clean up shell integration subscriptions
+      (adapter as any)._shellIntCmdSub?.dispose();
+      (adapter as any)._shellIntCwdSub?.dispose();
 
       adapter.dispose();
       adapterRef.current = null;
@@ -611,6 +627,22 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
           writeToPty(sessionIdRef.current, converted);
         });
         inputDisposableRef.current = inputDisposable;
+
+        // Shell integration subscriptions
+        const xtermAdapter = adapter as any;
+        const cmdStartedSub = xtermAdapter.onCommandStarted?.(() => {
+          if (!shellIntDetectedRef.current) {
+            shellIntDetectedRef.current = true;
+            onShellIntDetectedRef.current?.();
+          }
+        });
+        const cwdChangedSub = xtermAdapter.onCwdChanged?.((newCwd: string) => {
+          onCwdChangedRef.current?.(newCwd);
+        });
+
+        // Store shell integration subscriptions for cleanup
+        (adapter as any)._shellIntCmdSub = cmdStartedSub;
+        (adapter as any)._shellIntCwdSub = cwdChangedSub;
       }
 
       // --- PTY initialization (same as before) ---

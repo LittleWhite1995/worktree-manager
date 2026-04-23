@@ -250,6 +250,8 @@
   "terminal.altVHint": "Hold Alt+V for voice-to-text",
   "terminal.recordingHint": "Recording... Release Alt+V to stop",
   "terminal.closeAllTerminals": "Close all terminals",
+  "terminal.prevCommand": "Previous command",
+  "terminal.nextCommand": "Next command",
   "terminal.terminalCount": "{{count}} terminals",
   "app.loadingWorkspace": "Loading Workspace...",
   "app.errorPrefix": "Error",

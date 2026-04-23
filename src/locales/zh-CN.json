@@ -241,6 +241,8 @@
   "terminal.altVHint": "按住 Alt+V 语音转文字",
   "terminal.recordingHint": "正在录音... 松开 Alt+V 停止",
   "terminal.closeAllTerminals": "关闭所有终端",
+  "terminal.prevCommand": "上一个命令",
+  "terminal.nextCommand": "下一个命令",
   "terminal.terminalCount": "{{count}} 个终端",
   "app.loadingWorkspace": "加载 Workspace...",
   "app.errorPrefix": "错误",

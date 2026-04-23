@@ -344,6 +344,9 @@ function App() {
                   onStopRecording={voice.stopRecording}
                   staging={voice.staging}
                   clientId={terminalHook.clientId}
+                  hasShellIntegration={terminalHook.shellIntegrationMap.get(terminalHook.activeTerminalTab ?? '') ?? false}
+                  onShellIntegrationDetected={(path) => terminalHook.markShellIntegrationActive(path)}
+                  onCwdChanged={(path, cwd) => terminalHook.updateTerminalCwd(path, cwd)}
                 />
 
               </div>

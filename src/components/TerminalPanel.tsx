@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect, useCallback, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChevronUp } from 'lucide-react';
 import { Terminal } from './Terminal';
+import type { TerminalHandle } from './Terminal';
 import {
   FolderIcon,
   TerminalIcon,
@@ -255,6 +257,9 @@ interface TerminalPanelProps {
   onStopRecording?: () => void;
   staging?: StagingState | null;
   clientId?: string;
+  hasShellIntegration?: boolean;
+  onShellIntegrationDetected?: (path: string) => void;
+  onCwdChanged?: (path: string, cwd: string) => void;
 }
 
 export const TerminalPanel: FC<TerminalPanelProps> = ({
@@ -283,6 +288,9 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   onStopRecording,
   staging,
   clientId,
+  hasShellIntegration,
+  onShellIntegrationDetected,
+  onCwdChanged,
 }) => {
   const { t } = useTranslation();
   const [showError, setShowError] = useState<string | null>(null);
@@ -291,6 +299,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAltVHint, setShowAltVHint] = useState(false);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const terminalRefsMap = useRef<Map<string, TerminalHandle>>(new Map());
 
   // Long-press support for terminal tab context menus on touch devices
   const tabLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -462,6 +471,26 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 <CloseIcon className="w-3.5 h-3.5" />
               </button>
             )}
+            {hasShellIntegration && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); terminalRefsMap.current.get(activeTerminalTab ?? '')?.scrollToCommand('prev'); }}
+                  className="p-1.5 hover:bg-slate-700 rounded text-slate-500 hover:text-slate-300 transition-colors"
+                  title={t('terminal.prevCommand')}
+                  aria-label={t('terminal.prevCommand')}
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); terminalRefsMap.current.get(activeTerminalTab ?? '')?.scrollToCommand('next'); }}
+                  className="p-1.5 hover:bg-slate-700 rounded text-slate-500 hover:text-slate-300 transition-colors"
+                  title={t('terminal.nextCommand')}
+                  aria-label={t('terminal.nextCommand')}
+                >
+                  <ChevronDownIcon className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
             {onToggleVoice && (
               <button
                 onClick={(e) => {
@@ -528,9 +557,15 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 style={{ display: path === activeTerminalTab ? 'block' : 'none' }}
               >
                 <Terminal
+                  ref={(handle: TerminalHandle | null) => {
+                    if (handle) terminalRefsMap.current.set(path, handle);
+                    else terminalRefsMap.current.delete(path);
+                  }}
                   cwd={path}
                   visible={visible && path === activeTerminalTab}
                   clientId={clientId}
+                  onShellIntegrationDetected={() => onShellIntegrationDetected?.(path)}
+                  onCwdChanged={(newCwd) => onCwdChanged?.(path, newCwd)}
                 />
               </div>
             ))}

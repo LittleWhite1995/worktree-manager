@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import i18next from 'i18next';
 import type { TerminalTab, MainWorkspaceStatus, WorktreeListItem } from '../types';
 import { TERMINAL, clampTerminalHeight } from '../constants';
@@ -25,6 +25,9 @@ export interface UseTerminalReturn {
   handleToggleTerminal: () => void;
   cleanupTerminalsForPath: (pathPrefix: string) => Promise<void>;
   clientId: string;
+  markShellIntegrationActive: (path: string) => void;
+  updateTerminalCwd: (sessionPath: string, cwd: string) => void;
+  shellIntegrationMap: Map<string, boolean>;
 }
 
 /** Close a single PTY session by path */
@@ -50,6 +53,9 @@ export function useTerminal(
   // Global set of all ever-activated terminals — controls Terminal component mounting.
   // Only shrinks when a tab is explicitly closed. Survives worktree switches so PTY sessions stay alive.
   const [mountedTerminals, setMountedTerminals] = useState<Set<string>>(new Set());
+
+  const [shellIntegrationMap, setShellIntegrationMap] = useState<Map<string, boolean>>(new Map());
+  const [cwdOverrides, setCwdOverrides] = useState<Map<string, string>>(new Map());
 
   // Remember active tab, activated terminals & visibility per workspace root, so switching back restores them
   const activeTabPerWorkspace = useRef<Map<string, string>>(new Map());
@@ -131,6 +137,27 @@ export function useTerminal(
   const terminalTabs = [...baseTabs, ...duplicatedTabs];
   const terminalTabsRef = useRef(terminalTabs);
   terminalTabsRef.current = terminalTabs;
+
+  const markShellIntegrationActive = useCallback((path: string) => {
+    setShellIntegrationMap(prev => {
+      if (prev.get(path)) return prev;
+      return new Map(prev).set(path, true);
+    });
+  }, []);
+
+  const updateTerminalCwd = useCallback((sessionPath: string, cwd: string) => {
+    const dirName = cwd.split('/').pop() || cwd;
+    if (!dirName) return;
+    setCwdOverrides(prev => new Map(prev).set(sessionPath, dirName));
+  }, []);
+
+  const displayTabs = useMemo(() =>
+    terminalTabs.map(tab => {
+      const cwdName = cwdOverrides.get(tab.path);
+      return cwdName ? { ...tab, name: cwdName } : tab;
+    }),
+    [terminalTabs, cwdOverrides]
+  );
 
   const scheduleBroadcast = useCallback(() => {
     if (!workspacePath || !worktreeName) return;
@@ -529,7 +556,7 @@ export function useTerminal(
     activatedTerminals,
     mountedTerminals,
     activeTerminalTab,
-    terminalTabs,
+    terminalTabs: displayTabs,
     setTerminalVisible,
     setTerminalHeight,
     setIsResizing,
@@ -541,5 +568,8 @@ export function useTerminal(
     handleToggleTerminal,
     cleanupTerminalsForPath,
     clientId: clientIdRef.current,
+    markShellIntegrationActive,
+    updateTerminalCwd,
+    shellIntegrationMap,
   };
 }
