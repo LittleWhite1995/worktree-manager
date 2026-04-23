@@ -139,10 +139,12 @@ export class CommandDetection {
   }
 
   private handleOsc7(uri: string): void {
-    // URI format: file://hostname/path — extract the pathname component.
+    // OSC 7 requires file:// URIs — reject other schemes to prevent CWD corruption.
     try {
       const url = new URL(uri)
-      this.setCwd(url.pathname)
+      if (url.protocol === 'file:') {
+        this.setCwd(url.pathname)
+      }
     } catch {
       // Not a valid URL; fall back to using the string as-is if it looks like a path.
       if (uri.startsWith('/')) {

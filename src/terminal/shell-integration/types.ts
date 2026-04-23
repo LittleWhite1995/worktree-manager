@@ -4,7 +4,6 @@ import type { IMarker } from '@xterm/xterm'
 
 /** Command lifecycle state */
 export enum CommandState {
-  PromptReady = 'prompt-ready',
   Executing = 'executing',
   Finished = 'finished',
 }
