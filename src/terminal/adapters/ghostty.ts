@@ -1,5 +1,6 @@
 // src/terminal/adapters/ghostty.ts
 
+import type { Terminal as GhosttyTerminal, FitAddon as GhosttyFitAddon } from 'ghostty-web'
 import type {
   TerminalAdapter,
   TerminalOptions,
@@ -11,8 +12,8 @@ export class GhosttyAdapter implements TerminalAdapter {
   // Shared WASM init promise — prevents race condition when multiple terminals mount concurrently.
   // First caller creates the promise, subsequent callers await the same one.
   private static wasmInitPromise: Promise<void> | null = null
-  private term: any = null
-  private fitAddon: any = null
+  private term: GhosttyTerminal | null = null
+  private fitAddon: GhosttyFitAddon | null = null
   private container: HTMLElement | null = null
 
   get cols(): number { return this.term?.cols ?? 80 }
@@ -42,8 +43,9 @@ export class GhosttyAdapter implements TerminalAdapter {
     term.loadAddon(fitAddon)
     this.fitAddon = fitAddon
 
-    // Link handler — ghostty-web has built-in UrlRegexProvider via registerLinkProvider,
-    // but no xterm.js-style WebLinksAddon. Link clicking handled by ghostty-web internally.
+    // NOTE: options.linkHandler is not wired here. ghostty-web has built-in link detection
+    // (UrlRegexProvider + OSC8LinkProvider) via registerLinkProvider — no xterm.js-style
+    // WebLinksAddon. Links are clickable natively; the caller's linkHandler callback is unused.
 
     term.open(container)
 
@@ -85,7 +87,10 @@ export class GhosttyAdapter implements TerminalAdapter {
   blur(): void { this.term?.blur() }
   clear(): void { this.term?.clear() }
   selectAll(): void { this.term?.selectAll() }
-  refresh(start: number, end: number): void { this.term?.refresh?.(start, end) }
+  refresh(_start: number, _end: number): void {
+    // ghostty-web Terminal does not expose refresh() — rendering is handled
+    // internally by its Canvas render loop with dirty-row tracking.
+  }
 
   getSelection(): string { return this.term?.getSelection() ?? '' }
   hasSelection(): boolean { return this.term?.hasSelection() ?? false }
@@ -94,6 +99,9 @@ export class GhosttyAdapter implements TerminalAdapter {
   scrollLines(lines: number): void { this.term?.scrollLines(lines) }
   scrollToBottom(): void { this.term?.scrollToBottom() }
 
+  // ghostty-web uses Canvas rendering — may not have a textarea element.
+  // Unlike XtermAdapter, double-tap-to-open-keyboard is not implemented here
+  // because there is no persistent textarea to attach the dblclick/blur cycle to.
   setMobileKeyboardPolicy(mode: 'none' | 'text'): void {
     if (!this.container) return
     const textarea = this.container.querySelector('textarea') as HTMLTextAreaElement | null
