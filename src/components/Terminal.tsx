@@ -454,7 +454,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     gotFirstDataRef.current = false;
 
     try {
-      // --- Mount adapter (async for WASM adapters like ghostty-web) ---
+      // --- Mount adapter (async to support future WASM-based adapters) ---
       if (!mountedRef.current) {
         const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         const isSmallScreen = window.innerWidth < 768;

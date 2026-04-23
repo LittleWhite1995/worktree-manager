@@ -4447,9 +4447,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.28"
+version = "0.12.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
+checksum = "e98ff6b0dbbe4d5a37318f433d4fc82babd21631f194d370409ceb2e40b2f0b5"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -4461,8 +4461,11 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
+ "ipnet",
  "js-sys",
  "log",
+ "mime",
+ "once_cell",
  "percent-encoding",
  "pin-project-lite",
  "quinn",
@@ -7361,7 +7364,7 @@ dependencies = [
  "openssl-sys",
  "portable-pty",
  "rcgen",
- "reqwest 0.12.28",
+ "reqwest 0.12.18",
  "ring",
  "rustls",
  "rustls-pemfile",
