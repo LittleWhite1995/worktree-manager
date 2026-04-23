@@ -159,8 +159,9 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const adapterRef = useRef<TerminalAdapter | null>(null);
   // Extract actual cwd (remove #timestamp suffix if present)
   const actualCwd = cwd.split('#')[0];
-  // Session ID is path-based so all clients (desktop + browser) share the same PTY
-  const sessionIdRef = useRef<string>(`pty-${actualCwd.replace(/[/#]/g, '-')}`);
+  // Session ID includes the full cwd (with #timestamp for duplicated terminals)
+  // so each terminal tab gets its own PTY session
+  const sessionIdRef = useRef<string>(`pty-${cwd.replace(/[/#]/g, '-')}`);
   const readerIntervalRef = useRef<number | null>(null);
   const wsSubscribedRef = useRef(false);
   const desktopUnlistenRef = useRef<UnlistenFn | null>(null);
@@ -917,7 +918,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               className="fixed inset-0 z-50"
               onClick={handleCloseDebugInfo}
             />
-            <div className="absolute z-[60] top-2 left-2 bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl p-3 min-w-[320px] max-w-[90vw] max-h-[80vh] overflow-auto">
+            <div className="absolute z-[60] top-2 left-2 bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl p-3 min-w-[320px] max-w-[90vw] max-h-[80vh] overflow-auto select-text">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Terminal Debug Info</span>
                 <button

@@ -210,9 +210,10 @@ body.tauri [contenteditable="true"] {
   user-select: text;
 }
 
-/* Allow text selection for specific elements (must beat body.tauri * specificity) */
+/* Allow text selection for specific elements and all their children (must beat body.tauri * specificity) */
 .select-text,
-body.tauri .select-text {
+body.tauri .select-text,
+body.tauri .select-text * {
   -webkit-user-select: text;
   user-select: text;
   cursor: text;
