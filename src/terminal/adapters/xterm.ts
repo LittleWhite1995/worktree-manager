@@ -11,6 +11,10 @@ import type {
   TerminalDimensions,
   Disposable,
 } from '../types'
+import { OscParser } from '../shell-integration/osc-parser'
+import { CommandDetection } from '../shell-integration/command-detection'
+import { CommandDecorationAddon } from '../shell-integration/command-decoration'
+import type { CommandInfo, Unsubscribe } from '../shell-integration/types'
 
 const XTERM_THEME = {
   background: '#0f172a',
@@ -42,6 +46,9 @@ export class XtermAdapter implements TerminalAdapter {
   private container: HTMLElement | null = null
   private mobileKeyboardInitialized = false
   private dblclickHandler: (() => void) | null = null
+  private oscParser: OscParser | null = null
+  private commandDetection: CommandDetection | null = null
+  private commandDecoration: CommandDecorationAddon | null = null
 
   get cols(): number {
     return this.term?.cols ?? 80
@@ -77,6 +84,13 @@ export class XtermAdapter implements TerminalAdapter {
     this.term = term
     this.fitAddon = fitAddon
     this.container = container
+
+    // Shell integration: passive OSC 633 parsing
+    this.oscParser = new OscParser()
+    term.loadAddon(this.oscParser)
+    this.commandDetection = new CommandDetection(this.oscParser, term)
+    this.commandDecoration = new CommandDecorationAddon(this.commandDetection)
+    term.loadAddon(this.commandDecoration)
   }
 
   dispose(): void {
@@ -84,6 +98,12 @@ export class XtermAdapter implements TerminalAdapter {
       this.container.removeEventListener('dblclick', this.dblclickHandler)
       this.dblclickHandler = null
     }
+    this.commandDecoration?.dispose()
+    this.commandDecoration = null
+    this.commandDetection?.dispose()
+    this.commandDetection = null
+    this.oscParser?.dispose()
+    this.oscParser = null
     this.term?.dispose()
     this.term = null
     this.fitAddon = null
@@ -183,5 +203,20 @@ export class XtermAdapter implements TerminalAdapter {
       }
       this.container.addEventListener('dblclick', this.dblclickHandler)
     }
+  }
+
+  /** Get detected commands (shell integration feature, not part of TerminalAdapter interface) */
+  getCommands(): readonly CommandInfo[] {
+    return this.commandDetection?.commands ?? []
+  }
+
+  /** Subscribe to command finished events */
+  onCommandFinished(callback: (cmd: CommandInfo) => void): Unsubscribe | undefined {
+    return this.commandDetection?.onCommandFinished.on(callback)
+  }
+
+  /** Get the current working directory reported by the shell via OSC 7/633 */
+  getShellCwd(): string | undefined {
+    return this.commandDetection?.currentCwd
   }
 }
