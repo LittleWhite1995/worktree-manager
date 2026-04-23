@@ -44,7 +44,7 @@ export interface Disposable {
 }
 
 export interface TerminalAdapter {
-  mount(container: HTMLElement, options: TerminalOptions): void
+  mount(container: HTMLElement, options: TerminalOptions): Promise<void>
   dispose(): void
   write(data: string): void
   onInput(callback: (data: string) => void): Disposable

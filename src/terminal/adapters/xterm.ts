@@ -50,7 +50,7 @@ export class XtermAdapter implements TerminalAdapter {
     return this.term?.rows ?? 24
   }
 
-  mount(container: HTMLElement, options: TerminalOptions): void {
+  async mount(container: HTMLElement, options: TerminalOptions): Promise<void> {
     const term = new Terminal({
       theme: options.theme ? { ...XTERM_THEME, ...options.theme } : XTERM_THEME,
       fontSize: options.fontSize,
