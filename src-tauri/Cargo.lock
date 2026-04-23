@@ -7351,6 +7351,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
+ "dirs",
  "futures-util",
  "gethostname",
  "git2",

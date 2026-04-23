@@ -1,7 +1,8 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
-use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 use tokio::sync::broadcast;
@@ -13,6 +14,9 @@ const REPLAY_BUFFER_CAP: usize = 64 * 1024;
 const DESKTOP_PENDING_BUFFER_CAP: usize = 8 * 1024 * 1024;
 /// Drop desktop reader cursors that have stopped polling so they no longer pin backlog in memory.
 const DESKTOP_READER_TTL: Duration = Duration::from_secs(10);
+
+/// Shell integration script directory (set once during app setup)
+static SHELL_INTEGRATION_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 /// Get the default shell for the current platform.
 /// Windows: COMSPEC -> PowerShell -> cmd.exe
@@ -148,6 +152,114 @@ fn shell_startup_args(shell_path: &str) -> &'static [&'static str] {
     match shell_program_name(shell_path).as_str() {
         "zsh" | "bash" | "sh" => &["-i"],
         _ => &[],
+    }
+}
+
+fn shell_escape_single_quote(s: &str) -> String {
+    s.replace('\'', "'\\''")
+}
+
+fn get_zsh_integration_dir() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join("worktree-manager")
+        .join("shell-integration")
+        .join("zsh")
+}
+
+/// Initialize shell integration: store resource path and generate zsh ZDOTDIR wrappers.
+/// Called once during app setup.
+pub fn init_shell_integration(resource_dir: PathBuf) {
+    let integration_dir = resource_dir.join("shell-integration");
+    if !integration_dir.exists() {
+        log::warn!(
+            "[shell-integration] Resource directory not found: {:?}",
+            integration_dir
+        );
+        return;
+    }
+
+    SHELL_INTEGRATION_DIR.set(integration_dir.clone()).ok();
+
+    // Generate zsh ZDOTDIR wrapper files
+    let zsh_dir = get_zsh_integration_dir();
+    if let Err(e) = std::fs::create_dir_all(&zsh_dir) {
+        log::warn!(
+            "[shell-integration] Failed to create zsh wrapper dir: {}",
+            e
+        );
+        return;
+    }
+
+    let escaped_path = shell_escape_single_quote(integration_dir.to_str().unwrap_or_default());
+
+    // Generate .zshenv — sources user's original .zshenv
+    let zshenv_content = "# worktree-manager zsh env wrapper\n\
+        # Source user's .zshenv from original ZDOTDIR\n\
+        [ -f \"${_WM_ORIG_ZDOTDIR}/.zshenv\" ] && source \"${_WM_ORIG_ZDOTDIR}/.zshenv\"\n";
+    if let Err(e) = std::fs::write(zsh_dir.join(".zshenv"), zshenv_content) {
+        log::warn!("[shell-integration] Failed to write .zshenv wrapper: {}", e);
+        return;
+    }
+
+    // Generate .zshrc — sources user's .zshrc then shell integration
+    let zshrc_content = format!(
+        "# worktree-manager zsh init wrapper\n\
+        # Restore original ZDOTDIR and source user's config\n\n\
+        _WM_ZDOTDIR=\"${{ZDOTDIR}}\"\n\
+        ZDOTDIR=\"${{_WM_ORIG_ZDOTDIR}}\"\n\n\
+        # Source user's .zshrc from original ZDOTDIR\n\
+        [ -f \"$ZDOTDIR/.zshrc\" ] && source \"$ZDOTDIR/.zshrc\"\n\n\
+        # Source shell integration from Tauri resource directory\n\
+        source '{}/zsh-integration.sh' 2>/dev/null\n",
+        escaped_path
+    );
+    if let Err(e) = std::fs::write(zsh_dir.join(".zshrc"), zshrc_content) {
+        log::warn!("[shell-integration] Failed to write .zshrc wrapper: {}", e);
+    }
+
+    log::info!(
+        "[shell-integration] Initialized, scripts at {:?}",
+        integration_dir
+    );
+}
+
+/// Configure a PTY command for shell integration based on shell type.
+fn setup_shell_integration(cmd: &mut CommandBuilder, shell_path: &str) {
+    let integration_dir = match SHELL_INTEGRATION_DIR.get() {
+        Some(dir) if dir.exists() => dir,
+        _ => return,
+    };
+
+    let config = crate::config::load_global_config();
+    if !config.shell_integration_enabled {
+        return;
+    }
+
+    cmd.env("TERM_PROGRAM", "worktree-manager");
+    cmd.env("WORKTREE_MANAGER_SHELL_INTEGRATION", "1");
+
+    match shell_program_name(shell_path).as_str() {
+        "bash" => {
+            let init_file = integration_dir.join("bash-init.sh");
+            if init_file.exists() {
+                if let Some(path_str) = init_file.to_str() {
+                    cmd.args(["--init-file", path_str]);
+                }
+            }
+        }
+        "zsh" => {
+            let zdotdir = get_zsh_integration_dir();
+            if zdotdir.exists() {
+                let orig_zdotdir = std::env::var("ZDOTDIR")
+                    .unwrap_or_else(|_| std::env::var("HOME").unwrap_or_default());
+                cmd.env("_WM_ORIG_ZDOTDIR", &orig_zdotdir);
+                if let Some(dir_str) = zdotdir.to_str() {
+                    cmd.env("ZDOTDIR", dir_str);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -381,6 +493,7 @@ impl PtyManager {
         let mut cmd = CommandBuilder::new(&shell_path);
         cmd.args(shell_startup_args(&shell_path));
         cmd.cwd(cwd);
+        setup_shell_integration(&mut cmd, &shell_path);
 
         // Set environment variables for better terminal support
         cmd.env("TERM", "xterm-256color");

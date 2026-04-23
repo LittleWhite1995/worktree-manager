@@ -287,8 +287,14 @@ pub fn run() {
             cloud_disconnect,
         ])
         .setup(|app| {
+            use tauri::Manager;
             // Initialize APP_HANDLE for use in WebSocket handlers
             *APP_HANDLE.lock().unwrap() = Some(app.handle().clone());
+
+            // Initialize shell integration scripts
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                pty_manager::init_shell_integration(resource_dir);
+            }
 
             // Start MCP server on port 42819 in background
             let mcp_port = 42819;
