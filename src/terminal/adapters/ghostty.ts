@@ -36,40 +36,14 @@ export class GhosttyAdapter implements TerminalAdapter {
       ...(options.theme ? { theme: options.theme } : {}),
     })
 
-    // FitAddon — try ghostty-web's built-in, fall back to manual fit if not available.
-    try {
-      const fitModule = await import('ghostty-web/lib/addons/fit')
-      const fitAddon = new fitModule.FitAddon()
-      term.loadAddon(fitAddon)
-      this.fitAddon = fitAddon
-    } catch {
-      try {
-        const { FitAddon } = await import('ghostty-web')
-        const fitAddon = new FitAddon()
-        term.loadAddon(fitAddon)
-        this.fitAddon = fitAddon
-      } catch {
-        // No FitAddon available — fit() will no-op, manual resize still works
-      }
-    }
+    // FitAddon — directly exported from ghostty-web
+    const { FitAddon } = await import('ghostty-web')
+    const fitAddon = new FitAddon()
+    term.loadAddon(fitAddon)
+    this.fitAddon = fitAddon
 
-    // Link handler — try WebLinksAddon if available
-    if (options.linkHandler) {
-      try {
-        const handler = options.linkHandler
-        let WebLinksAddon: any
-        try {
-          WebLinksAddon = (await import('ghostty-web/lib/addons/web-links')).WebLinksAddon
-        } catch {
-          WebLinksAddon = (await import('ghostty-web')).WebLinksAddon
-        }
-        if (WebLinksAddon) {
-          term.loadAddon(new WebLinksAddon((_event: any, uri: string) => handler(uri)))
-        }
-      } catch {
-        // WebLinksAddon not available — link clicking won't work, acceptable degradation
-      }
-    }
+    // Link handler — ghostty-web has built-in UrlRegexProvider via registerLinkProvider,
+    // but no xterm.js-style WebLinksAddon. Link clicking handled by ghostty-web internally.
 
     term.open(container)
 
