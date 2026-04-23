@@ -220,4 +220,56 @@ export class XtermAdapter implements TerminalAdapter {
   getShellCwd(): string | undefined {
     return this.commandDetection?.currentCwd
   }
+
+  /** Scroll terminal to show the previous/next command */
+  scrollToCommand(direction: 'prev' | 'next'): void {
+    if (!this.term || !this.commandDetection) return
+    const commands = this.commandDetection.commands
+    if (commands.length === 0) return
+
+    const buf = this.term.buffer.active
+    // In xterm.js 5.x, baseY = total lines scrolled into scrollback,
+    // viewportY = lines scrolled up from bottom. Top visible line:
+    const topVisibleLine = buf.baseY - buf.viewportY
+    const centerLine = topVisibleLine + Math.floor(this.term.rows / 2)
+
+    let target: CommandInfo | undefined
+    if (direction === 'prev') {
+      for (let i = commands.length - 1; i >= 0; i--) {
+        if (commands[i].marker.line < centerLine) {
+          target = commands[i]
+          break
+        }
+      }
+    } else {
+      for (const cmd of commands) {
+        if (cmd.marker.line > centerLine) {
+          target = cmd
+          break
+        }
+      }
+    }
+
+    if (target && target.marker.line >= 0) {
+      const scrollDelta = target.marker.line - topVisibleLine
+      this.term.scrollLines(scrollDelta)
+    }
+  }
+
+  /** Whether shell integration is active (has detected at least one command) */
+  get hasShellIntegration(): boolean {
+    return (this.commandDetection?.commands.length ?? 0) > 0
+  }
+
+  /** Subscribe to command started events (used to make hasShellIntegration reactive) */
+  onCommandStarted(callback: (cmd: CommandInfo) => void): Disposable | undefined {
+    const unsub = this.commandDetection?.onCommandStarted.on(callback)
+    return unsub ? { dispose: unsub } : undefined
+  }
+
+  /** Subscribe to CWD changes */
+  onCwdChanged(callback: (cwd: string) => void): Disposable | undefined {
+    const unsub = this.commandDetection?.onCwdChanged.on(callback)
+    return unsub ? { dispose: unsub } : undefined
+  }
 }
