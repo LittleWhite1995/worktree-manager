@@ -8,6 +8,7 @@ export type {
   TerminalTheme,
   TerminalDimensions,
   Disposable,
+  SearchOptions,
 } from './types'
 
 export { TerminalRegistry }

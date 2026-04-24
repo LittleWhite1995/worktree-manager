@@ -32,6 +32,7 @@ export interface TerminalOptions {
   cursorStyle: 'block' | 'bar' | 'underline'
   cursorBlink: boolean
   linkHandler?: (uri: string) => void
+  onRendererFallback?: () => void
 }
 
 export interface TerminalDimensions {
@@ -41,6 +42,11 @@ export interface TerminalDimensions {
 
 export interface Disposable {
   dispose(): void
+}
+
+export interface SearchOptions {
+  caseSensitive?: boolean
+  regex?: boolean
 }
 
 /**
@@ -65,9 +71,18 @@ export interface TerminalAdapter {
   getSelection(): string
   hasSelection(): boolean
   clearSelection(): void
+  findNext?(query: string, options?: SearchOptions): boolean
+  findPrevious?(query: string, options?: SearchOptions): boolean
+  clearSearch?(): void
   scrollLines(lines: number): void
   scrollToBottom(): void
   setMobileKeyboardPolicy(mode: 'none' | 'text'): void
+
+  // Shell integration (optional — only XtermAdapter implements these)
+  scrollToCommand?(direction: 'prev' | 'next'): void
+  readonly hasShellIntegration?: boolean
+  onCommandStarted?(callback: (cmd: unknown) => void): Disposable | undefined
+  onCwdChanged?(callback: (cwd: string) => void): Disposable | undefined
 }
 
 export interface TerminalAdapterFactory {
