@@ -2,6 +2,21 @@ import { useEffect, useMemo, useState, type FC, type MutableRefObject, type Touc
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { pinyin } from 'pinyin-pro';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
 
 import { openLink } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
@@ -46,6 +61,7 @@ import {
 } from '../Icons';
 import type { WorktreeSidebarProps } from './types';
 import { ShareBar } from './ShareBar';
+import { SortableWorktreeItem } from './SortableWorktreeItem';
 import { BatchArchiveModal } from '../BatchArchiveModal';
 
 // --- Search utilities ---
@@ -595,7 +611,7 @@ const WorktreeList: FC<{
   occupation,
   onContextMenu,
   onSelectWorktree,
-  onSortOrderChange: _onSortOrderChange,
+  onSortOrderChange,
   onToggleArchived,
   onToggleBatchArchiveModal,
   onTouchEnd,
@@ -623,6 +639,33 @@ const WorktreeList: FC<{
       return { wt, matchResult: result };
     });
   }, [debouncedQuery, sortedActiveWorktrees]);
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const activeWorktree = activeId ? activeWorktrees.find(w => w.name === activeId) : null;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const names = sortedActiveWorktrees.map(w => w.name);
+    const oldIndex = names.indexOf(active.id as string);
+    const newIndex = names.indexOf(over.id as string);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newOrder = arrayMove(names, oldIndex, newIndex);
+    onSortOrderChange(newOrder);
+  };
 
   // Sort archived worktrees by display_name (or name) alphabetically
   const sortedArchivedWorktrees = useMemo(() => {
@@ -658,69 +701,92 @@ const WorktreeList: FC<{
           <p className="text-slate-600 text-xs mt-1">{t('sidebar.noWorktreesHint')}</p>
         </div>
       ) : (
-        worktreesWithMatch.map(({ wt: worktree, matchResult }) => {
-          const lockedBy = lockedWorktrees[worktree.name];
-          const isLockedByOther = lockedBy && lockedBy !== currentWindowLabel;
-          const isDeployed = worktree.name === occupation?.worktree_name;
-          const canSelect = (!isLockedByOther || !isTauri) && !isDeployed;
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={sortedActiveWorktrees.map(w => w.name)}
+            strategy={verticalListSortingStrategy}
+          >
+            {worktreesWithMatch.map(({ wt: worktree, matchResult }) => {
+              const lockedBy = lockedWorktrees[worktree.name];
+              const isLockedByOther = lockedBy && lockedBy !== currentWindowLabel;
+              const isDeployed = worktree.name === occupation?.worktree_name;
+              const canSelect = (!isLockedByOther || !isTauri) && !isDeployed;
 
-          return (
-            <div
-              key={worktree.name}
-              className={`px-4 py-2.5 transition-all duration-150 border-l-2 ${isDeployed
-                ? 'border-transparent opacity-50 cursor-not-allowed'
-                : isLockedByOther && isTauri
-                  ? 'border-transparent opacity-50 cursor-not-allowed'
-                  : selectedWorktree?.name === worktree.name
-                    ? 'bg-slate-700/30 border-blue-500 cursor-pointer'
-                    : 'border-transparent hover:bg-slate-700/20 cursor-pointer'
-                }`}
-              onClick={() => {
-                if (longPressFiredRef.current) return;
-                if (canSelect) onSelectWorktree(worktree);
-              }}
-              onContextMenu={(e) => canSelect && onContextMenu(e, worktree)}
-              onTouchStart={(e) => canSelect && onTouchStart(e, worktree)}
-              onTouchEnd={onTouchEnd}
-              onTouchMove={onTouchMove}
-            >
-              <div className="flex items-center gap-2.5">
-                <FolderIcon className={`w-4 h-4 ${isLockedByOther || isDeployed ? 'text-slate-500' : 'text-blue-400'}`} />
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="font-medium text-sm line-clamp-2 break-words flex-1">{highlightWorktreeName(worktree.display_name || worktree.name, matchResult)}</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">{worktree.display_name ? `${worktree.display_name} (${worktree.name})` : worktree.name}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                {isDeployed && (
-                  <StatusBadge label={t('deploy.deployed')} tooltip={t('deploy.deployedTooltip')} tone="blue" />
-                )}
-                {isLockedByOther && !isDeployed && (
-                  <StatusBadge label={t('sidebar.occupied')} tooltip={t('sidebar.occupiedTooltip')} tone="amber" />
-                )}
-                {worktree.projects.some(project => project.has_uncommitted) && !isLockedByOther && !isDeployed && (() => {
-                  const tip = worktree.projects
-                    .filter(project => project.has_uncommitted)
-                    .map(project => t('sidebar.uncommittedTip', { name: project.name, count: project.uncommitted_count }))
-                    .join('\n');
-                  return (
-                    <TooltipProvider delayDuration={300}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="shrink-0"><WarningIcon className="w-3.5 h-3.5 text-amber-500" /></span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="whitespace-pre">{tip}</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  );
-                })()}
+              return (
+                <SortableWorktreeItem key={worktree.name} id={worktree.name}>
+                  <div
+                    className={`pr-4 py-2.5 transition-all duration-150 border-l-2 ${isDeployed
+                      ? 'border-transparent opacity-50 cursor-not-allowed'
+                      : isLockedByOther && isTauri
+                        ? 'border-transparent opacity-50 cursor-not-allowed'
+                        : selectedWorktree?.name === worktree.name
+                          ? 'bg-slate-700/30 border-blue-500 cursor-pointer'
+                          : 'border-transparent hover:bg-slate-700/20 cursor-pointer'
+                      }`}
+                    onClick={() => {
+                      if (longPressFiredRef.current) return;
+                      if (canSelect) onSelectWorktree(worktree);
+                    }}
+                    onContextMenu={(e) => canSelect && onContextMenu(e, worktree)}
+                    onTouchStart={(e) => canSelect && onTouchStart(e, worktree)}
+                    onTouchEnd={onTouchEnd}
+                    onTouchMove={onTouchMove}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <FolderIcon className={`w-4 h-4 ${isLockedByOther || isDeployed ? 'text-slate-500' : 'text-blue-400'}`} />
+                      <TooltipProvider delayDuration={300}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="font-medium text-sm line-clamp-2 break-words flex-1">{highlightWorktreeName(worktree.display_name || worktree.name, matchResult)}</span>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">{worktree.display_name ? `${worktree.display_name} (${worktree.name})` : worktree.name}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      {isDeployed && (
+                        <StatusBadge label={t('deploy.deployed')} tooltip={t('deploy.deployedTooltip')} tone="blue" />
+                      )}
+                      {isLockedByOther && !isDeployed && (
+                        <StatusBadge label={t('sidebar.occupied')} tooltip={t('sidebar.occupiedTooltip')} tone="amber" />
+                      )}
+                      {worktree.projects.some(project => project.has_uncommitted) && !isLockedByOther && !isDeployed && (() => {
+                        const tip = worktree.projects
+                          .filter(project => project.has_uncommitted)
+                          .map(project => t('sidebar.uncommittedTip', { name: project.name, count: project.uncommitted_count }))
+                          .join('\n');
+                        return (
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="shrink-0"><WarningIcon className="w-3.5 h-3.5 text-amber-500" /></span>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="whitespace-pre">{tip}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })()}
+                    </div>
+                    <div className="text-slate-500 text-xs mt-0.5 pl-6">{t('sidebar.projects', { count: worktree.projects.length })}</div>
+                  </div>
+                </SortableWorktreeItem>
+              );
+            })}
+          </SortableContext>
+          <DragOverlay>
+            {activeWorktree ? (
+              <div className="bg-slate-800 border border-slate-600 rounded-md px-4 py-2.5 shadow-xl opacity-70">
+                <div className="flex items-center gap-2.5">
+                  <FolderIcon className="w-4 h-4 text-blue-400" />
+                  <span className="font-medium text-sm">{activeWorktree.display_name || activeWorktree.name}</span>
+                </div>
               </div>
-              <div className="text-slate-500 text-xs mt-0.5 pl-6">{t('sidebar.projects', { count: worktree.projects.length })}</div>
-            </div>
-          );
-        })
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       <div
