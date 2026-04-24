@@ -1,8 +1,10 @@
 import { useRef, useState, useEffect, useCallback, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronUp } from 'lucide-react';
+import { ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { Terminal } from './Terminal';
+import { TerminalSearchBar } from './TerminalSearchBar';
 import type { TerminalHandle } from './Terminal';
+import type { SearchOptions } from '../terminal';
 import {
   FolderIcon,
   TerminalIcon,
@@ -300,6 +302,9 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   const [showAltVHint, setShowAltVHint] = useState(false);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const terminalRefsMap = useRef<Map<string, TerminalHandle>>(new Map());
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [showGpuFallback, setShowGpuFallback] = useState(false);
+  const gpuFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Long-press support for terminal tab context menus on touch devices
   const tabLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -363,6 +368,45 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
     }
     return () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current); };
   }, [voiceStatus]);
+
+  // Close search bar when switching terminal tabs
+  const prevTabRef = useRef(activeTerminalTab);
+  useEffect(() => {
+    if (prevTabRef.current !== activeTerminalTab) {
+      if (searchOpen) {
+        const prevHandle = terminalRefsMap.current.get(prevTabRef.current ?? '');
+        prevHandle?.clearSearch();
+        setSearchOpen(false);
+      }
+      prevTabRef.current = activeTerminalTab;
+    }
+  }, [activeTerminalTab, searchOpen]);
+
+  const handleGpuFallback = useCallback(() => {
+    setShowGpuFallback(true);
+    if (gpuFallbackTimerRef.current) clearTimeout(gpuFallbackTimerRef.current);
+    gpuFallbackTimerRef.current = setTimeout(() => setShowGpuFallback(false), 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (gpuFallbackTimerRef.current) clearTimeout(gpuFallbackTimerRef.current); };
+  }, []);
+
+  const handleSearchToggle = useCallback(() => {
+    setSearchOpen(prev => {
+      if (prev) {
+        const handle = terminalRefsMap.current.get(activeTerminalTab ?? '');
+        handle?.clearSearch();
+      }
+      return !prev;
+    });
+  }, [activeTerminalTab]);
+
+  const handleSearchClose = useCallback(() => {
+    const handle = terminalRefsMap.current.get(activeTerminalTab ?? '');
+    handle?.clearSearch();
+    setSearchOpen(false);
+  }, [activeTerminalTab]);
 
   return (
     <div
@@ -487,10 +531,20 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                   title={t('terminal.nextCommand')}
                   aria-label={t('terminal.nextCommand')}
                 >
-                  <ChevronDownIcon className="w-3.5 h-3.5" />
+                  <ChevronDown className="w-3.5 h-3.5" />
                 </button>
               </>
             )}
+            <button
+              onClick={(e) => { e.stopPropagation(); handleSearchToggle(); }}
+              className={`p-1.5 rounded transition-colors ${
+                searchOpen ? 'text-blue-400 bg-blue-900/30' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700'
+              }`}
+              title={t('terminal.search')}
+              aria-label={t('terminal.search')}
+            >
+              <Search className="w-3.5 h-3.5" />
+            </button>
             {onToggleVoice && (
               <button
                 onClick={(e) => {
@@ -566,6 +620,8 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                   clientId={clientId}
                   onShellIntegrationDetected={() => onShellIntegrationDetected?.(path)}
                   onCwdChanged={(newCwd) => onCwdChanged?.(path, newCwd)}
+                  onSearchRequested={() => setSearchOpen(true)}
+                  onRendererFallback={handleGpuFallback}
                 />
               </div>
             ))}
@@ -581,6 +637,19 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
           </div>
         )}
 
+        {/* Terminal search bar */}
+        {searchOpen && activeTerminalTab && (
+          <TerminalSearchBar
+            onFindNext={(query: string, opts: SearchOptions) =>
+              terminalRefsMap.current.get(activeTerminalTab)?.findNext(query, opts) ?? false
+            }
+            onFindPrevious={(query: string, opts: SearchOptions) =>
+              terminalRefsMap.current.get(activeTerminalTab)?.findPrevious(query, opts) ?? false
+            }
+            onClose={handleSearchClose}
+          />
+        )}
+
         {/* 语音错误提示（红色） */}
         {showError && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-red-900/90 border border-red-700/50 rounded-lg text-sm text-red-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
@@ -592,6 +661,13 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
         {showWarning && !showError && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-yellow-900/90 border border-yellow-700/50 rounded-lg text-sm text-yellow-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
             {showWarning}
+          </div>
+        )}
+
+        {/* GPU renderer fallback toast */}
+        {showGpuFallback && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-yellow-900/90 border border-yellow-700/50 rounded-lg text-sm text-yellow-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+            {t('terminal.gpuFallback')}
           </div>
         )}
 
