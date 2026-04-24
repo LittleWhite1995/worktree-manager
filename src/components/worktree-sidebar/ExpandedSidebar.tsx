@@ -630,15 +630,14 @@ const WorktreeList: FC<{
   }, [activeSearchQuery]);
 
   // activeWorktrees is pre-sorted by WorktreeSidebar (user drag-order or alphabetical fallback)
-  const sortedActiveWorktrees = activeWorktrees;
 
   const worktreesWithMatch = useMemo(() => {
-    return sortedActiveWorktrees.map((wt) => {
+    return activeWorktrees.map((wt) => {
       const displayName = wt.display_name || wt.name;
       const result = matchWorktreeName(displayName, debouncedQuery);
       return { wt, matchResult: result };
     });
-  }, [debouncedQuery, sortedActiveWorktrees]);
+  }, [debouncedQuery, activeWorktrees]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeWorktree = activeId ? activeWorktrees.find(w => w.name === activeId) : null;
@@ -658,7 +657,7 @@ const WorktreeList: FC<{
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const names = sortedActiveWorktrees.map(w => w.name);
+    const names = activeWorktrees.map(w => w.name);
     const oldIndex = names.indexOf(active.id as string);
     const newIndex = names.indexOf(over.id as string);
     if (oldIndex === -1 || newIndex === -1) return;
@@ -692,7 +691,7 @@ const WorktreeList: FC<{
           />
         </div>
       </div>
-      {sortedActiveWorktrees.length === 0 ? (
+      {activeWorktrees.length === 0 ? (
         <div className="px-4 py-8 text-center">
           <div className="flex justify-center mb-3">
             <FolderIcon className="w-10 h-10 text-slate-600" />
@@ -708,7 +707,7 @@ const WorktreeList: FC<{
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={sortedActiveWorktrees.map(w => w.name)}
+            items={activeWorktrees.map(w => w.name)}
             strategy={verticalListSortingStrategy}
           >
             {worktreesWithMatch.map(({ wt: worktree, matchResult }) => {
@@ -733,9 +732,9 @@ const WorktreeList: FC<{
                       if (canSelect) onSelectWorktree(worktree);
                     }}
                     onContextMenu={(e) => canSelect && onContextMenu(e, worktree)}
-                    onTouchStart={(e) => canSelect && onTouchStart(e, worktree)}
-                    onTouchEnd={onTouchEnd}
-                    onTouchMove={onTouchMove}
+                    onTouchStart={(e) => !activeId && canSelect && onTouchStart(e, worktree)}
+                    onTouchEnd={() => !activeId && onTouchEnd()}
+                    onTouchMove={() => !activeId && onTouchMove()}
                   >
                     <div className="flex items-center gap-2.5">
                       <FolderIcon className={`w-4 h-4 ${isLockedByOther || isDeployed ? 'text-slate-500' : 'text-blue-400'}`} />

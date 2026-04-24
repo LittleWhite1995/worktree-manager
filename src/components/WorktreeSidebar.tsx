@@ -52,11 +52,11 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
   onBatchDelete,
 }) => {
   const _isTauri = isTauri();
-  const activeWorktrees = worktrees.filter((worktree) => {
+  const activeWorktrees = useMemo(() => worktrees.filter((worktree) => {
     if (worktree.is_archived) return false;
     return _isTauri ? true : !!lockedWorktrees[worktree.name];
-  });
-  const archivedWorktrees = worktrees.filter((worktree) => worktree.is_archived);
+  }), [worktrees, _isTauri, lockedWorktrees]);
+  const archivedWorktrees = useMemo(() => worktrees.filter((worktree) => worktree.is_archived), [worktrees]);
   const { longPressFiredRef, handleTouchStart, handleTouchEnd, handleTouchMove } = useLongPressContextMenu(onContextMenu);
   const [currentWindowLabel, setCurrentWindowLabel] = useState('main');
 
