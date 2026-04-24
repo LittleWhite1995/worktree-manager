@@ -647,7 +647,12 @@ async fn h_scan_linked_folders(Json(args): Json<Value>) -> Response {
 async fn h_open_in_terminal(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
     let terminal = args["terminal"].as_str().map(|s| s.to_string());
-    result_ok(crate::open_in_terminal_internal(&path, terminal.as_deref()))
+    let shell = args["shell"].as_str().map(|s| s.to_string());
+    result_ok(crate::open_in_terminal_internal(
+        &path,
+        terminal.as_deref(),
+        shell.as_deref(),
+    ))
 }
 
 async fn h_open_in_editor(Json(args): Json<Value>) -> Response {

@@ -8,14 +8,167 @@ use crate::utils::normalize_path;
 
 // ==================== Tauri 命令：工具 ====================
 
+#[cfg(any(target_os = "windows", test))]
+#[derive(Debug, PartialEq, Eq)]
+struct WindowsTerminalLaunch {
+    program: String,
+    args: Vec<String>,
+    current_dir: Option<PathBuf>,
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn path_like_executable(value: &str) -> bool {
+    std::path::Path::new(value).is_absolute() || value.contains('\\') || value.contains('/')
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn git_bash_shell_path() -> String {
+    let candidates = [
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+    ];
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return path.to_string();
+        }
+    }
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        let path = format!(r"{}\Programs\Git\bin\bash.exe", local);
+        if std::path::Path::new(&path).exists() {
+            return path;
+        }
+    }
+    "bash.exe".to_string()
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_shell_command(shell: Option<&str>) -> Vec<String> {
+    let shell = shell
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != "auto");
+    match shell {
+        Some("cmd") => vec!["cmd.exe".to_string()],
+        Some("powershell") => vec!["powershell.exe".to_string()],
+        Some("pwsh") => vec!["pwsh.exe".to_string()],
+        Some("gitbash") | Some("bash") => {
+            vec![
+                git_bash_shell_path(),
+                "--login".to_string(),
+                "-i".to_string(),
+            ]
+        }
+        Some("nu") => vec!["nu.exe".to_string()],
+        Some(other) if path_like_executable(other) => vec![other.to_string()],
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn build_windows_terminal_launch(
+    normalized_path: &str,
+    terminal: Option<&str>,
+    shell: Option<&str>,
+) -> WindowsTerminalLaunch {
+    let term = terminal
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("auto");
+
+    match term {
+        "cmd" => WindowsTerminalLaunch {
+            program: "cmd".to_string(),
+            args: vec![
+                "/c".to_string(),
+                "start".to_string(),
+                "cmd".to_string(),
+                "/k".to_string(),
+                format!("cd /d {}", normalized_path),
+            ],
+            current_dir: None,
+        },
+        "powershell" => WindowsTerminalLaunch {
+            program: "cmd".to_string(),
+            args: vec![
+                "/c".to_string(),
+                "start".to_string(),
+                "powershell".to_string(),
+                "-NoExit".to_string(),
+                "-Command".to_string(),
+                format!("Set-Location '{}'", normalized_path),
+            ],
+            current_dir: None,
+        },
+        "windowsterminal" | "auto" => {
+            let mut args = vec!["-d".to_string(), normalized_path.to_string()];
+            args.extend(windows_shell_command(shell));
+            WindowsTerminalLaunch {
+                program: "wt".to_string(),
+                args,
+                current_dir: None,
+            }
+        }
+        "gitbash" => {
+            let candidates = [
+                r"C:\Program Files\Git\git-bash.exe",
+                r"C:\Program Files (x86)\Git\git-bash.exe",
+            ];
+            let mut git_bash_path: Option<String> = None;
+            for path in &candidates {
+                if std::path::Path::new(path).exists() {
+                    git_bash_path = Some(path.to_string());
+                    break;
+                }
+            }
+            if git_bash_path.is_none() {
+                if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                    let path = format!(r"{}\Programs\Git\git-bash.exe", local);
+                    if std::path::Path::new(&path).exists() {
+                        git_bash_path = Some(path);
+                    }
+                }
+            }
+            WindowsTerminalLaunch {
+                program: git_bash_path.unwrap_or_else(|| "git-bash.exe".to_string()),
+                args: vec![format!("--cd={}", normalized_path)],
+                current_dir: None,
+            }
+        }
+        other => WindowsTerminalLaunch {
+            program: other.to_string(),
+            args: Vec::new(),
+            current_dir: Some(PathBuf::from(normalized_path)),
+        },
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn spawn_windows_terminal_launch(
+    launch: &WindowsTerminalLaunch,
+    create_no_window: u32,
+) -> std::io::Result<std::process::Child> {
+    use std::os::windows::process::CommandExt;
+
+    let mut command = Command::new(&launch.program);
+    command.args(&launch.args).creation_flags(create_no_window);
+    if let Some(dir) = &launch.current_dir {
+        command.current_dir(dir);
+    }
+    command.spawn()
+}
+
 #[tauri::command]
-pub(crate) fn open_in_terminal(path: String, terminal: Option<String>) -> Result<(), String> {
+pub(crate) fn open_in_terminal(
+    path: String,
+    terminal: Option<String>,
+    shell: Option<String>,
+) -> Result<(), String> {
     let normalized = normalize_path(&path);
     let term = terminal.as_deref().unwrap_or("auto");
     log::info!(
-        "[system] Opening terminal at: {} (type: {})",
+        "[system] Opening terminal at: {} (type: {}, shell: {:?})",
         normalized,
-        term
+        term,
+        shell
     );
 
     #[cfg(target_os = "macos")]
@@ -42,68 +195,15 @@ pub(crate) fn open_in_terminal(path: String, terminal: Option<String>) -> Result
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        let result = match term {
-            "cmd" => Command::new("cmd")
-                .args(["/c", "start", "cmd", "/k", &format!("cd /d {}", normalized)])
-                .creation_flags(CREATE_NO_WINDOW)
-                .spawn(),
-            "powershell" => Command::new("cmd")
-                .args([
-                    "/c",
-                    "start",
-                    "powershell",
-                    "-NoExit",
-                    "-Command",
-                    &format!("Set-Location '{}'", normalized),
-                ])
-                .creation_flags(CREATE_NO_WINDOW)
-                .spawn(),
-            "windowsterminal" => Command::new("wt").args(["-d", &normalized]).spawn(),
-            "gitbash" => {
-                // Search common Git Bash locations
-                let candidates = [
-                    r"C:\Program Files\Git\git-bash.exe",
-                    r"C:\Program Files (x86)\Git\git-bash.exe",
-                ];
-                let mut git_bash_path: Option<String> = None;
-                for p in &candidates {
-                    if std::path::Path::new(p).exists() {
-                        git_bash_path = Some(p.to_string());
-                        break;
-                    }
-                }
-                if git_bash_path.is_none() {
-                    if let Ok(local) = std::env::var("LOCALAPPDATA") {
-                        let p = format!(r"{}\Programs\Git\git-bash.exe", local);
-                        if std::path::Path::new(&p).exists() {
-                            git_bash_path = Some(p);
-                        }
-                    }
-                }
-                match git_bash_path {
-                    Some(p) => Command::new(p).arg(&format!("--cd={}", normalized)).spawn(),
-                    None => Err(std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        "Git Bash not found",
-                    )),
-                }
-            }
-            _ => {
-                // "auto": try WT first, then cmd
-                let wt_result = Command::new("wt").args(["-d", &normalized]).spawn();
-                if wt_result.is_ok() {
-                    wt_result
-                } else {
-                    Command::new("cmd")
-                        .args(["/c", "start", "cmd", "/k", &format!("cd /d {}", normalized)])
-                        .creation_flags(CREATE_NO_WINDOW)
-                        .spawn()
-                }
-            }
-        };
+        let launch =
+            build_windows_terminal_launch(&normalized, terminal.as_deref(), shell.as_deref());
+        let mut result = spawn_windows_terminal_launch(&launch, CREATE_NO_WINDOW);
+        if result.is_err() && term == "auto" {
+            let fallback = build_windows_terminal_launch(&normalized, Some("cmd"), None);
+            result = spawn_windows_terminal_launch(&fallback, CREATE_NO_WINDOW);
+        }
 
         match result {
             Ok(_) => log::info!("[system] Spawned terminal '{}' for: {}", term, normalized),
@@ -1560,8 +1660,16 @@ pub(crate) fn save_custom_mirrors(mirrors: Vec<crate::types::CustomMirror>) -> R
 
 // ==================== HTTP Server 共享接口 ====================
 
-pub fn open_in_terminal_internal(path: &str, terminal: Option<&str>) -> Result<(), String> {
-    open_in_terminal(path.to_string(), terminal.map(|s| s.to_string()))
+pub fn open_in_terminal_internal(
+    path: &str,
+    terminal: Option<&str>,
+    shell: Option<&str>,
+) -> Result<(), String> {
+    open_in_terminal(
+        path.to_string(),
+        terminal.map(|s| s.to_string()),
+        shell.map(|s| s.to_string()),
+    )
 }
 
 pub fn open_in_editor_internal(
@@ -1581,4 +1689,47 @@ pub fn open_log_dir_internal() -> Result<(), String> {
 
 pub fn get_app_icon_internal(path: &str) -> Option<String> {
     get_app_icon(path.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_windows_terminal_launch, WindowsTerminalLaunch};
+    use std::path::PathBuf;
+
+    #[test]
+    fn windows_terminal_uses_requested_shell_instead_of_default_profile() {
+        let launch =
+            build_windows_terminal_launch(r"C:\repo", Some("windowsterminal"), Some("cmd"));
+
+        assert_eq!(
+            launch,
+            WindowsTerminalLaunch {
+                program: "wt".to_string(),
+                args: vec![
+                    "-d".to_string(),
+                    r"C:\repo".to_string(),
+                    "cmd.exe".to_string(),
+                ],
+                current_dir: None,
+            }
+        );
+    }
+
+    #[test]
+    fn custom_terminal_path_is_launched_directly() {
+        let launch = build_windows_terminal_launch(
+            r"C:\repo",
+            Some(r"C:\Tools\WezTerm\wezterm-gui.exe"),
+            None,
+        );
+
+        assert_eq!(
+            launch,
+            WindowsTerminalLaunch {
+                program: r"C:\Tools\WezTerm\wezterm-gui.exe".to_string(),
+                args: Vec::new(),
+                current_dir: Some(PathBuf::from(r"C:\repo")),
+            }
+        );
+    }
 }

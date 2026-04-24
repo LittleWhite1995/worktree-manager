@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { callBackend, isTauri } from '../lib/backend';
+import { getPreferredExternalTerminal, getShellForTerminalLaunch } from '../lib/terminalPreferences';
 import type {
   WorkspaceRef,
   WorkspaceConfig,
@@ -257,8 +258,9 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
 
   const openInTerminal = useCallback(async (path: string, terminal?: string) => {
     try {
-      const term = terminal || localStorage.getItem('preferred_terminal') || 'auto';
-      await callBackend("open_in_terminal", { path, terminal: term });
+      const term = terminal || getPreferredExternalTerminal();
+      const shell = getShellForTerminalLaunch(term);
+      await callBackend("open_in_terminal", { path, terminal: term, shell });
     } catch (e) {
       console.error("Failed to open in Terminal:", e);
     }

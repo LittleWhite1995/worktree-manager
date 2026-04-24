@@ -344,8 +344,11 @@ pub(crate) fn broadcast_lock_state(workspace_path: &str) {
 
 #[tauri::command]
 pub(crate) fn open_devtools(webview_window: tauri::WebviewWindow) {
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, feature = "devtools"))]
     webview_window.open_devtools();
-    #[cfg(not(debug_assertions))]
-    let _ = webview_window;
+    #[cfg(not(any(debug_assertions, feature = "devtools")))]
+    {
+        log::warn!("[window] DevTools requested but this build was compiled without devtools");
+        let _ = webview_window;
+    }
 }

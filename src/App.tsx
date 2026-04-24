@@ -44,7 +44,7 @@ if (typeof window !== 'undefined' && isTauri()) {
         callBackend('open_devtools').catch(() => {});
       }
     }
-  });
+  }, true);
 } else if (typeof window !== 'undefined') {
   document.body.classList.add('browser');
 }
