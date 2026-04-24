@@ -121,16 +121,16 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
       <button
         onClick={() => doFindPrevious(query, options)}
         className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-        title={t('terminal.prevCommand')}
-        aria-label={t('terminal.prevCommand')}
+        title={t('terminal.prevResult')}
+        aria-label={t('terminal.prevResult')}
       >
         <ChevronUp className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => doFindNext(query, options)}
         className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-        title={t('terminal.nextCommand')}
-        aria-label={t('terminal.nextCommand')}
+        title={t('terminal.nextResult')}
+        aria-label={t('terminal.nextResult')}
       >
         <ChevronDown className="w-3.5 h-3.5" />
       </button>

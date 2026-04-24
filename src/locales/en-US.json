@@ -261,6 +261,8 @@
   "terminal.useRegex": "Use regex",
   "terminal.noResults": "No results",
   "terminal.closeSearch": "Close search",
+  "terminal.prevResult": "Previous result",
+  "terminal.nextResult": "Next result",
   "terminal.gpuFallback": "GPU rendering unavailable, switched to software rendering",
   "app.loadingWorkspace": "Loading Workspace...",
   "app.errorPrefix": "Error",

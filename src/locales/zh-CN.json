@@ -252,6 +252,8 @@
   "terminal.useRegex": "正则表达式",
   "terminal.noResults": "无匹配结果",
   "terminal.closeSearch": "关闭搜索",
+  "terminal.prevResult": "上一个结果",
+  "terminal.nextResult": "下一个结果",
   "terminal.gpuFallback": "GPU 渲染不可用，已切换到软件渲染",
   "app.loadingWorkspace": "加载 Workspace...",
   "app.errorPrefix": "错误",

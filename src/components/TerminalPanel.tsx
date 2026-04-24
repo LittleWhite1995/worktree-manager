@@ -395,8 +395,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   const handleSearchToggle = useCallback(() => {
     setSearchOpen(prev => {
       if (prev) {
-        const handle = terminalRefsMap.current.get(activeTerminalTab ?? '');
-        handle?.clearSearch();
+        terminalRefsMap.current.get(activeTerminalTab ?? '')?.clearSearch();
       }
       return !prev;
     });
