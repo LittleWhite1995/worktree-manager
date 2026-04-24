@@ -4,6 +4,17 @@ import type { Terminal, ITerminalAddon, IDisposable } from '@xterm/xterm'
 import { Emitter } from './types'
 import type { OscEvent } from './types'
 
+/**
+ * Decode \xHH escape sequences used by shell integration scripts.
+ * Handles: \xHH → character, \\ → backslash.
+ * Safe to apply to unescaped text (only \x + 2 hex digits are transformed).
+ */
+export function unescapeOscValue(value: string): string {
+  return value.replace(/\\(\\|x([0-9a-f]{2}))/gi, (_match, _op, hex?) =>
+    hex ? String.fromCharCode(parseInt(hex, 16)) : '\\'
+  )
+}
+
 export class OscParser implements ITerminalAddon {
   readonly onEvent = new Emitter<OscEvent>()
   private disposables: IDisposable[] = []
@@ -44,7 +55,7 @@ export class OscParser implements ITerminalAddon {
         break
       }
       case 'E':
-        this.onEvent.fire({ type: 'command-text', text: payload })
+        this.onEvent.fire({ type: 'command-text', text: unescapeOscValue(payload) })
         break
       case 'P': {
         const eqIndex = payload.indexOf('=')
@@ -52,7 +63,7 @@ export class OscParser implements ITerminalAddon {
           this.onEvent.fire({
             type: 'property',
             key: payload.slice(0, eqIndex),
-            value: payload.slice(eqIndex + 1),
+            value: unescapeOscValue(payload.slice(eqIndex + 1)),
           })
         }
         break
