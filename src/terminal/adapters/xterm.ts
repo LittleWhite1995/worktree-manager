@@ -3,6 +3,8 @@
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import { Unicode11Addon } from '@xterm/addon-unicode11'
+import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 
 import type {
@@ -49,6 +51,7 @@ export class XtermAdapter implements TerminalAdapter {
   private oscParser: OscParser | null = null
   private commandDetection: CommandDetection | null = null
   private commandDecoration: CommandDecorationAddon | null = null
+  private webglAddon: WebglAddon | null = null
 
   get cols(): number {
     return this.term?.cols ?? 80
@@ -81,6 +84,25 @@ export class XtermAdapter implements TerminalAdapter {
 
     term.open(container)
 
+    // Unicode11: correct CJK character widths
+    const unicode11 = new Unicode11Addon()
+    term.loadAddon(unicode11)
+    term.unicode.activeVersion = '11'
+
+    // WebGL: GPU-accelerated rendering with fallback
+    try {
+      const webglAddon = new WebglAddon()
+      webglAddon.onContextLoss(() => {
+        webglAddon.dispose()
+        this.webglAddon = null
+        options.onRendererFallback?.()
+      })
+      term.loadAddon(webglAddon)
+      this.webglAddon = webglAddon
+    } catch {
+      options.onRendererFallback?.()
+    }
+
     this.term = term
     this.fitAddon = fitAddon
     this.container = container
@@ -104,6 +126,8 @@ export class XtermAdapter implements TerminalAdapter {
     this.commandDetection = null
     this.oscParser?.dispose()
     this.oscParser = null
+    this.webglAddon?.dispose()
+    this.webglAddon = null
     this.term?.dispose()
     this.term = null
     this.fitAddon = null
