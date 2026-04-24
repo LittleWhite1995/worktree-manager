@@ -5,7 +5,7 @@ import { callBackend, isTauri, openLink, getPlatform } from '../lib/backend';
 import { getWebSocketManager } from '../lib/websocket';
 import { TERMINAL } from '../constants';
 import { TerminalRegistry } from '../terminal';
-import type { TerminalAdapter, Disposable } from '../terminal';
+import type { TerminalAdapter, Disposable, SearchOptions } from '../terminal';
 
 function writeToPty(sessionId: string, data: string) {
   if (!isTauri()) {
@@ -142,6 +142,8 @@ interface TerminalProps {
   clientId?: string;
   onShellIntegrationDetected?: () => void;
   onCwdChanged?: (cwd: string) => void;
+  onSearchRequested?: () => void;
+  onRendererFallback?: () => void;
 }
 
 interface PtyOutputEventPayload {
@@ -152,9 +154,12 @@ interface PtyOutputEventPayload {
 export interface TerminalHandle {
   copyContent: () => Promise<void>;
   scrollToCommand: (direction: 'prev' | 'next') => void;
+  findNext: (query: string, options?: SearchOptions) => boolean;
+  findPrevious: (query: string, options?: SearchOptions) => boolean;
+  clearSearch: () => void;
 }
 
-const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId, onShellIntegrationDetected, onCwdChanged }, ref) => {
+const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId, onShellIntegrationDetected, onCwdChanged, onSearchRequested, onRendererFallback }, ref) => {
   // Keep desktop PTY on polling until the event-stream path can preserve replay semantics.
   const enableDesktopEventStreaming = false;
   useTranslation();
@@ -196,8 +201,14 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   onShellIntDetectedRef.current = onShellIntegrationDetected;
   const onCwdChangedRef = useRef(onCwdChanged);
   onCwdChangedRef.current = onCwdChanged;
+  const onSearchRequestedRef = useRef(onSearchRequested);
+  onSearchRequestedRef.current = onSearchRequested;
+  const onRendererFallbackRef = useRef(onRendererFallback);
+  onRendererFallbackRef.current = onRendererFallback;
   const keyDisposableRef = useRef<Disposable | null>(null);
   const inputDisposableRef = useRef<Disposable | null>(null);
+  const shellIntCmdSubRef = useRef<Disposable | null>(null);
+  const shellIntCwdSubRef = useRef<Disposable | null>(null);
   const mouseHandlersRef = useRef<{
     handleMouseDown: (e: MouseEvent) => void;
     handleMouseMove: (e: MouseEvent) => void;
@@ -327,8 +338,16 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       adapter.clearSelection();
     },
     scrollToCommand: (direction: 'prev' | 'next') => {
-      const adapter = adapterRef.current as any;
-      adapter?.scrollToCommand?.(direction);
+      adapterRef.current?.scrollToCommand?.(direction);
+    },
+    findNext: (query: string, options?: SearchOptions) => {
+      return adapterRef.current?.findNext?.(query, options) ?? false;
+    },
+    findPrevious: (query: string, options?: SearchOptions) => {
+      return adapterRef.current?.findPrevious?.(query, options) ?? false;
+    },
+    clearSearch: () => {
+      adapterRef.current?.clearSearch?.();
     },
   }), []);
 
@@ -386,8 +405,10 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       keyDisposableRef.current = null;
 
       // Clean up shell integration subscriptions
-      (adapter as any)._shellIntCmdSub?.dispose();
-      (adapter as any)._shellIntCwdSub?.dispose();
+      shellIntCmdSubRef.current?.dispose();
+      shellIntCmdSubRef.current = null;
+      shellIntCwdSubRef.current?.dispose();
+      shellIntCwdSubRef.current = null;
 
       adapter.dispose();
       adapterRef.current = null;
@@ -499,6 +520,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
           cursorStyle: 'bar' as const,
           scrollback: TERMINAL.SCROLLBACK_LINES,
           linkHandler: (uri) => openLink(uri),
+          onRendererFallback: () => onRendererFallbackRef.current?.(),
         });
 
         // Check if component was unmounted during async mount
@@ -511,8 +533,15 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
           adapter.setMobileKeyboardPolicy('none');
         }
 
-        // Let Alt+V pass through for voice input
-        const keyDisposable = adapter.onKeyEvent((e) => !(e.altKey && e.code === 'KeyV'));
+        // Key handler: Ctrl/Cmd+F for search, Alt+V passthrough for voice
+        const keyDisposable = adapter.onKeyEvent((e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+            onSearchRequestedRef.current?.();
+            return false;
+          }
+          if (e.altKey && e.code === 'KeyV') return false;
+          return true;
+        });
         keyDisposableRef.current = keyDisposable;
 
         // Mouse selection handling
@@ -629,20 +658,15 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         inputDisposableRef.current = inputDisposable;
 
         // Shell integration subscriptions
-        const xtermAdapter = adapter as any;
-        const cmdStartedSub = xtermAdapter.onCommandStarted?.(() => {
+        shellIntCmdSubRef.current = adapter.onCommandStarted?.(() => {
           if (!shellIntDetectedRef.current) {
             shellIntDetectedRef.current = true;
             onShellIntDetectedRef.current?.();
           }
-        });
-        const cwdChangedSub = xtermAdapter.onCwdChanged?.((newCwd: string) => {
+        }) ?? null;
+        shellIntCwdSubRef.current = adapter.onCwdChanged?.((newCwd: string) => {
           onCwdChangedRef.current?.(newCwd);
-        });
-
-        // Store shell integration subscriptions for cleanup
-        (adapter as any)._shellIntCmdSub = cmdStartedSub;
-        (adapter as any)._shellIntCwdSub = cwdChangedSub;
+        }) ?? null;
       }
 
       // --- PTY initialization (same as before) ---
