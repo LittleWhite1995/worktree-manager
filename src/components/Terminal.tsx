@@ -283,6 +283,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     const cols = adapterRef.current?.cols ?? 0;
     const rows = adapterRef.current?.rows ?? 0;
     const selection = adapterRef.current?.getSelection() ?? '';
+    const adapterDebug = adapterRef.current?.getDebugInfo?.() ?? {};
     setDebugInfo({
       visible: true,
       data: {
@@ -293,6 +294,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         'Platform': getPlatform(),
         'Terminal Size': `${cols} cols x ${rows} rows`,
         'Viewport Size': `${window.innerWidth} x ${window.innerHeight}`,
+        ...adapterDebug,
         'User Agent': navigator.userAgent,
         'WS Connected': isTauri() ? 'N/A (desktop)' : String(wsConnected),
         'Client ID': clientId || 'N/A',

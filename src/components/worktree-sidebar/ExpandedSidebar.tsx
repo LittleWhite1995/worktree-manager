@@ -104,7 +104,7 @@ export function highlightWorktreeName(name: string, result: MatchResult): ReactN
   if (!result.matched) return name;
   if (result.type === 'pinyin') {
     return (
-      <span className="text-blue-300 bg-blue-900/40 rounded-sm px-px">{name}</span>
+      <span className="text-yellow-200 bg-yellow-500/30 rounded-sm px-px">{name}</span>
     );
   }
   // substring
@@ -112,7 +112,7 @@ export function highlightWorktreeName(name: string, result: MatchResult): ReactN
   return (
     <>
       {name.slice(0, index)}
-      <span className="text-blue-300 bg-blue-900/40 rounded-sm px-px">
+      <span className="text-yellow-200 bg-yellow-500/30 rounded-sm px-px">
         {name.slice(index, index + length)}
       </span>
       {name.slice(index + length)}

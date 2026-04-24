@@ -6,6 +6,13 @@ Git worktree 管理工具 | Tauri 2 + React 19 + Rust | 桌面端 + 浏览器双
 
 npm install / npm run dev / cargo tauri dev / npm run build / cargo tauri build
 
+### 重启 dev 流程
+必须先构建前端再启动 Tauri，否则会因缓存过期报错：
+```bash
+pnpm run build && npm run tauri dev
+```
+**不要**直接运行 `npx tauri dev` 或 `cargo tauri dev`。
+
 ## 项目结构
 
 ```

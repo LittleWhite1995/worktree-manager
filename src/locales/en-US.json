@@ -140,7 +140,7 @@
   "settings.skipGitHooks": "Skip Git Hooks",
   "settings.skipGitHooksDesc": "Skip pre-commit / commit-msg hooks when committing",
   "settings.shellIntegration": "Shell Integration",
-  "settings.shellIntegrationDesc": "Automatically detect command boundaries in terminal (requires bash or zsh)",
+  "settings.shellIntegrationDesc": "Automatically detect command boundaries in terminal (supports bash, zsh, and PowerShell)",
   "settings.prefixTemplates": "Prefix templates",
   "settings.setDefault": "Set as default",
   "settings.addTemplate": "Add template",

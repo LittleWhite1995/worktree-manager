@@ -136,7 +136,7 @@
   "settings.skipGitHooks": "跳过 Git Hooks",
   "settings.skipGitHooksDesc": "提交时跳过 pre-commit / commit-msg hooks",
   "settings.shellIntegration": "Shell 集成",
-  "settings.shellIntegrationDesc": "自动识别终端中的命令边界（需要 bash 或 zsh）",
+  "settings.shellIntegrationDesc": "自动识别终端中的命令边界（支持 bash、zsh 和 PowerShell）",
   "settings.prefixTemplates": "前缀模板",
   "settings.setDefault": "设为默认",
   "settings.addTemplate": "添加模板",

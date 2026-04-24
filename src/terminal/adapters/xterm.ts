@@ -17,7 +17,6 @@ import type {
 } from '../types'
 import { OscParser } from '../shell-integration/osc-parser'
 import { CommandDetection } from '../shell-integration/command-detection'
-import { CommandDecorationAddon } from '../shell-integration/command-decoration'
 import type { CommandInfo } from '../shell-integration/types'
 
 const XTERM_THEME = {
@@ -52,7 +51,6 @@ export class XtermAdapter implements TerminalAdapter {
   private dblclickHandler: (() => void) | null = null
   private oscParser: OscParser | null = null
   private commandDetection: CommandDetection | null = null
-  private commandDecoration: CommandDecorationAddon | null = null
   private webglAddon: WebglAddon | null = null
   private searchAddon: SearchAddon | null = null
 
@@ -93,17 +91,23 @@ export class XtermAdapter implements TerminalAdapter {
     term.unicode.activeVersion = '11'
 
     // WebGL: GPU-accelerated rendering with fallback
-    try {
-      const webglAddon = new WebglAddon()
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose()
-        this.webglAddon = null
+    // Skip on iOS — all iOS browsers use WebKit which silently fails to render
+    // WebGL xterm content (loads without error but shows blank screen)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    if (!isIOS) {
+      try {
+        const webglAddon = new WebglAddon()
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose()
+          this.webglAddon = null
+          options.onRendererFallback?.()
+        })
+        term.loadAddon(webglAddon)
+        this.webglAddon = webglAddon
+      } catch {
         options.onRendererFallback?.()
-      })
-      term.loadAddon(webglAddon)
-      this.webglAddon = webglAddon
-    } catch {
-      options.onRendererFallback?.()
+      }
     }
 
     this.term = term
@@ -119,8 +123,6 @@ export class XtermAdapter implements TerminalAdapter {
     this.oscParser = new OscParser()
     term.loadAddon(this.oscParser)
     this.commandDetection = new CommandDetection(this.oscParser, term)
-    this.commandDecoration = new CommandDecorationAddon(this.commandDetection)
-    term.loadAddon(this.commandDecoration)
   }
 
   dispose(): void {
@@ -128,8 +130,6 @@ export class XtermAdapter implements TerminalAdapter {
       this.container.removeEventListener('dblclick', this.dblclickHandler)
       this.dblclickHandler = null
     }
-    this.commandDecoration?.dispose()
-    this.commandDecoration = null
     this.commandDetection?.dispose()
     this.commandDetection = null
     this.oscParser?.dispose()
@@ -254,6 +254,24 @@ export class XtermAdapter implements TerminalAdapter {
         }, { once: true })
       }
       this.container.addEventListener('dblclick', this.dblclickHandler)
+    }
+  }
+
+  getDebugInfo(): Record<string, string> {
+    const renderer = this.webglAddon ? 'WebGL' : 'Canvas'
+    const unicodeVersion = this.term?.unicode.activeVersion ?? 'unknown'
+    const addons: string[] = []
+    if (this.webglAddon) addons.push('WebGL')
+    addons.push('Unicode11 (v' + unicodeVersion + ')')
+    if (this.searchAddon) addons.push('Search')
+    if (this.fitAddon) addons.push('FitAddon')
+    const fontSize = this.term?.options.fontSize ?? 'unknown'
+    const fontFamily = this.term?.options.fontFamily ?? 'unknown'
+    return {
+      'Renderer': renderer,
+      'Font': `${fontFamily} @ ${fontSize}px`,
+      'Unicode Version': unicodeVersion,
+      'Loaded Add-ons': addons.join(', ') || 'none',
     }
   }
 

@@ -11,6 +11,7 @@ export class CommandDetection {
   private _commands: CommandInfo[] = []
   private pendingCommandText = ''
   private currentCommand: CommandInfo | null = null
+  private promptStartMarker: IMarker | null = null
   private markerCleanups = new Map<IMarker, Unsubscribe>()
   private unsubscribeOsc: Unsubscribe
 
@@ -65,6 +66,11 @@ export class CommandDetection {
     // Leave the previous command as-is so its state stays Executing.
     this.pendingCommandText = ''
     this.currentCommand = null
+    // Save a marker at the prompt line so the decoration dot appears next to the
+    // prompt rather than on the first output line (the cursor has already moved
+    // down by the time preexec emits OSC 633;C).
+    this.promptStartMarker?.dispose()
+    this.promptStartMarker = this.terminal.registerMarker(0)
   }
 
   private onPromptEnd(): void {
@@ -82,8 +88,10 @@ export class CommandDetection {
   }
 
   private onCommandStart(): void {
-    // Tolerate receiving C without a preceding A or B (partial sequence).
-    const marker = this.terminal.registerMarker(0)
+    // Use the prompt-start marker so the decoration appears on the prompt line,
+    // not on the first output line.  Fall back to current cursor if A was missed.
+    const marker = this.promptStartMarker ?? this.terminal.registerMarker(0)
+    this.promptStartMarker = null
     const command: CommandInfo = {
       marker,
       commandText: this.pendingCommandText,
@@ -155,6 +163,8 @@ export class CommandDetection {
 
   dispose(): void {
     this.unsubscribeOsc()
+    this.promptStartMarker?.dispose()
+    this.promptStartMarker = null
     for (const cleanup of this.markerCleanups.values()) {
       cleanup()
     }

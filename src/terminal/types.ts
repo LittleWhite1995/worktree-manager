@@ -78,6 +78,9 @@ export interface TerminalAdapter {
   scrollToBottom(): void
   setMobileKeyboardPolicy(mode: 'none' | 'text'): void
 
+  // Debug info (optional)
+  getDebugInfo?(): Record<string, string>
+
   // Shell integration (optional — only XtermAdapter implements these)
   scrollToCommand?(direction: 'prev' | 'next'): void
   readonly hasShellIntegration?: boolean

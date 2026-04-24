@@ -146,7 +146,18 @@ export function useTerminal(
   }, []);
 
   const updateTerminalCwd = useCallback((sessionPath: string, cwd: string) => {
-    const dirName = cwd.split('/').pop() || cwd;
+    const basePath = sessionPath.split('#')[0];
+    // If CWD matches the terminal's original directory, remove any override to restore original tab name
+    if (cwd === basePath) {
+      setCwdOverrides(prev => {
+        if (!prev.has(sessionPath)) return prev;
+        const next = new Map(prev);
+        next.delete(sessionPath);
+        return next;
+      });
+      return;
+    }
+    const dirName = cwd.split(/[/\\]/).pop() || cwd;
     if (!dirName) return;
     setCwdOverrides(prev => new Map(prev).set(sessionPath, dirName));
   }, []);
@@ -408,6 +419,10 @@ export function useTerminal(
     setMountedTerminals(prev => { const next = new Set(prev); next.delete(path); return next; });
     closePtySession(path);
 
+    // Clean up shell integration state for closed tab
+    setCwdOverrides(prev => { const next = new Map(prev); next.delete(path); return next.size === prev.size ? prev : next; });
+    setShellIntegrationMap(prev => { const next = new Map(prev); next.delete(path); return next.size === prev.size ? prev : next; });
+
     let newActiveTab = activeTerminalTabRef.current;
     if (activeTerminalTabRef.current === path) {
       const tabs = terminalTabsRef.current;
@@ -442,6 +457,10 @@ export function useTerminal(
     });
     for (const p of toClose) closePtySession(p);
 
+    // Clean up shell integration state for closed tabs
+    setCwdOverrides(prev => { const next = new Map(prev); for (const p of toClose) next.delete(p); return next; });
+    setShellIntegrationMap(prev => { const next = new Map(prev); for (const p of toClose) next.delete(p); return next; });
+
     setActiveTerminalTab(keepPath);
     activatedTerminalsRef.current = newActivated;
     activeTerminalTabRef.current = keepPath;
@@ -461,6 +480,10 @@ export function useTerminal(
       return next;
     });
     for (const p of toClose) closePtySession(p);
+
+    // Clean up shell integration state for closed tabs only (preserve other workspaces' state)
+    setCwdOverrides(prev => { const next = new Map(prev); for (const p of toClose) next.delete(p); return next; });
+    setShellIntegrationMap(prev => { const next = new Map(prev); for (const p of toClose) next.delete(p); return next; });
 
     setActiveTerminalTab(null);
     activatedTerminalsRef.current = newActivated;
@@ -516,6 +539,10 @@ export function useTerminal(
       for (const p of prev) if (matches(p)) next.delete(p);
       return next.size === prev.size ? prev : next;
     });
+
+    // Clean up shell integration state for archived terminals
+    setCwdOverrides(prev => { const next = new Map(prev); for (const [k] of prev) if (matches(k)) next.delete(k); return next.size === prev.size ? prev : next; });
+    setShellIntegrationMap(prev => { const next = new Map(prev); for (const [k] of prev) if (matches(k)) next.delete(k); return next.size === prev.size ? prev : next; });
 
     const newActivated = new Set(activatedTerminalsRef.current);
     for (const p of activatedTerminalsRef.current) {
