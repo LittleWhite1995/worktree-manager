@@ -21,7 +21,7 @@ import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wre
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { BranchCombobox } from './BranchCombobox';
 import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild } from '../types';
-import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect } from '../lib/backend';
+import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect } from '../lib/backend';
 import type { CloudStatus, PairingStatus } from '../lib/backend';
 
 // ==================== VaultItemTree (recursive) ====================
@@ -593,6 +593,8 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const [gitUserSaving, setGitUserSaving] = useState(false);
   const [skipGitHooks, setSkipGitHooks] = useState(false);
   const [skipGitHooksLoaded, setSkipGitHooksLoaded] = useState(false);
+  const [shellIntegrationEnabled, setShellIntegrationEnabled] = useState(true);
+  const [shellIntegrationLoaded, setShellIntegrationLoaded] = useState(false);
 
   const handleSavePrefixConfig = useCallback(async () => {
     setPrefixSaving(true);
@@ -917,6 +919,13 @@ export const SettingsView: FC<SettingsViewProps> = ({
         setSkipGitHooksLoaded(true);
       })
       .catch(() => setSkipGitHooksLoaded(true));
+
+    getShellIntegrationEnabled()
+      .then(v => {
+        setShellIntegrationEnabled(v);
+        setShellIntegrationLoaded(true);
+      })
+      .catch(() => setShellIntegrationLoaded(true));
   }, []);
 
   // ==================== Cloud connection handlers ====================
@@ -1439,6 +1448,19 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       className="h-8 text-sm font-mono"
                     />
                     <p className="text-[10px] text-slate-600 mt-1">{t('settings.terminalCustomHint', '填写后将忽略上方下拉选择，直接使用该路径作为终端程序')}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm text-slate-400">{t('settings.shellIntegration')}</label>
+                      <p className="text-xs text-slate-500">{t('settings.shellIntegrationDesc')}</p>
+                    </div>
+                    <button type="button"
+                      onClick={() => { const newVal = !shellIntegrationEnabled; setShellIntegrationEnabled(newVal); saveShellIntegrationEnabled(newVal).catch(() => {}); }}
+                      disabled={!shellIntegrationLoaded}
+                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${shellIntegrationEnabled ? 'bg-blue-500' : 'bg-slate-600'}`}
+                    >
+                      <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${shellIntegrationEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                    </button>
                   </div>
                 </div>
 
