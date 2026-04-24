@@ -83,6 +83,7 @@ function renderSidebar(activeWorktrees: WorktreeListItem[]) {
     onRefresh: vi.fn(),
     onSelectWorktree: vi.fn(),
     onShowWorkspaceMenu: vi.fn(),
+    onSortOrderChange: vi.fn(),
     onStartShare: vi.fn(),
     onStopShare: vi.fn(),
     onSwitchWorkspace: vi.fn(),

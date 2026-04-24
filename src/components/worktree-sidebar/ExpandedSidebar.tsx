@@ -110,6 +110,7 @@ interface ExpandedSidebarProps extends Omit<WorktreeSidebarProps, 'worktrees'> {
   currentWindowLabel: string;
   isTauri: boolean;
   longPressFiredRef: MutableRefObject<boolean>;
+  onSortOrderChange: (newOrder: string[]) => void;
   onTouchStart: (e: TouchEvent, worktree: WorktreeListItem) => void;
   onTouchEnd: () => void;
   onTouchMove: () => void;
@@ -145,6 +146,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
   onRefresh,
   onSelectWorktree,
   onShowWorkspaceMenu,
+  onSortOrderChange,
   onStartShare,
   onStopShare,
   onSwitchWorkspace,
@@ -344,6 +346,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
           occupation={occupation}
           onContextMenu={onContextMenu}
           onSelectWorktree={onSelectWorktree}
+          onSortOrderChange={onSortOrderChange}
           onToggleArchived={onToggleArchived}
           onToggleBatchArchiveModal={onToggleBatchArchiveModal}
           onTouchEnd={onTouchEnd}
@@ -574,6 +577,7 @@ const WorktreeList: FC<{
   occupation: WorktreeSidebarProps['occupation'];
   onContextMenu: WorktreeSidebarProps['onContextMenu'];
   onSelectWorktree: WorktreeSidebarProps['onSelectWorktree'];
+  onSortOrderChange: (newOrder: string[]) => void;
   onToggleArchived: WorktreeSidebarProps['onToggleArchived'];
   onToggleBatchArchiveModal: () => void;
   onTouchEnd: () => void;
@@ -591,6 +595,7 @@ const WorktreeList: FC<{
   occupation,
   onContextMenu,
   onSelectWorktree,
+  onSortOrderChange: _onSortOrderChange,
   onToggleArchived,
   onToggleBatchArchiveModal,
   onTouchEnd,
@@ -608,14 +613,8 @@ const WorktreeList: FC<{
     return () => clearTimeout(timer);
   }, [activeSearchQuery]);
 
-  // Sort active worktrees by display_name (or name) alphabetically
-  const sortedActiveWorktrees = useMemo(() => {
-    return [...activeWorktrees].sort((a, b) => {
-      const nameA = a.display_name || a.name;
-      const nameB = b.display_name || b.name;
-      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-    });
-  }, [activeWorktrees]);
+  // activeWorktrees is pre-sorted by WorktreeSidebar (user drag-order or alphabetical fallback)
+  const sortedActiveWorktrees = activeWorktrees;
 
   const worktreesWithMatch = useMemo(() => {
     return sortedActiveWorktrees.map((wt) => {

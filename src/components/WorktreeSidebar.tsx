@@ -1,4 +1,4 @@
-import { useEffect, useState, type FC } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
 
 import { getWindowLabel, isTauri } from '../lib/backend';
 import { CollapsedSidebar } from './worktree-sidebar/CollapsedSidebar';
@@ -59,6 +59,59 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
   const archivedWorktrees = worktrees.filter((worktree) => worktree.is_archived);
   const { longPressFiredRef, handleTouchStart, handleTouchEnd, handleTouchMove } = useLongPressContextMenu(onContextMenu);
   const [currentWindowLabel, setCurrentWindowLabel] = useState('main');
+
+  // Sort order persistence
+  const workspacePath = currentWorkspace?.path ?? '';
+  const storageKey = workspacePath ? `worktree-sort-order:${workspacePath}` : '';
+
+  const [savedOrder, setSavedOrder] = useState<string[]>(() => {
+    if (!storageKey) return [];
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Re-read localStorage when workspace changes
+  useEffect(() => {
+    if (!storageKey) {
+      setSavedOrder([]);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(storageKey);
+      setSavedOrder(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      setSavedOrder([]);
+    }
+  }, [storageKey]);
+
+  const updateSortOrder = useCallback(
+    (newOrder: string[]) => {
+      setSavedOrder(newOrder);
+      if (storageKey) {
+        localStorage.setItem(storageKey, JSON.stringify(newOrder));
+      }
+    },
+    [storageKey],
+  );
+
+  const sortedActiveWorktrees = useMemo(() => {
+    const orderMap = new Map(savedOrder.map((name, idx) => [name, idx]));
+    return [...activeWorktrees].sort((a, b) => {
+      const idxA = orderMap.get(a.name);
+      const idxB = orderMap.get(b.name);
+      if (idxA !== undefined && idxB !== undefined) return idxA - idxB;
+      if (idxA !== undefined) return -1;
+      if (idxB !== undefined) return 1;
+      const nameA = a.display_name || a.name;
+      const nameB = b.display_name || b.name;
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+    });
+  }, [activeWorktrees, savedOrder]);
+
   const [sidebarWidth, setSidebarWidth] = useState<number>(288); // Default 288px (w-72)
 
   // Restore width from localStorage
@@ -83,7 +136,7 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
   if (collapsed) {
     return (
       <CollapsedSidebar
-        activeWorktrees={activeWorktrees}
+        activeWorktrees={sortedActiveWorktrees}
         currentWorkspace={currentWorkspace}
         currentWindowLabel={currentWindowLabel}
         isTauri={_isTauri}
@@ -101,7 +154,8 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
 
   return (
     <ExpandedSidebar
-      activeWorktrees={activeWorktrees}
+      activeWorktrees={sortedActiveWorktrees}
+      onSortOrderChange={updateSortOrder}
       archivedWorktrees={archivedWorktrees}
       connectedClients={connectedClients}
       collapsed={collapsed}
