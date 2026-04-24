@@ -292,8 +292,14 @@ pub fn run() {
             *APP_HANDLE.lock().unwrap() = Some(app.handle().clone());
 
             // Initialize shell integration scripts
-            if let Ok(resource_dir) = app.path().resource_dir() {
-                pty_manager::init_shell_integration(resource_dir);
+            let resource_dir = app.path().resource_dir().ok().or_else(|| {
+                // Dev mode fallback: resource_dir() is unavailable, use src-tauri/ directly
+                let dev_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                log::info!("[setup] Using dev resource_dir: {:?}", dev_dir);
+                Some(dev_dir)
+            });
+            if let Some(dir) = resource_dir {
+                pty_manager::init_shell_integration(dir);
             }
 
             // Start MCP server on port 42819 in background

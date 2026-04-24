@@ -259,6 +259,23 @@ fn setup_shell_integration(cmd: &mut CommandBuilder, shell_path: &str) {
                 }
             }
         }
+        "pwsh" | "powershell" => {
+            // Shell integration takes over PowerShell startup args entirely.
+            // shell_startup_args() must return &[] for pwsh/powershell to avoid conflicts.
+            let script = integration_dir.join("pwsh-integration.ps1");
+            if script.exists() {
+                if let Some(path_str) = script.to_str() {
+                    // PowerShell single-quoted strings escape ' as '' (doubled)
+                    let escaped = path_str.replace('\'', "''");
+                    cmd.args([
+                        "-noexit",
+                        "-nologo",
+                        "-command",
+                        &format!(". '{}'", escaped),
+                    ]);
+                }
+            }
+        }
         _ => {}
     }
 }

@@ -17,7 +17,10 @@ fn find_main_worktree(repo_path: &Path) -> Option<std::path::PathBuf> {
         if let Ok(content) = std::fs::read_to_string(&git_path) {
             if let Some(gitdir) = content.strip_prefix("gitdir: ") {
                 let gitdir = gitdir.trim();
-                if let Some(worktrees_idx) = gitdir.find("/.git/worktrees/") {
+                let worktrees_idx_opt = gitdir
+                    .find("/.git/worktrees/")
+                    .or_else(|| gitdir.find("\\.git\\worktrees\\"));
+                if let Some(worktrees_idx) = worktrees_idx_opt {
                     let main_path = &gitdir[..worktrees_idx];
                     log::debug!(
                         "[merge] Linked worktree detected. Main worktree: {}",
