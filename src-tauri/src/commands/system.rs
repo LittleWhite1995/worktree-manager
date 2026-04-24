@@ -199,9 +199,14 @@ pub(crate) fn open_in_terminal(
 
         let launch =
             build_windows_terminal_launch(&normalized, terminal.as_deref(), shell.as_deref());
+        log::info!("[system] Windows terminal launch plan: {:?}", launch);
         let mut result = spawn_windows_terminal_launch(&launch, CREATE_NO_WINDOW);
         if result.is_err() && term == "auto" {
             let fallback = build_windows_terminal_launch(&normalized, Some("cmd"), None);
+            log::warn!(
+                "[system] Auto terminal launch failed; falling back to: {:?}",
+                fallback
+            );
             result = spawn_windows_terminal_launch(&fallback, CREATE_NO_WINDOW);
         }
 

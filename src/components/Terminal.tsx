@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import { useTranslation } from 'react-i18next';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { callBackend, isTauri, openLink, getPlatform } from '../lib/backend';
-import { getPreferredPtyShell } from '../lib/terminalPreferences';
+import { getPreferredPtyShell, getTerminalPreferenceDebugInfo } from '../lib/terminalPreferences';
 import { getWebSocketManager } from '../lib/websocket';
 import { TERMINAL } from '../constants';
 import { TerminalRegistry } from '../terminal';
@@ -285,6 +285,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     const rows = adapterRef.current?.rows ?? 0;
     const selection = adapterRef.current?.getSelection() ?? '';
     const adapterDebug = adapterRef.current?.getDebugInfo?.() ?? {};
+    const terminalPreferenceDebug = getTerminalPreferenceDebugInfo();
     setDebugInfo({
       visible: true,
       data: {
@@ -293,8 +294,10 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         'Window Label': windowLabel,
         'Source': isTauri() ? 'Desktop (Tauri IPC)' : 'Browser (HTTP/WebSocket)',
         'Platform': getPlatform(),
+        'App Logs': isTauri() ? 'Settings/sidebar log button -> worktree-manager.log' : 'N/A (browser)',
         'Terminal Size': `${cols} cols x ${rows} rows`,
         'Viewport Size': `${window.innerWidth} x ${window.innerHeight}`,
+        ...terminalPreferenceDebug,
         ...adapterDebug,
         'User Agent': navigator.userAgent,
         'WS Connected': isTauri() ? 'N/A (desktop)' : String(wsConnected),
