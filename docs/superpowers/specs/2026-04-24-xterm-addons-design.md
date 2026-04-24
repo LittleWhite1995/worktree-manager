@@ -29,6 +29,8 @@
 | `@xterm/addon-unicode11` | ^0.9.0 | CJK 字符宽度修正 |
 | `@xterm/addon-search` | ^0.16.0 | 终端内容搜索 |
 
+**版本兼容性**：三个 add-on 均来自 xterm.js monorepo，与 `@xterm/xterm@6.0.0` 同属 6.x 发布周期，无 peerDependencies 声明，兼容性已确认。
+
 ## 详细设计
 
 ### 1. WebGL Renderer
@@ -173,19 +175,30 @@ export interface TerminalHandle {
 
 #### 快捷键拦截
 
-在 Terminal.tsx 的 `onKeyEvent` 回调中拦截 `Ctrl/Cmd+F`：
+**关键约束**：xterm.js 只支持一个 `attachCustomKeyEventHandler`（即 adapter 的 `onKeyEvent`）。Ctrl/Cmd+F 拦截必须**合并到现有的 key handler 中**，而非注册第二个 handler（否则会覆盖掉 Alt+V 语音输入拦截）。
+
+在 Terminal.tsx 现有的 `onKeyEvent` 回调中增加 Ctrl/Cmd+F 分支：
 
 ```typescript
-adapter.onKeyEvent((e) => {
+// Terminal.tsx initPty() 中，替换现有的 onKeyEvent 调用（约 L518）
+const keyDisposable = adapter.onKeyEvent((e) => {
   // 拦截 Cmd+F / Ctrl+F，触发搜索
   if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-    onSearchRequested?.()
-    return false  // 阻止 xterm 处理
+    onSearchRequestedRef.current?.()
+    return false
   }
-  // 现有的 Alt+V 拦截
+  // 现有的 Alt+V 拦截（语音输入）
   if (e.altKey && e.code === 'KeyV') return false
   return true
 })
+```
+
+**Stale closure 防护**：`onSearchRequested` 回调必须使用 `useRef` 模式（与现有的 `onShellIntDetectedRef`、`onCwdChangedRef` 一致），避免 mount 时闭包捕获 stale 引用：
+
+```typescript
+// Terminal.tsx 中新增：
+const onSearchRequestedRef = useRef(onSearchRequested)
+onSearchRequestedRef.current = onSearchRequested
 ```
 
 Terminal.tsx 新增 prop: `onSearchRequested?: () => void`
@@ -206,10 +219,11 @@ interface TerminalSearchBarProps {
 
 **功能：**
 
-- 位置：终端区域右上角浮动，`absolute top-2 right-2`
-- 输入框 + 4 个按钮：大小写 `Aa`、正则 `.*`、上一个 `↑`、下一个 `↓`、关闭 `×`
+- 位置：终端区域右上角浮动，`absolute top-2 right-2 z-30`（高于终端内容和现有 toast 的 z-20）
+- 输入框 + 5 个按钮：大小写 `Aa`、正则 `.*`、上一个 `↑`、下一个 `↓`、关闭 `×`
 - 快捷键：`Enter` → findNext，`Shift+Enter` → findPrevious，`Escape` → 关闭
-- 输入时 debounce 150ms 自动搜索（调用 findNext）
+- **Escape 处理**：必须调用 `e.stopPropagation()` 阻止冒泡，否则 Escape 会传递到 xterm 并发送 `\x1b` 到 PTY
+- 输入时 debounce 150ms 自动搜索（调用 findNext）；正则模式下 debounce 增至 300ms（避免不完整的正则语法导致频繁报错）
 - 关闭时调用 `clearSearch()` 清除高亮，焦点返回终端
 
 **样式：**
@@ -249,6 +263,29 @@ TerminalPanel 标题栏新增搜索按钮：
 - Terminal.tsx 通过 `onRendererFallback` prop 向上传递
 - 黄色 toast，3 秒自动消失
 - 文案通过 i18n key：`terminal.gpuFallback`
+
+**完整 prop 传递链路：**
+
+```
+TerminalPanel (showGpuFallback state + toast 渲染)
+  → Terminal (新增 prop: onRendererFallback)
+    → adapter.mount(container, { ..., onRendererFallback })
+      → WebglAddon onContextLoss / catch → 调用回调
+```
+
+TerminalProps 接口需要新增：
+
+```typescript
+interface TerminalProps {
+  cwd: string
+  visible: boolean
+  clientId?: string
+  onShellIntegrationDetected?: () => void
+  onCwdChanged?: (cwd: string) => void
+  onSearchRequested?: () => void         // 新增
+  onRendererFallback?: () => void        // 新增
+}
+```
 
 ## TerminalOptions 变更
 
@@ -294,9 +331,10 @@ export interface TerminalOptions {
 
 ## 边界行为
 
-- **切换 terminal tab 时**：关闭搜索栏并调用 `clearSearch()` 清除前一个终端的高亮
+- **切换 terminal tab 时**：TerminalPanel 在 `activeTerminalTab` 变化时（通过 useEffect），将 `searchOpen` 设为 false，并对前一个 tab 调用 `clearSearch()`
 - **终端不可见时**（worktree 切换、面板收起）：不影响搜索状态，重新可见时保持原样
 - **WebGL context loss 后再次打开新终端**：新终端仍尝试加载 WebGL，不记忆上次失败
+- **WebGL dispose 时序**：`onContextLoss` 回调中先 dispose WebglAddon 再触发 `onRendererFallback`，确保回调执行时渲染已回退到 canvas
 
 ## 不在范围内
 
