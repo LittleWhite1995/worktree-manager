@@ -42,7 +42,11 @@ export class Emitter<T> {
 
   fire(value: T): void {
     for (const listener of this.listeners) {
-      listener(value)
+      try {
+        listener(value)
+      } catch (e) {
+        console.warn('[Emitter] listener threw:', e)
+      }
     }
   }
 

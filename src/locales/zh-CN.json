@@ -755,6 +755,7 @@
   "sidebar.switching": "切换中...",
   "sidebar.confirmSwitch": "确认切换",
   "sidebar.newWorktree": "新建 Worktree",
+  "sidebar.dragToReorder": "拖拽排序",
   "addExistingProject.title": "添加已有项目",
   "addExistingProject.desc": "选择 projects 目录中已有的 Git 仓库添加到工作区配置。",
   "addExistingProject.scanning": "扫描项目中...",

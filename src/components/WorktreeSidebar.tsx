@@ -6,6 +6,17 @@ import { ExpandedSidebar } from './worktree-sidebar/ExpandedSidebar';
 import type { WorktreeSidebarProps } from './worktree-sidebar/types';
 import { useLongPressContextMenu } from './worktree-sidebar/useLongPressContextMenu';
 
+function readSavedOrder(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch { /* corrupted data */ }
+  return [];
+}
+
 export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
   workspaces,
   currentWorkspace,
@@ -66,12 +77,7 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
 
   const [savedOrder, setSavedOrder] = useState<string[]>(() => {
     if (!storageKey) return [];
-    try {
-      const raw = localStorage.getItem(storageKey);
-      return raw ? (JSON.parse(raw) as string[]) : [];
-    } catch {
-      return [];
-    }
+    return readSavedOrder(storageKey);
   });
 
   // Re-read localStorage when workspace changes
@@ -80,12 +86,7 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
       setSavedOrder([]);
       return;
     }
-    try {
-      const raw = localStorage.getItem(storageKey);
-      setSavedOrder(raw ? (JSON.parse(raw) as string[]) : []);
-    } catch {
-      setSavedOrder([]);
-    }
+    setSavedOrder(readSavedOrder(storageKey));
   }, [storageKey]);
 
   const updateSortOrder = useCallback(

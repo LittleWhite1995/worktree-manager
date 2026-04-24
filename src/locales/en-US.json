@@ -764,6 +764,7 @@
   "sidebar.switching": "Switching...",
   "sidebar.confirmSwitch": "Confirm switch",
   "sidebar.newWorktree": "New Worktree",
+  "sidebar.dragToReorder": "Drag to reorder",
   "addExistingProject.title": "Add Existing Project",
   "addExistingProject.desc": "Select a git-managed project from the projects directory to add to your workspace configuration.",
   "addExistingProject.scanning": "Scanning projects...",

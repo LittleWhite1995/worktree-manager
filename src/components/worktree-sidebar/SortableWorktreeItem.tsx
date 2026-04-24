@@ -1,4 +1,5 @@
 import { type FC, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
@@ -9,6 +10,7 @@ interface SortableWorktreeItemProps {
 }
 
 export const SortableWorktreeItem: FC<SortableWorktreeItemProps> = ({ id, children }) => {
+  const { t } = useTranslation();
   const {
     attributes,
     listeners,
@@ -35,7 +37,7 @@ export const SortableWorktreeItem: FC<SortableWorktreeItemProps> = ({ id, childr
           {...listeners}
           className="flex items-center px-1 text-slate-600 hover:text-slate-400 cursor-grab active:cursor-grabbing touch-none"
           tabIndex={-1}
-          aria-label="Drag to reorder"
+          aria-label={t('sidebar.dragToReorder')}
         >
           <GripVertical className="w-3 h-3" />
         </button>
