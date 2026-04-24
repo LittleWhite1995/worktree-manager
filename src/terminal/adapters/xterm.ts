@@ -5,6 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 
 import type {
@@ -12,6 +13,7 @@ import type {
   TerminalOptions,
   TerminalDimensions,
   Disposable,
+  SearchOptions,
 } from '../types'
 import { OscParser } from '../shell-integration/osc-parser'
 import { CommandDetection } from '../shell-integration/command-detection'
@@ -52,6 +54,7 @@ export class XtermAdapter implements TerminalAdapter {
   private commandDetection: CommandDetection | null = null
   private commandDecoration: CommandDecorationAddon | null = null
   private webglAddon: WebglAddon | null = null
+  private searchAddon: SearchAddon | null = null
 
   get cols(): number {
     return this.term?.cols ?? 80
@@ -107,6 +110,11 @@ export class XtermAdapter implements TerminalAdapter {
     this.fitAddon = fitAddon
     this.container = container
 
+    // Search: terminal content search
+    const searchAddon = new SearchAddon()
+    term.loadAddon(searchAddon)
+    this.searchAddon = searchAddon
+
     // Shell integration: passive OSC 633 parsing
     this.oscParser = new OscParser()
     term.loadAddon(this.oscParser)
@@ -126,6 +134,8 @@ export class XtermAdapter implements TerminalAdapter {
     this.commandDetection = null
     this.oscParser?.dispose()
     this.oscParser = null
+    this.searchAddon?.dispose()
+    this.searchAddon = null
     this.webglAddon?.dispose()
     this.webglAddon = null
     this.term?.dispose()
@@ -205,6 +215,24 @@ export class XtermAdapter implements TerminalAdapter {
 
   scrollToBottom(): void {
     this.term?.scrollToBottom()
+  }
+
+  findNext(query: string, options?: SearchOptions): boolean {
+    return this.searchAddon?.findNext(query, {
+      caseSensitive: options?.caseSensitive,
+      regex: options?.regex,
+    }) ?? false
+  }
+
+  findPrevious(query: string, options?: SearchOptions): boolean {
+    return this.searchAddon?.findPrevious(query, {
+      caseSensitive: options?.caseSensitive,
+      regex: options?.regex,
+    }) ?? false
+  }
+
+  clearSearch(): void {
+    this.searchAddon?.clearDecorations()
   }
 
   setMobileKeyboardPolicy(mode: 'none' | 'text'): void {
