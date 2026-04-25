@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import { useTranslation } from 'react-i18next';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { callBackend, isTauri, openLink, getPlatform } from '../lib/backend';
-import { getPreferredPtyShell, getTerminalPreferenceDebugInfo } from '../lib/terminalPreferences';
+import { getPreferredPtyShell, getTerminalPreferenceDebugInfo, logTerminalPreferenceDebugInfo } from '../lib/terminalPreferences';
 import { getWebSocketManager } from '../lib/websocket';
 import { TERMINAL } from '../constants';
 import { TerminalRegistry } from '../terminal';
@@ -701,13 +701,15 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       if (!exists) {
         setInitStatus('Creating PTY session...');
         const shell = getPreferredPtyShell();
-        await callBackend('pty_create', {
+        const payload = {
           sessionId: sessionIdRef.current,
           cwd: cwdRef.current,
           cols,
           rows,
           shell,
-        });
+        };
+        logTerminalPreferenceDebugInfo('pty_create', payload);
+        await callBackend('pty_create', payload);
       } else {
         setInitStatus('Restoring session...');
       }

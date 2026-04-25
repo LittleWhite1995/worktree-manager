@@ -13,6 +13,8 @@ type ToolPaths = {
   shell?: string;
 };
 
+type ConsoleLogger = Pick<Console, 'info'>;
+
 function normalizePreference(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed || trimmed === 'auto') return undefined;
@@ -98,4 +100,18 @@ export function getTerminalPreferenceDebugInfo(
     'Detected Terminals': summarizeDetectedTools(storage, 'detected_terminals'),
     'Detected Shells': summarizeDetectedTools(storage, 'detected_shells'),
   };
+}
+
+export function logTerminalPreferenceDebugInfo(
+  event: string,
+  details: Record<string, unknown> = {},
+  storage: Storage = window.localStorage,
+  terminalOverride?: string,
+  logger: ConsoleLogger = console,
+): void {
+  logger.info('[terminal-preferences]', {
+    event,
+    ...details,
+    preferences: getTerminalPreferenceDebugInfo(storage, terminalOverride),
+  });
 }

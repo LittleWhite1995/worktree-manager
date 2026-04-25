@@ -1,9 +1,10 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   getPreferredExternalTerminal,
   getPreferredPtyShell,
   getShellForTerminalLaunch,
   getTerminalPreferenceDebugInfo,
+  logTerminalPreferenceDebugInfo,
 } from './terminalPreferences';
 
 describe('getPreferredPtyShell', () => {
@@ -62,6 +63,33 @@ describe('getPreferredPtyShell', () => {
       'Resolved PTY Shell': 'cmd',
       'Resolved Launch Shell': 'cmd',
     });
+  });
+
+  it('prints terminal preference debug details to the console', () => {
+    localStorage.setItem('tool_paths', JSON.stringify({
+      terminal: 'windowsterminal',
+      shell: 'cmd',
+    }));
+    const logger = { info: vi.fn() };
+
+    logTerminalPreferenceDebugInfo(
+      'open_in_terminal',
+      { path: 'C:\\repo', terminal: 'windowsterminal', shell: 'cmd' },
+      localStorage,
+      'windowsterminal',
+      logger,
+    );
+
+    expect(logger.info).toHaveBeenCalledWith('[terminal-preferences]', expect.objectContaining({
+      event: 'open_in_terminal',
+      path: 'C:\\repo',
+      terminal: 'windowsterminal',
+      shell: 'cmd',
+      preferences: expect.objectContaining({
+        'Resolved External Terminal': 'windowsterminal',
+        'Resolved Launch Shell': 'cmd',
+      }),
+    }));
   });
 
   it('does not pass Windows Terminal itself as a PTY shell', () => {
