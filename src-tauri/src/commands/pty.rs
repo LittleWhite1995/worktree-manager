@@ -1,3 +1,4 @@
+use crate::pty_manager::requested_shell_path;
 use crate::state::PTY_MANAGER;
 
 #[tauri::command]
@@ -8,19 +9,39 @@ pub(crate) fn pty_create(
     rows: u16,
     shell: Option<String>,
 ) -> Result<(), String> {
-    // Make create idempotent: if session already exists, skip
+    // Reuse existing sessions only when they already match the requested shell.
     {
         let manager = PTY_MANAGER
             .lock()
             .map_err(|e| format!("Lock error: {}", e))?;
-        if manager.has_session(&session_id) {
+        if let Some(existing_shell) = manager.session_shell_path(&session_id) {
+            let requested_shell = requested_shell_path(shell.as_deref());
+            if existing_shell == requested_shell {
+                log::info!(
+                    "[pty] Session already exists, skipping create: id={}, requested cols={}, rows={}, shell={}",
+                    session_id,
+                    cols,
+                    rows,
+                    requested_shell
+                );
+                return Ok(());
+            }
+
             log::info!(
-                "[pty] Session already exists, skipping create: id={}, requested cols={}, rows={}",
+                "[pty] Session exists with different shell, recreating: id={}, existing_shell={}, requested_shell={}",
                 session_id,
-                cols,
-                rows
+                existing_shell,
+                requested_shell
             );
-            return Ok(());
+        }
+    }
+
+    {
+        let mut manager = PTY_MANAGER
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
+        if manager.has_session(&session_id) {
+            manager.close_session(&session_id)?;
         }
     }
 

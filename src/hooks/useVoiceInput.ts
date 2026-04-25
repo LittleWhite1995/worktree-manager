@@ -466,6 +466,9 @@ export function useVoiceInput(
     const handleKeyDown = (e: KeyboardEvent) => {
       // Alt/Option + V（用 e.code 检测物理按键，避免 macOS Option 产生 √ 等字符）
       if (e.altKey && e.code === 'KeyV' && !e.repeat) {
+        if (voiceStatusRef.current !== 'ready' && voiceStatusRef.current !== 'recording') {
+          return;
+        }
         e.preventDefault();
         setIsKeyHeld(true);
         if (voiceStatusRef.current === 'ready') {

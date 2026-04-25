@@ -617,6 +617,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                   cwd={path}
                   visible={visible && path === activeTerminalTab}
                   clientId={clientId}
+                  voiceStatus={voiceStatus}
                   onShellIntegrationDetected={() => onShellIntegrationDetected?.(path)}
                   onCwdChanged={(newCwd) => onCwdChanged?.(path, newCwd)}
                   onSearchRequested={() => setSearchOpen(true)}

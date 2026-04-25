@@ -35,7 +35,7 @@ fn resolve_git_path() -> String {
     {
         use std::sync::OnceLock;
         static DETECTED_GIT: OnceLock<String> = OnceLock::new();
-        return DETECTED_GIT
+        DETECTED_GIT
             .get_or_init(|| {
                 // Try "git" from PATH first
                 #[allow(unused_mut)]
@@ -72,7 +72,7 @@ fn resolve_git_path() -> String {
                 log::warn!("[git] git not found in PATH or common locations, using 'git'");
                 "git".to_string()
             })
-            .clone();
+            .clone()
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -82,6 +82,7 @@ fn resolve_git_path() -> String {
 }
 
 /// Get the user's login shell path.
+#[allow(dead_code)]
 fn get_login_shell() -> String {
     std::env::var("SHELL").unwrap_or_else(|_| {
         if Path::new("/bin/zsh").exists() {
@@ -96,10 +97,12 @@ fn get_login_shell() -> String {
 
 /// Cache of environment variables loaded from the user's login shell.
 /// Only populated on Unix systems where the app may not inherit the user's shell env.
+#[allow(dead_code)]
 static USER_ENV_CACHE: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 /// Load environment variables by running the user's login shell with `-l -c env`.
 /// This captures PATH and other variables set in ~/.zshrc, ~/.bash_profile, etc.
+#[allow(dead_code)]
 fn load_user_env_from_shell() -> HashMap<String, String> {
     let shell = get_login_shell();
     let output = Command::new(&shell)
@@ -139,6 +142,7 @@ fn load_user_env_from_shell() -> HashMap<String, String> {
 }
 
 /// Get the full user environment from the login shell (cached).
+#[allow(dead_code)]
 pub(crate) fn get_user_env() -> &'static HashMap<String, String> {
     USER_ENV_CACHE.get_or_init(load_user_env_from_shell)
 }

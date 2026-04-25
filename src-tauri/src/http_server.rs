@@ -799,29 +799,30 @@ async fn h_pty_create(Json(args): Json<Value>) -> Response {
     let rows = args["rows"].as_u64().unwrap_or(24) as u16;
     let shell = args["shell"].as_str().map(|s| s.to_string());
 
-    // Make create idempotent: if session already exists, skip
-    {
-        let session_id_clone = session_id.clone();
-        let already_exists = tokio::task::spawn_blocking(move || {
-            PTY_MANAGER
-                .lock()
-                .ok()
-                .map(|m| m.has_session(&session_id_clone))
-                .unwrap_or(false)
-        })
-        .await
-        .unwrap_or(false);
-        if already_exists {
-            log::info!(
-                "[pty] Session already exists (HTTP), skipping create: id={}, requested cols={}, rows={}",
-                session_id, cols, rows
-            );
-            return result_ok(Ok::<(), String>(()));
-        }
-    }
-
     result_ok(
         with_pty_manager(move |m| {
+            let requested_shell = crate::pty_manager::requested_shell_path(shell.as_deref());
+            if let Some(existing_shell) = m.session_shell_path(&session_id) {
+                if existing_shell == requested_shell {
+                    log::info!(
+                        "[pty] Session already exists (HTTP), skipping create: id={}, requested cols={}, rows={}, shell={}",
+                        session_id,
+                        cols,
+                        rows,
+                        requested_shell
+                    );
+                    return Ok(());
+                }
+
+                log::info!(
+                    "[pty] Session exists with different shell (HTTP), recreating: id={}, existing_shell={}, requested_shell={}",
+                    session_id,
+                    existing_shell,
+                    requested_shell
+                );
+                m.close_session(&session_id)?;
+            }
+
             m.create_session(&session_id, &cwd, cols, rows, shell.as_deref())
         })
         .await,
@@ -1294,9 +1295,19 @@ struct WsParams {
 
 async fn h_ws_upgrade(
     ws: WebSocketUpgrade,
+    headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Query(params): Query<WsParams>,
 ) -> Response {
+    if let Some(origin) = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+    {
+        if !is_allowed_origin(origin) {
+            return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
+        }
+    }
+
     // Authenticate via query param
     let sid = match params.session_id {
         Some(s) => s,
@@ -1985,7 +1996,7 @@ fn is_allowed_origin(origin: &str) -> bool {
     false
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::create_router;
     use super::is_allowed_origin;

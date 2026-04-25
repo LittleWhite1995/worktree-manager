@@ -548,7 +548,7 @@ pub(crate) fn get_app_icon(path: String) -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let icon_map = extract_windows_exe_icons_batch(&[path.clone()]);
+        let icon_map = extract_windows_exe_icons_batch(std::slice::from_ref(&path));
         return icon_map
             .get(&path)
             .filter(|s| !s.is_empty())
@@ -1239,7 +1239,6 @@ fn detect_shells() -> Vec<DetectedTool> {
             ("bash", "Bash"),
             ("fish", "Fish"),
             ("nu", "Nushell"),
-            ("pwsh", "PowerShell"),
         ];
         for (cmd, name) in &shells {
             if let Some(path) = check_executable(cmd) {

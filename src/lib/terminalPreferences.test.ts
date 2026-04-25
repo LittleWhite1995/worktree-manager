@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest';
 import {
   getPreferredExternalTerminal,
   getPreferredPtyShell,
@@ -8,8 +8,22 @@ import {
 } from './terminalPreferences';
 
 describe('getPreferredPtyShell', () => {
+  const originalUserAgent = navigator.userAgent;
+
+  function setUserAgent(value: string) {
+    Object.defineProperty(window.navigator, 'userAgent', {
+      value,
+      configurable: true,
+    });
+  }
+
   beforeEach(() => {
     localStorage.clear();
+    setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+  });
+
+  afterAll(() => {
+    setUserAgent(originalUserAgent);
   });
 
   it('uses the explicit shell preference for built-in PTY sessions', () => {
@@ -94,6 +108,13 @@ describe('getPreferredPtyShell', () => {
 
   it('does not pass Windows Terminal itself as a PTY shell', () => {
     localStorage.setItem('preferred_terminal', 'windowsterminal');
+
+    expect(getPreferredPtyShell()).toBeUndefined();
+  });
+
+  it('ignores PowerShell shell preferences on non-Windows platforms', () => {
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    localStorage.setItem('preferred_shell', 'pwsh');
 
     expect(getPreferredPtyShell()).toBeUndefined();
   });

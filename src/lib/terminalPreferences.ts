@@ -1,10 +1,15 @@
-const PTY_COMPATIBLE_TERMINAL_IDS = new Set([
+const CROSS_PLATFORM_PTY_COMPATIBLE_TERMINAL_IDS = new Set([
+  'bash',
+  'nu',
+  'zsh',
+  'fish',
+]);
+
+const WINDOWS_ONLY_PTY_COMPATIBLE_TERMINAL_IDS = new Set([
   'cmd',
   'powershell',
   'pwsh',
   'gitbash',
-  'bash',
-  'nu',
 ]);
 
 type ToolPaths = {
@@ -19,6 +24,19 @@ function normalizePreference(value: string | null | undefined): string | undefin
   const trimmed = value?.trim();
   if (!trimmed || trimmed === 'auto') return undefined;
   return trimmed;
+}
+
+function getCurrentPlatform(): 'mac' | 'windows' | 'linux' {
+  const ua = navigator.userAgent;
+  if (/Mac|iPhone|iPad|iPod/i.test(ua)) return 'mac';
+  if (/Win/i.test(ua)) return 'windows';
+  return 'linux';
+}
+
+function isPtyCompatibleTerminalId(id: string | undefined): boolean {
+  if (!id) return false;
+  if (CROSS_PLATFORM_PTY_COMPATIBLE_TERMINAL_IDS.has(id)) return true;
+  return getCurrentPlatform() === 'windows' && WINDOWS_ONLY_PTY_COMPATIBLE_TERMINAL_IDS.has(id);
 }
 
 function readToolPaths(storage: Storage): ToolPaths {
@@ -57,10 +75,10 @@ export function getPreferredPtyShell(storage: Storage = window.localStorage): st
   const toolPaths = readToolPaths(storage);
   const preferredShell = normalizePreference(storage.getItem('preferred_shell'))
     ?? normalizePreference(toolPaths.shell);
-  if (preferredShell) return preferredShell;
+  if (preferredShell && isPtyCompatibleTerminalId(preferredShell)) return preferredShell;
 
   const preferredTerminal = normalizePreference(getPreferredExternalTerminal(storage));
-  if (preferredTerminal && PTY_COMPATIBLE_TERMINAL_IDS.has(preferredTerminal)) {
+  if (preferredTerminal && isPtyCompatibleTerminalId(preferredTerminal)) {
     return preferredTerminal;
   }
 
@@ -72,7 +90,7 @@ export function getShellForTerminalLaunch(
   storage: Storage = window.localStorage,
 ): string | undefined {
   const normalizedOverride = normalizePreference(terminalOverride);
-  if (normalizedOverride && PTY_COMPATIBLE_TERMINAL_IDS.has(normalizedOverride)) {
+  if (normalizedOverride && isPtyCompatibleTerminalId(normalizedOverride)) {
     return normalizedOverride;
   }
 

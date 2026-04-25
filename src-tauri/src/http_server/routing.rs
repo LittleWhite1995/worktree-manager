@@ -117,7 +117,7 @@ pub async fn h_set_mcp_capability(Json(payload): Json<serde_json::Value>) -> Res
 
     let mut config = load_mcp_config().unwrap_or(McpConfig {
         version: env!("CARGO_PKG_VERSION").to_string(),
-        http_port: 42819,
+        http_port: 58888,
         installed_at: chrono::Utc::now().to_rfc3339(),
         capability_level: "core".to_string(),
     });

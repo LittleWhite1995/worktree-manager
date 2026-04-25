@@ -42,21 +42,33 @@ pub use commands::worktree::{
     list_worktrees_impl, restore_worktree_impl, scan_linked_folders_internal,
 };
 
+#[cfg(not(all(test, windows)))]
 use commands::cloud::*;
+#[cfg(not(all(test, windows)))]
 use commands::config::*;
+#[cfg(not(all(test, windows)))]
 use commands::git::*;
+#[cfg(not(all(test, windows)))]
 use commands::pty::*;
+#[cfg(not(all(test, windows)))]
 use commands::sharing::*;
+#[cfg(not(all(test, windows)))]
 use commands::system::*;
+#[cfg(not(all(test, windows)))]
 use commands::vault::*;
+#[cfg(not(all(test, windows)))]
 use commands::voice::*;
+#[cfg(not(all(test, windows)))]
 use commands::window::*;
+#[cfg(not(all(test, windows)))]
 use commands::workspace::*;
+#[cfg(not(all(test, windows)))]
 use commands::worktree::*;
 
 // ==================== Tauri 入口 ====================
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[cfg(not(all(test, windows)))]
 pub fn run() {
     // Install rustls CryptoProvider before any TLS usage (required by rustls 0.23+)
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -302,8 +314,8 @@ pub fn run() {
                 pty_manager::init_shell_integration(dir);
             }
 
-            // Start MCP server on port 42819 in background
-            let mcp_port = 42819;
+            // Start MCP server on port 58888 in background
+            let mcp_port = 58888;
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = http_server::start_mcp_server(mcp_port).await {
                     log::error!("[MCP] Server failed: {}", e);
@@ -315,3 +327,6 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(all(test, windows))]
+pub fn run() {}

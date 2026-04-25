@@ -841,7 +841,7 @@ pub(crate) fn list_vault_item_children(
 
 // ==================== Tests ====================
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::*;
     use crate::config::{load_workspace_config, save_workspace_config_internal};

@@ -21,7 +21,7 @@ import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wre
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { BranchCombobox } from './BranchCombobox';
 import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild } from '../types';
-import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect } from '../lib/backend';
+import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect } from '../lib/backend';
 import type { CloudStatus, PairingStatus } from '../lib/backend';
 
 // ==================== VaultItemTree (recursive) ====================
@@ -712,11 +712,21 @@ export const SettingsView: FC<SettingsViewProps> = ({
   // Tools detection state
   interface DetectedTool { id: string; name: string; path: string; icon?: string }
   interface DetectedToolsResult { git: DetectedTool[]; terminals: DetectedTool[]; editors: DetectedTool[]; shells: DetectedTool[] }
+  const isWindowsPlatform = getPlatform() === 'windows';
+  const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
+  const filterDetectedShells = (shells: DetectedTool[]) =>
+    isWindowsPlatform ? shells : shells.filter((shell) => !isWindowsPowerShellId(shell.id));
+  const sanitizeToolPaths = (paths: Record<string, string>) => {
+    if (isWindowsPlatform || !isWindowsPowerShellId(paths.shell)) return paths;
+    const next = { ...paths };
+    delete next.shell;
+    return next;
+  };
   const [detectedTools, setDetectedTools] = useState<DetectedToolsResult | null>(() => {
     try {
       const editors: DetectedTool[] = JSON.parse(localStorage.getItem('detected_editors') || '[]');
       const terminals: DetectedTool[] = JSON.parse(localStorage.getItem('detected_terminals') || '[]');
-      const shells: DetectedTool[] = JSON.parse(localStorage.getItem('detected_shells') || '[]');
+      const shells = filterDetectedShells(JSON.parse(localStorage.getItem('detected_shells') || '[]') as DetectedTool[]);
       const git: DetectedTool[] = JSON.parse(localStorage.getItem('detected_git') || '[]');
       if (editors.length > 0 || terminals.length > 0 || shells.length > 0 || git.length > 0) {
         const editorIcons: Record<string, string> = JSON.parse(localStorage.getItem('editor_icons') || '{}');
@@ -733,24 +743,29 @@ export const SettingsView: FC<SettingsViewProps> = ({
   });
   const [toolsDetecting, setToolsDetecting] = useState(false);
   const [toolPaths, setToolPaths] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem('tool_paths') || '{}'); }
+    try { return sanitizeToolPaths(JSON.parse(localStorage.getItem('tool_paths') || '{}')); }
     catch { return {}; }
   });
 
   const saveToolPaths = useCallback((updated: Record<string, string>) => {
-    setToolPaths(updated);
-    localStorage.setItem('tool_paths', JSON.stringify(updated));
+    const sanitized = sanitizeToolPaths(updated);
+    setToolPaths(sanitized);
+    localStorage.setItem('tool_paths', JSON.stringify(sanitized));
     if (updated.git !== undefined) {
-      callBackend('set_git_path', { path: updated.git || '' }).catch(() => { });
+      callBackend('set_git_path', { path: sanitized.git || '' }).catch(() => { });
     }
-  }, []);
+  }, [sanitizeToolPaths]);
 
   const handleDetectTools = useCallback(async () => {
     setToolsDetecting(true);
     try {
       const tools = await callBackend('detect_tools') as DetectedToolsResult;
+      const sanitizedTools = {
+        ...tools,
+        shells: filterDetectedShells(tools.shells),
+      };
       console.log('[detect_tools] editors received:', tools.editors.map(e => ({ id: e.id, hasIcon: !!e.icon, iconLen: e.icon?.length || 0 })));
-      setDetectedTools(tools);
+      setDetectedTools(sanitizedTools);
 
       // Store all tool data in localStorage for cross-component access and state restoration
       const editorIcons: Record<string, string> = {};
@@ -767,7 +782,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
       }
       localStorage.setItem('terminal_icons', JSON.stringify(terminalIcons));
       localStorage.setItem('detected_terminals', JSON.stringify(tools.terminals.map((t) => ({ id: t.id, name: t.name, path: t.path }))));
-      localStorage.setItem('detected_shells', JSON.stringify(tools.shells));
+      localStorage.setItem('detected_shells', JSON.stringify(sanitizedTools.shells));
       localStorage.setItem('detected_git', JSON.stringify(tools.git));
       window.dispatchEvent(new Event('editors-detected'));
       window.dispatchEvent(new Event('terminals-detected'));
@@ -775,7 +790,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
         const updated = { ...prev };
         if (!updated.git && tools.git.length > 0) updated.git = tools.git[0].path;
         if (!updated.terminal && tools.terminals.length > 0) updated.terminal = tools.terminals[0].id;
-        if (!updated.shell && tools.shells.length > 0) updated.shell = tools.shells[0].id;
+        if (!updated.shell && sanitizedTools.shells.length > 0) updated.shell = sanitizedTools.shells[0].id;
         // Auto-fill per-IDE editor paths
         for (const ed of tools.editors) {
           const key = `editor_${ed.id}`;
@@ -790,7 +805,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
     } finally {
       setToolsDetecting(false);
     }
-  }, []);
+  }, [filterDetectedShells]);
 
   // Load mic devices
   const loadMicDevices = useCallback(async () => {

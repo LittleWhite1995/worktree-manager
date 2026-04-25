@@ -14,6 +14,7 @@ import type {
   TerminalDimensions,
   Disposable,
   SearchOptions,
+  TerminalPasteOptions,
 } from '../types'
 import { OscParser } from '../shell-integration/osc-parser'
 import { CommandDetection } from '../shell-integration/command-detection'
@@ -146,6 +147,18 @@ export class XtermAdapter implements TerminalAdapter {
 
   write(data: string): void {
     this.term?.write(data)
+  }
+
+  paste(data: string, options?: TerminalPasteOptions): void {
+    if (!this.term) return
+
+    if (options?.forceBracketed) {
+      const normalized = data.replace(/\r\n|\r|\n/g, '\r')
+      this.term.input(`\x1b[200~${normalized}\x1b[201~`, true)
+      return
+    }
+
+    this.term.paste(data)
   }
 
   onInput(callback: (data: string) => void): Disposable {

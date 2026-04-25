@@ -141,6 +141,7 @@ interface TerminalProps {
   cwd: string;
   visible: boolean;
   clientId?: string;
+  voiceStatus?: 'idle' | 'ready' | 'recording' | 'error';
   onShellIntegrationDetected?: () => void;
   onCwdChanged?: (cwd: string) => void;
   onSearchRequested?: () => void;
@@ -160,7 +161,7 @@ export interface TerminalHandle {
   clearSearch: () => void;
 }
 
-const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId, onShellIntegrationDetected, onCwdChanged, onSearchRequested, onRendererFallback }, ref) => {
+const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId, voiceStatus = 'idle', onShellIntegrationDetected, onCwdChanged, onSearchRequested, onRendererFallback }, ref) => {
   // Keep desktop PTY on polling until the event-stream path can preserve replay semantics.
   const enableDesktopEventStreaming = false;
   useTranslation();
@@ -202,6 +203,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   onShellIntDetectedRef.current = onShellIntegrationDetected;
   const onCwdChangedRef = useRef(onCwdChanged);
   onCwdChangedRef.current = onCwdChanged;
+  const voiceStatusRef = useRef(voiceStatus);
+  voiceStatusRef.current = voiceStatus;
   const onSearchRequestedRef = useRef(onSearchRequested);
   onSearchRequestedRef.current = onSearchRequested;
   const onRendererFallbackRef = useRef(onRendererFallback);
@@ -221,6 +224,15 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     handleTouchStart: (e: TouchEvent) => void;
     handleTouchMove: (e: TouchEvent) => void;
     handleTouchEnd: () => void;
+  } | null>(null);
+  const pasteHandlerRef = useRef<{
+    el: HTMLElement;
+    handlePaste: (e: ClipboardEvent) => void;
+  } | null>(null);
+  const pendingPasteFallbackRef = useRef<number | null>(null);
+  const recentFallbackPasteRef = useRef<{
+    text: string;
+    timestamp: number;
   } | null>(null);
 
   // Detect mobile device on mount
@@ -255,17 +267,45 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     handleCloseContextMenu();
   }, [handleCloseContextMenu]);
 
+  const sendPastedText = useCallback((text: string, source: 'clipboard-event' | 'fallback' | 'menu' = 'clipboard-event') => {
+    if (!text) return;
+    const normalizedText = text.replace(/\r\n?/g, '\n');
+    const recentFallbackPaste = recentFallbackPasteRef.current;
+    if (
+      source === 'clipboard-event' &&
+      recentFallbackPaste &&
+      recentFallbackPaste.text === normalizedText &&
+      Date.now() - recentFallbackPaste.timestamp < 150
+    ) {
+      recentFallbackPasteRef.current = null;
+      return;
+    }
+    if (source === 'fallback') {
+      recentFallbackPasteRef.current = { text: normalizedText, timestamp: Date.now() };
+    } else if (recentFallbackPaste && Date.now() - recentFallbackPaste.timestamp >= 150) {
+      recentFallbackPasteRef.current = null;
+    }
+    const isMultiline = /[\r\n]/.test(text);
+    if (adapterRef.current) {
+      adapterRef.current.paste(text, { forceBracketed: isMultiline });
+    } else {
+      const fallback = isMultiline
+        ? `\x1b[200~${text.replace(/\r\n|\r|\n/g, '\r')}\x1b[201~`
+        : text;
+      writeToPty(sessionIdRef.current, fallback);
+    }
+    adapterRef.current?.focus();
+  }, []);
+
   const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text && adapterRef.current) {
-        writeToPty(sessionIdRef.current, text);
-      }
+      sendPastedText(text, 'menu');
     } catch {
       // Ignore paste errors
     }
     handleCloseContextMenu();
-  }, [handleCloseContextMenu]);
+  }, [handleCloseContextMenu, sendPastedText]);
 
   const handleClear = useCallback(() => {
     adapterRef.current?.clear();
@@ -402,6 +442,17 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         touchH.el.removeEventListener('touchmove', touchH.handleTouchMove);
         touchH.el.removeEventListener('touchend', touchH.handleTouchEnd);
         touchHandlersRef.current = null;
+      }
+
+      const pasteH = pasteHandlerRef.current;
+      if (pasteH) {
+        pasteH.el.removeEventListener('paste', pasteH.handlePaste, true);
+        pasteHandlerRef.current = null;
+      }
+
+      if (pendingPasteFallbackRef.current !== null) {
+        clearTimeout(pendingPasteFallbackRef.current);
+        pendingPasteFallbackRef.current = null;
       }
 
       // Clean up disposables
@@ -545,10 +596,56 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
             onSearchRequestedRef.current?.();
             return false;
           }
-          if (e.altKey && e.code === 'KeyV') return false;
+          const isPasteShortcut =
+            !e.repeat &&
+            (((e.metaKey || e.ctrlKey) && !e.altKey && e.code === 'KeyV') ||
+              (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'Insert'));
+          if (isPasteShortcut) {
+            if (pendingPasteFallbackRef.current !== null) {
+              clearTimeout(pendingPasteFallbackRef.current);
+            }
+            pendingPasteFallbackRef.current = window.setTimeout(() => {
+              pendingPasteFallbackRef.current = null;
+              void navigator.clipboard.readText()
+                .then((text) => {
+                  sendPastedText(text, 'fallback');
+                })
+                .catch(() => {});
+            }, 40);
+            // Let the native paste event fire first; the async clipboard read is only a fallback
+            // for environments where the event never arrives.
+            return true;
+          }
+          if (e.altKey && e.code === 'KeyV') {
+            return !(voiceStatusRef.current === 'ready' || voiceStatusRef.current === 'recording');
+          }
           return true;
         });
         keyDisposableRef.current = keyDisposable;
+
+        const handleTerminalPaste = (event: ClipboardEvent) => {
+          const target = event.target;
+          if (!(target instanceof Node) || !terminalRef.current?.contains(target)) return;
+
+          if (pendingPasteFallbackRef.current !== null) {
+            clearTimeout(pendingPasteFallbackRef.current);
+            pendingPasteFallbackRef.current = null;
+          }
+
+          const text = event.clipboardData?.getData('text/plain') ?? '';
+          if (!text) return;
+
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          sendPastedText(text, 'clipboard-event');
+        };
+
+        terminalRef.current.addEventListener('paste', handleTerminalPaste, true);
+        pasteHandlerRef.current = {
+          el: terminalRef.current,
+          handlePaste: handleTerminalPaste,
+        };
 
         // Mouse selection handling
         const resetStuckSelection = (forceClear = false) => {
@@ -656,10 +753,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
         // Input handler
         const inputDisposable = adapter.onInput((data) => {
-          const converted = data.replace(/[\uff01-\uff5e]/g, (ch) =>
-            String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
-          ).replace(/\u3000/g, ' ');
-          writeToPty(sessionIdRef.current, converted);
+          writeToPty(sessionIdRef.current, data);
         });
         inputDisposableRef.current = inputDisposable;
 
@@ -701,6 +795,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       if (!exists) {
         setInitStatus('Creating PTY session...');
         const shell = getPreferredPtyShell();
+
         const payload = {
           sessionId: sessionIdRef.current,
           cwd: cwdRef.current,
@@ -763,7 +858,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       setInitError(String(e));
       console.error('[terminal] Failed to initialize PTY:', e);
     }
-  }, [clientId, handleIncomingData, startReading]);
+  }, [clientId, handleIncomingData, sendPastedText, startReading]);
 
   // Create PTY session on first visibility
   useEffect(() => {

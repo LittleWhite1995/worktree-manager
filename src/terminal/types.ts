@@ -49,6 +49,10 @@ export interface SearchOptions {
   regex?: boolean
 }
 
+export interface TerminalPasteOptions {
+  forceBracketed?: boolean
+}
+
 /**
  * All methods except mount() and dispose() must be called after mount() resolves.
  * Calling them before mount will silently no-op (optional chaining on internal state).
@@ -57,6 +61,7 @@ export interface TerminalAdapter {
   mount(container: HTMLElement, options: TerminalOptions): Promise<void>
   dispose(): void
   write(data: string): void
+  paste(data: string, options?: TerminalPasteOptions): void
   onInput(callback: (data: string) => void): Disposable
   onKeyEvent(callback: (event: KeyboardEvent) => boolean): Disposable
   readonly cols: number
