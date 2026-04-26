@@ -816,7 +816,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
           touchHandlersRef.current = { el, handleTouchStart, handleTouchMove, handleTouchEnd };
         }
 
-        // Input handler
+        // Input handler — passes xterm input directly to the PTY.
+        // Full-width character normalisation (U+FF01–U+FF5E → ASCII, U+3000 → space)
+        // was intentionally removed: that conversion should be the IME's responsibility,
+        // not the terminal's. Doing it here broke CJK input flows where users explicitly
+        // wanted full-width characters in the shell.
         const inputDisposable = adapter.onInput((data) => {
           writeToPty(sessionIdRef.current, data);
         });

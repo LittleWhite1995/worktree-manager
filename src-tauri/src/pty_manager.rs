@@ -159,7 +159,11 @@ fn resolve_shell_from_id(id: &str) -> String {
             );
             get_default_shell()
         }
-        // Shell IDs: zsh, bash, fish, nu — resolve via PATH lookup
+        // Shell IDs: zsh, bash, fish, nu, pwsh (on Windows) — resolve via PATH lookup.
+        // Note: "pwsh" intentionally uses PATH lookup rather than a hardcoded path because
+        // PowerShell 7 has many install locations (system-wide, per-user, scoop, winget).
+        // "powershell" uses hardcoded paths because Windows PowerShell 5.x is always in
+        // System32 and resolving it via `where` is slower and less reliable.
         other => {
             if let Some(path) = resolve_shell_from_path_lookup(other) {
                 return path;
@@ -204,6 +208,23 @@ fn append_bash_integration_args(args: &mut Vec<String>, init_file: String) {
     args.push("-i".to_string());
 }
 
+/// Convert a Windows path string to a Git Bash-compatible Unix-style path.
+/// Strips the `\\?\` long-path prefix then converts `C:\...` to `/c/...`.
+fn windows_path_to_git_bash(path_str: &str) -> String {
+    // Remove Windows long path prefix \\?\ which Git Bash cannot handle.
+    let path_str = path_str.strip_prefix(r"\\?\").unwrap_or(path_str);
+
+    // Convert Windows drive path to Unix-style path for Git Bash.
+    // C:\path\to\file -> /c/path/to/file
+    if path_str.len() >= 3 && path_str.chars().nth(1) == Some(':') {
+        let drive = path_str.chars().next().unwrap().to_ascii_lowercase();
+        let rest = path_str[2..].replace('\\', "/");
+        format!("/{}{}", drive, rest)
+    } else {
+        path_str.replace('\\', "/")
+    }
+}
+
 fn bash_integration_init_path(integration_dir: &Path) -> Option<String> {
     let init_file = integration_dir.join("bash-init.sh");
     log::info!(
@@ -215,24 +236,8 @@ fn bash_integration_init_path(integration_dir: &Path) -> Option<String> {
         return None;
     }
 
-    let mut path_str = init_file.to_str()?;
-
-    // Remove Windows long path prefix \\?\ which Git Bash cannot handle.
-    if path_str.starts_with(r"\\?\") {
-        path_str = &path_str[4..];
-    }
-
-    // Convert Windows path to Unix-style path for Git Bash.
-    // C:\path\to\file -> /c/path/to/file
-    Some(
-        if path_str.len() >= 3 && path_str.chars().nth(1) == Some(':') {
-            let drive = path_str.chars().next().unwrap().to_ascii_lowercase();
-            let rest = path_str[2..].replace('\\', "/");
-            format!("/{}{}", drive, rest)
-        } else {
-            path_str.replace('\\', "/")
-        },
-    )
+    let path_str = init_file.to_str()?;
+    Some(windows_path_to_git_bash(path_str))
 }
 
 fn get_zsh_integration_dir() -> PathBuf {
@@ -246,6 +251,9 @@ fn get_zsh_integration_dir() -> PathBuf {
 #[cfg(target_os = "windows")]
 fn powershell_integration_args(script: &Path) -> Option<Vec<String>> {
     let path_str = script.to_str()?;
+    // Remove Windows long path prefix \\?\ — neither PowerShell 5.x nor 7+
+    // reliably supports it inside dot-source (. operator) invocations.
+    let path_str = path_str.strip_prefix(r"\\?\").unwrap_or(path_str);
     let escaped = path_str.replace('\'', "''");
     Some(vec![
         "-noexit".to_string(),
@@ -888,7 +896,7 @@ mod tests {
     use super::powershell_integration_args;
     use super::{
         append_bash_integration_args, bytes_to_utf8_with_pending, requested_shell_path,
-        shell_startup_args,
+        shell_startup_args, windows_path_to_git_bash,
     };
     #[cfg(target_os = "windows")]
     use std::path::Path;
@@ -1005,6 +1013,8 @@ mod tests {
     fn powershell_integration_args_bypass_process_execution_policy() {
         let script = Path::new(r"\\?\C:\Users\O'Brien\pwsh-integration.ps1");
         let args = powershell_integration_args(script).unwrap();
+        // \\?\ prefix must be stripped: neither PS 5.x nor 7+ handles it
+        // reliably inside dot-source invocations.
         assert_eq!(
             args,
             vec![
@@ -1013,7 +1023,7 @@ mod tests {
                 "-ExecutionPolicy",
                 "Bypass",
                 "-command",
-                r". '\\?\C:\Users\O''Brien\pwsh-integration.ps1'",
+                r". 'C:\Users\O''Brien\pwsh-integration.ps1'",
             ]
         );
     }
@@ -1038,5 +1048,37 @@ mod tests {
         let mut args = vec!["-i".to_string()];
         append_bash_integration_args(&mut args, "/tmp/bash-init.sh".to_string());
         assert_eq!(args, vec!["--init-file", "/tmp/bash-init.sh", "-i"]);
+    }
+
+    #[test]
+    fn windows_path_strips_long_path_prefix_and_converts_drive() {
+        assert_eq!(
+            windows_path_to_git_bash(r"\\?\C:\Users\test\bash-init.sh"),
+            "/c/Users/test/bash-init.sh"
+        );
+    }
+
+    #[test]
+    fn windows_path_converts_drive_without_long_prefix() {
+        assert_eq!(
+            windows_path_to_git_bash(r"C:\Users\test\bash-init.sh"),
+            "/c/Users/test/bash-init.sh"
+        );
+    }
+
+    #[test]
+    fn windows_path_preserves_unix_style_path_unchanged() {
+        assert_eq!(
+            windows_path_to_git_bash("/tmp/bash-init.sh"),
+            "/tmp/bash-init.sh"
+        );
+    }
+
+    #[test]
+    fn windows_path_converts_uppercase_drive_letter_to_lowercase() {
+        assert_eq!(
+            windows_path_to_git_bash(r"D:\Work\project\bash-init.sh"),
+            "/d/Work/project/bash-init.sh"
+        );
     }
 }

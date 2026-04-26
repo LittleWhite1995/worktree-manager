@@ -714,12 +714,25 @@ export const SettingsView: FC<SettingsViewProps> = ({
   // Tools detection state
   interface DetectedTool { id: string; name: string; path: string; icon?: string }
   interface DetectedToolsResult { git: DetectedTool[]; terminals: DetectedTool[]; editors: DetectedTool[]; shells: DetectedTool[] }
+  // getPlatform() reads the client (browser) user-agent, not the server platform.
+  // In the normal Tauri desktop case these are the same. In remote-browser mode
+  // (Mac browser → Windows Tauri server), filtering may hide Windows-specific shells
+  // from the UI even though the backend can run them. This is an accepted trade-off:
+  // the settings UI uses client platform as a proxy for "what makes sense to show the
+  // user", keeping the UI consistent with what the user expects on their own machine.
   const isWindowsPlatform = getPlatform() === 'windows';
   const filterDetectedShells = useCallback((shells: DetectedTool[]) =>
     isWindowsPlatform ? shells : shells.filter((shell) => !isWindowsPowerShellId(shell.id)),
   [isWindowsPlatform]);
   const sanitizeToolPaths = useCallback((paths: Record<string, string>) => {
     if (isWindowsPlatform || !isWindowsPowerShellId(paths.shell)) return paths;
+    // Windows-only shell ID detected on a non-Windows platform (e.g. after
+    // migrating settings from a Windows machine). Clear it so the backend does
+    // not receive an unsupported shell identifier.
+    console.warn(
+      '[settings] Cleared Windows-only shell preference on non-Windows platform:',
+      paths.shell,
+    );
     const next = { ...paths };
     delete next.shell;
     return next;

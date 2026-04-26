@@ -1,5 +1,14 @@
 # OSC 633 shell integration for PowerShell
 # Supports Windows PowerShell 5.1 and PowerShell 7+
+#
+# Sequences emitted:   A (prompt start), B (prompt end), D (command finish), P;Cwd
+# Sequences NOT emitted: E (command text), C (command started)
+#
+# OSC 633;E and OSC 633;C require wrapping PSReadLine's ReadLine or
+# PSConsoleHostReadLine, which is fragile across PS 5.x / 7+ versions and
+# breaks some user profiles. The trade-off is intentional: command-text
+# tracking and the "command started" marker are unavailable in PowerShell
+# terminals. Shell prompt boundaries and CWD tracking still work normally.
 
 # Only load inside worktree-manager terminals
 if ($env:WORKTREE_MANAGER_SHELL_INTEGRATION -ne '1') { return }
@@ -43,7 +52,13 @@ function Global:__WM-Escape-Value([string]$value) {
 
 # Custom Prompt function: emits OSC 633 sequences around the original prompt.
 function Global:Prompt {
-    # Exit code: prefer $LASTEXITCODE for native commands, fall back to $? boolean
+    # Exit code: prefer $LASTEXITCODE for native commands, fall back to $? boolean.
+    # Known limitation: $? in Prompt context reflects the Prompt function's own last
+    # expression, not the user's last command, so it may report 0 even when a native
+    # command returned a non-zero exit code. $LASTEXITCODE is authoritative for native
+    # executables; $? is used only as a fallback for PowerShell-native commands that
+    # don't set $LASTEXITCODE. OSC 633;D is used for command navigation, not for
+    # precise exit-code display, so this imprecision is acceptable.
     $ExitCode = if ($global:?) { 0 }
                 elseif ($global:LASTEXITCODE) { $global:LASTEXITCODE }
                 else { 1 }

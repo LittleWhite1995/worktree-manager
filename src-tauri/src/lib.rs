@@ -2,6 +2,7 @@ pub mod cloud_client;
 mod commands;
 pub mod config;
 mod git_ops;
+pub(crate) mod http_origin_policy;
 pub mod http_server;
 pub mod mirror;
 mod pty_manager;

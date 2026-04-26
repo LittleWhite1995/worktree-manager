@@ -113,35 +113,6 @@ fn current_app_handle() -> Result<tauri::AppHandle, String> {
         .ok_or("App handle unavailable".to_string())
 }
 
-fn parse_origin_url(origin: &str) -> Option<url::Url> {
-    let parsed = url::Url::parse(origin).ok()?;
-    matches!(parsed.scheme(), "http" | "https").then_some(parsed)
-}
-
-fn is_loopback_origin(origin: &url::Url) -> bool {
-    match origin.host() {
-        Some(url::Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
-        Some(url::Host::Ipv4(ipv4)) => ipv4.is_loopback(),
-        Some(url::Host::Ipv6(ipv6)) => ipv6.is_loopback(),
-        None => false,
-    }
-}
-
-fn is_private_lan_origin(origin: &url::Url) -> bool {
-    matches!(origin.host(), Some(url::Host::Ipv4(ipv4)) if ipv4.is_private())
-}
-
-fn same_origin(left: &url::Url, right: &url::Url) -> bool {
-    left.scheme() == right.scheme()
-        && match (left.host(), right.host()) {
-            (Some(url::Host::Domain(a)), Some(url::Host::Domain(b))) => a.eq_ignore_ascii_case(b),
-            (Some(url::Host::Ipv4(a)), Some(url::Host::Ipv4(b))) => a == b,
-            (Some(url::Host::Ipv6(a)), Some(url::Host::Ipv6(b))) => a == b,
-            _ => false,
-        }
-        && left.port_or_known_default() == right.port_or_known_default()
-}
-
 // ---------------------------------------------------------------------------
 // Route handlers
 // ---------------------------------------------------------------------------
@@ -1975,25 +1946,8 @@ async fn h_cert_pem(Extension(cert_pem): Extension<Arc<String>>) -> Response {
 
 /// Check if an origin is allowed (localhost, LAN, or active ngrok URL).
 fn is_allowed_origin(origin: &str) -> bool {
-    let Some(parsed_origin) = parse_origin_url(origin) else {
-        return false;
-    };
-
-    if is_loopback_origin(&parsed_origin) || is_private_lan_origin(&parsed_origin) {
-        return true;
-    }
-
-    if let Ok(state) = SHARE_STATE.lock() {
-        if let Some(ref ngrok_url) = state.ngrok_url {
-            if let Some(parsed_ngrok) = parse_origin_url(ngrok_url) {
-                if same_origin(&parsed_origin, &parsed_ngrok) {
-                    return true;
-                }
-            }
-        }
-    }
-
-    false
+    let ngrok_url = SHARE_STATE.lock().ok().and_then(|s| s.ngrok_url.clone());
+    crate::http_origin_policy::is_allowed_origin(origin, ngrok_url.as_deref())
 }
 
 #[cfg(test)]
@@ -2147,21 +2101,8 @@ mod tests {
         hex::encode(ring::hmac::sign(&key, &nonce_bytes).as_ref())
     }
 
-    #[test]
-    fn allows_exact_loopback_and_private_lan_origins_only() {
-        assert!(is_allowed_origin("http://localhost:1420"));
-        assert!(is_allowed_origin("https://127.0.0.1"));
-        assert!(is_allowed_origin("http://[::1]:8080"));
-        assert!(is_allowed_origin("http://192.168.1.8:3000"));
-        assert!(is_allowed_origin("http://10.0.0.8"));
-        assert!(is_allowed_origin("http://172.16.5.4"));
-
-        assert!(!is_allowed_origin("https://localhost.evil.example"));
-        assert!(!is_allowed_origin("https://127.0.0.1.evil.example"));
-        assert!(!is_allowed_origin("https://192.168.1.8.evil.example"));
-        assert!(!is_allowed_origin("not-a-url"));
-    }
-
+    // Pure-logic origin policy tests live in crate::http_origin_policy.
+    // This test exercises the global-state path (ngrok URL from SHARE_STATE).
     #[test]
     fn only_allows_exact_active_ngrok_origin() {
         let _serial = lock_test_mutex();

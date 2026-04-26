@@ -5,6 +5,13 @@ const CROSS_PLATFORM_PTY_COMPATIBLE_TERMINAL_IDS = new Set([
   'fish',
 ]);
 
+// Shell IDs that are only surfaced as PTY-compatible options on Windows.
+// Although PowerShell 7 (pwsh) is cross-platform, it is intentionally kept
+// Windows-only here: the shell-integration script for PowerShell is written
+// for a Windows PTY environment, and the Rust detect_shells() backend only
+// lists pwsh on Windows. Non-Windows users who have pwsh installed can still
+// open it via an external terminal; they just won't see it as a built-in PTY
+// shell option.
 const WINDOWS_ONLY_PTY_COMPATIBLE_TERMINAL_IDS = new Set([
   'cmd',
   'powershell',

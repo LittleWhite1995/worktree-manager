@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Terminal } from './Terminal';
@@ -117,5 +117,75 @@ describe('Terminal', () => {
     });
 
     expect(keyHandler?.(shiftInsert)).toBe(true);
+  });
+
+  it('blocks Alt+V from reaching xterm when voice is active', async () => {
+    const { rerender } = render(<Terminal cwd="F:/repo" visible voiceStatus="idle" />);
+
+    await waitFor(() => {
+      expect(keyHandler).not.toBeNull();
+    });
+
+    const altV = new KeyboardEvent('keydown', {
+      code: 'KeyV',
+      key: 'v',
+      altKey: true,
+    });
+
+    // idle → key reaches xterm (voice shortcut not active)
+    expect(keyHandler?.(altV)).toBe(true);
+
+    rerender(<Terminal cwd="F:/repo" visible voiceStatus="ready" />);
+    // ready → key is consumed so the voice shortcut can fire
+    expect(keyHandler?.(altV)).toBe(false);
+
+    rerender(<Terminal cwd="F:/repo" visible voiceStatus="recording" />);
+    // recording → still blocked
+    expect(keyHandler?.(altV)).toBe(false);
+
+    rerender(<Terminal cwd="F:/repo" visible voiceStatus="error" />);
+    // error → key reaches xterm again
+    expect(keyHandler?.(altV)).toBe(true);
+  });
+
+  it('fallback clipboard read fires after 40ms when no native paste event arrives', async () => {
+    const clipboardText = 'hello world';
+    // jsdom does not implement navigator.clipboard — define a minimal mock.
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { readText: vi.fn().mockResolvedValue(clipboardText) },
+    });
+
+    render(<Terminal cwd="F:/repo" visible />);
+
+    // Wait for the component to finish initialising (real timers).
+    await waitFor(() => {
+      expect(keyHandler).not.toBeNull();
+    });
+
+    // Switch to fake timers now that the component is fully ready.
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+
+    const ctrlV = new KeyboardEvent('keydown', {
+      code: 'KeyV',
+      key: 'v',
+      ctrlKey: true,
+    });
+
+    // Ctrl+V allows the native paste event to fire first (returns true).
+    expect(keyHandler?.(ctrlV)).toBe(true);
+
+    // No native paste arrives — after 40ms the fallback clipboard read fires.
+    await act(async () => {
+      vi.advanceTimersByTime(40);
+      // Flush the clipboard.readText() promise chain.
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockAdapter.paste).toHaveBeenCalledTimes(1);
+    expect(mockAdapter.paste).toHaveBeenCalledWith(clipboardText, expect.anything());
+
+    vi.useRealTimers();
   });
 });
