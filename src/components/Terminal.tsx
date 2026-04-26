@@ -34,6 +34,29 @@ const TOOLBAR_BUTTONS = (() => {
   return buttons;
 })();
 
+const DEBUG_INFO_ROW_GROUPS = [
+  ['Session ID', 'Window Label', 'Platform'],
+  ['Source', 'App Logs'],
+  ['Terminal Size', 'Viewport Size'],
+  ['Preferred Terminal', 'Preferred Shell'],
+  ['Tool Paths Terminal', 'Tool Paths Terminal Custom'],
+  ['Tool Paths Shell', 'Resolved External Terminal'],
+  ['Resolved PTY Shell', 'Resolved Launch Shell'],
+  ['WS Connected', 'Client ID'],
+  ['Initialized', 'Init Status', 'Init Error'],
+  ['Got First Data', 'Is Mobile', 'Has Selection'],
+  ['Renderer', 'Unicode Version', 'Loaded Add-ons'],
+];
+
+const DEBUG_INFO_WIDE_KEYS = new Set([
+  'Working Path',
+  'Detected Terminals',
+  'Detected Shells',
+  'Font',
+  'User Agent',
+  'Current Time',
+]);
+
 function MobileTerminalToolbar({
   sessionId,
   onResize,
@@ -316,6 +339,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     visible: boolean;
     data: Record<string, string>;
   }>({ visible: false, data: {} });
+  const [debugInfoCopied, setDebugInfoCopied] = useState(false);
 
   const handleShowDebugInfo = useCallback(async () => {
     const windowLabel = isTauri()
@@ -326,6 +350,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     const selection = adapterRef.current?.getSelection() ?? '';
     const adapterDebug = adapterRef.current?.getDebugInfo?.() ?? {};
     const terminalPreferenceDebug = getTerminalPreferenceDebugInfo();
+    setDebugInfoCopied(false);
     setDebugInfo({
       visible: true,
       data: {
@@ -355,8 +380,48 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   }, [actualCwd, clientId, wsConnected, initStatus, initError, isMobile, handleCloseContextMenu]);
 
   const handleCloseDebugInfo = useCallback(() => {
+    setDebugInfoCopied(false);
     setDebugInfo(prev => ({ ...prev, visible: false }));
   }, []);
+
+  const handleCopyDebugInfo = useCallback(async () => {
+    const text = Object.entries(debugInfo.data)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setDebugInfoCopied(true);
+      window.setTimeout(() => setDebugInfoCopied(false), 1500);
+    } catch {
+      setDebugInfoCopied(false);
+    }
+  }, [debugInfo.data]);
+
+  const debugInfoRows = (() => {
+    const consumed = new Set<string>();
+    const rows: Array<Array<[string, string]>> = [];
+
+    for (const group of DEBUG_INFO_ROW_GROUPS) {
+      const fields = group
+        .map((key) => {
+          const value = debugInfo.data[key];
+          return value === undefined ? null : ([key, value] as [string, string]);
+        })
+        .filter((field): field is [string, string] => field !== null);
+
+      if (fields.length > 0) {
+        fields.forEach(([key]) => consumed.add(key));
+        rows.push(fields);
+      }
+    }
+
+    for (const [key, value] of Object.entries(debugInfo.data)) {
+      if (consumed.has(key)) continue;
+      rows.push([[key, value]]);
+    }
+
+    return rows;
+  })();
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     longPressTimer.current = setTimeout(() => {
@@ -1077,21 +1142,39 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               className="fixed inset-0 z-50"
               onClick={handleCloseDebugInfo}
             />
-            <div className="absolute z-[60] top-2 left-2 bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl p-3 min-w-[320px] max-w-[90vw] max-h-[80vh] overflow-auto select-text">
-              <div className="flex items-center justify-between mb-2">
+            <div className="absolute z-[60] top-2 left-2 w-[80vw] max-w-[80vw] max-h-[80vh] bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl select-text flex flex-col">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-700/80">
                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Terminal Debug Info</span>
-                <button
-                  onClick={handleCloseDebugInfo}
-                  className="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-700 transition-colors"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyDebugInfo}
+                    className="text-slate-300 hover:text-white text-xs px-2 py-1 rounded border border-slate-700 hover:bg-slate-800 transition-colors"
+                  >
+                    {debugInfoCopied ? 'Copied' : 'Copy'}
+                  </button>
+                  <button
+                    onClick={handleCloseDebugInfo}
+                    className="text-slate-400 hover:text-white text-xs px-1.5 py-1 rounded hover:bg-slate-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1">
-                {Object.entries(debugInfo.data).map(([key, value]) => (
-                  <div key={key} className="text-xs">
-                    <span className="text-slate-400 font-medium">{key}:</span>
-                    <span className="text-slate-200 ml-1 break-all font-mono">{value}</span>
+              <div className="space-y-1.5 overflow-y-auto px-3 py-3">
+                {debugInfoRows.map((row) => (
+                  <div
+                    key={row.map(([key]) => key).join('|')}
+                    className={row.length > 1 ? 'grid gap-x-3 gap-y-1 sm:grid-cols-2 xl:grid-cols-3' : ''}
+                  >
+                    {row.map(([key, value]) => (
+                      <div
+                        key={key}
+                        className={`text-xs ${DEBUG_INFO_WIDE_KEYS.has(key) ? 'col-span-full' : ''}`}
+                      >
+                        <span className="text-slate-400 font-medium">{key}:</span>
+                        <span className="text-slate-200 ml-1 break-all font-mono">{value}</span>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>

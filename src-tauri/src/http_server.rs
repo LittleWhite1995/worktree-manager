@@ -1996,7 +1996,7 @@ fn is_allowed_origin(origin: &str) -> bool {
     false
 }
 
-#[cfg(all(test, not(windows)))]
+#[cfg(test)]
 mod tests {
     use super::create_router;
     use super::is_allowed_origin;

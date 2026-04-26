@@ -24,6 +24,8 @@ import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, Vault
 import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect } from '../lib/backend';
 import type { CloudStatus, PairingStatus } from '../lib/backend';
 
+const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
+
 // ==================== VaultItemTree (recursive) ====================
 interface VaultItemTreeProps {
   vaultPath: string;
@@ -713,15 +715,15 @@ export const SettingsView: FC<SettingsViewProps> = ({
   interface DetectedTool { id: string; name: string; path: string; icon?: string }
   interface DetectedToolsResult { git: DetectedTool[]; terminals: DetectedTool[]; editors: DetectedTool[]; shells: DetectedTool[] }
   const isWindowsPlatform = getPlatform() === 'windows';
-  const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
-  const filterDetectedShells = (shells: DetectedTool[]) =>
-    isWindowsPlatform ? shells : shells.filter((shell) => !isWindowsPowerShellId(shell.id));
-  const sanitizeToolPaths = (paths: Record<string, string>) => {
+  const filterDetectedShells = useCallback((shells: DetectedTool[]) =>
+    isWindowsPlatform ? shells : shells.filter((shell) => !isWindowsPowerShellId(shell.id)),
+  [isWindowsPlatform]);
+  const sanitizeToolPaths = useCallback((paths: Record<string, string>) => {
     if (isWindowsPlatform || !isWindowsPowerShellId(paths.shell)) return paths;
     const next = { ...paths };
     delete next.shell;
     return next;
-  };
+  }, [isWindowsPlatform]);
   const [detectedTools, setDetectedTools] = useState<DetectedToolsResult | null>(() => {
     try {
       const editors: DetectedTool[] = JSON.parse(localStorage.getItem('detected_editors') || '[]');
@@ -796,16 +798,17 @@ export const SettingsView: FC<SettingsViewProps> = ({
           const key = `editor_${ed.id}`;
           if (!updated[key]) updated[key] = ed.path;
         }
-        localStorage.setItem('tool_paths', JSON.stringify(updated));
-        if (updated.git) callBackend('set_git_path', { path: updated.git }).catch(() => { });
-        return updated;
+        const sanitized = sanitizeToolPaths(updated);
+        localStorage.setItem('tool_paths', JSON.stringify(sanitized));
+        if (sanitized.git) callBackend('set_git_path', { path: sanitized.git }).catch(() => { });
+        return sanitized;
       });
     } catch (e) {
       console.error('detect_tools failed:', e);
     } finally {
       setToolsDetecting(false);
     }
-  }, [filterDetectedShells]);
+  }, [filterDetectedShells, sanitizeToolPaths]);
 
   // Load mic devices
   const loadMicDevices = useCallback(async () => {

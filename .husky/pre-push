@@ -1,11 +1,4 @@
 #!/usr/bin/env sh
 cd src-tauri || exit 1
 
-case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*)
-    cargo test --test devtools_config --test http_server_routing_smoke
-    ;;
-  *)
-    cargo test
-    ;;
-esac
+cargo test

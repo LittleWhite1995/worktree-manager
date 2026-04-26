@@ -243,6 +243,20 @@ fn get_zsh_integration_dir() -> PathBuf {
         .join("zsh")
 }
 
+#[cfg(target_os = "windows")]
+fn powershell_integration_args(script: &Path) -> Option<Vec<String>> {
+    let path_str = script.to_str()?;
+    let escaped = path_str.replace('\'', "''");
+    Some(vec![
+        "-noexit".to_string(),
+        "-nologo".to_string(),
+        "-ExecutionPolicy".to_string(),
+        "Bypass".to_string(),
+        "-command".to_string(),
+        format!(". '{}'", escaped),
+    ])
+}
+
 /// Initialize shell integration: store resource path and generate zsh ZDOTDIR wrappers.
 /// Called once during app setup.
 pub fn init_shell_integration(resource_dir: PathBuf) {
@@ -340,19 +354,10 @@ fn setup_shell_integration(cmd: &mut CommandBuilder, shell_path: &str, args: &mu
         }
         #[cfg(target_os = "windows")]
         "pwsh" | "powershell" => {
-            // Shell integration takes over PowerShell startup args entirely.
-            // shell_startup_args() must return &[] for pwsh/powershell to avoid conflicts.
             let script = integration_dir.join("pwsh-integration.ps1");
             if script.exists() {
-                if let Some(path_str) = script.to_str() {
-                    // PowerShell single-quoted strings escape ' as '' (doubled)
-                    let escaped = path_str.replace('\'', "''");
-                    args.extend([
-                        "-noexit".to_string(),
-                        "-nologo".to_string(),
-                        "-command".to_string(),
-                        format!(". '{}'", escaped),
-                    ]);
+                if let Some(script_args) = powershell_integration_args(&script) {
+                    args.extend(script_args);
                 }
             }
         }
@@ -879,10 +884,14 @@ impl Default for PtyManager {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "windows")]
+    use super::powershell_integration_args;
     use super::{
         append_bash_integration_args, bytes_to_utf8_with_pending, requested_shell_path,
         shell_startup_args,
     };
+    #[cfg(target_os = "windows")]
+    use std::path::Path;
 
     #[test]
     fn empty_input() {
@@ -989,6 +998,24 @@ mod tests {
     #[test]
     fn pwsh_uses_default_startup_args() {
         assert_eq!(shell_startup_args("pwsh"), &[] as &[&str]);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn powershell_integration_args_bypass_process_execution_policy() {
+        let script = Path::new(r"\\?\C:\Users\O'Brien\pwsh-integration.ps1");
+        let args = powershell_integration_args(script).unwrap();
+        assert_eq!(
+            args,
+            vec![
+                "-noexit",
+                "-nologo",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-command",
+                r". '\\?\C:\Users\O''Brien\pwsh-integration.ps1'",
+            ]
+        );
     }
 
     #[test]

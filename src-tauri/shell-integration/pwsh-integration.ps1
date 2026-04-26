@@ -27,7 +27,6 @@ foreach ($__wmP in $__wmProfiles) {
 $Global:__WMState = @{
     OriginalPrompt = $function:Prompt
     LastHistoryId  = -1
-    IsInExecution  = $false
 }
 
 # Escape control characters (\x00-\x1f), backslashes, and semicolons as \xHH.
@@ -51,17 +50,14 @@ function Global:Prompt {
     $LastHistoryEntry = Get-History -Count 1
     $Result = ""
 
-    # D: previous command finished (only if a command was actually executed)
-    if ($Global:__WMState.LastHistoryId -ne -1) {
-        if ($Global:__WMState.IsInExecution) {
-            $Global:__WMState.IsInExecution = $false
-            if ($LastHistoryEntry.Id -eq $Global:__WMState.LastHistoryId) {
-                # No new command (Ctrl+C or empty enter)
-                $Result += "$([char]0x1b)]633;D`a"
-            } else {
-                $Result += "$([char]0x1b)]633;D;$ExitCode`a"
-            }
-        }
+    # D: previous command finished. Without PSConsoleHostReadLine wrapping,
+    # history growth is the safest signal that a command actually ran.
+    if (
+        $Global:__WMState.LastHistoryId -ne -1 -and
+        $LastHistoryEntry -and
+        $LastHistoryEntry.Id -ne $Global:__WMState.LastHistoryId
+    ) {
+        $Result += "$([char]0x1b)]633;D;$ExitCode`a"
     }
 
     # Update history tracking
@@ -90,24 +86,8 @@ function Global:Prompt {
     return $Result
 }
 
-# PSConsoleHostReadLine wrapper: captures command text via PSReadLine
-if (Get-Module -Name PSReadLine) {
-    function Global:PSConsoleHostReadLine {
-        $CommandLine = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine(
-            $host.Runspace, $ExecutionContext, $null)
-        $Global:__WMState.IsInExecution = $true
-
-        # E: command text (\xHH escaped)
-        [Console]::Write("$([char]0x1b)]633;E;$(__WM-Escape-Value $CommandLine)`a")
-        # C: command execution started
-        [Console]::Write("$([char]0x1b)]633;C`a")
-
-        return $CommandLine
-    }
-}
-
 } catch {
-    # Shell integration failed to load — shell still works normally
+    # Shell integration failed to load; shell still works normally
 } finally {
     $ErrorActionPreference = $__wmOrigEAP
 }
