@@ -9,6 +9,7 @@ export type {
   TerminalDimensions,
   Disposable,
   SearchOptions,
+  TerminalPasteOptions,
 } from './types'
 
 export { TerminalRegistry }

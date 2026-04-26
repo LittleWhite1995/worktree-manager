@@ -42,7 +42,7 @@ pub(crate) fn create_symlink(src: &std::path::Path, dst: &std::path::Path) -> st
                         .stdout(std::process::Stdio::null())
                         .stderr(std::process::Stdio::null())
                         .status()
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                        .map_err(std::io::Error::other)?;
                     if status.success() {
                         Ok(())
                     } else {

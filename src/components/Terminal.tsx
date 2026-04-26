@@ -34,6 +34,29 @@ const TOOLBAR_BUTTONS = (() => {
   return buttons;
 })();
 
+const DEBUG_INFO_ROW_GROUPS = [
+  ['Session ID', 'Window Label', 'Platform'],
+  ['Source', 'App Logs'],
+  ['Terminal Size', 'Viewport Size'],
+  ['Preferred Terminal', 'Preferred Shell'],
+  ['Tool Paths Terminal', 'Tool Paths Terminal Custom'],
+  ['Tool Paths Shell', 'Resolved External Terminal'],
+  ['Resolved PTY Shell', 'Resolved Launch Shell'],
+  ['WS Connected', 'Client ID'],
+  ['Initialized', 'Init Status', 'Init Error'],
+  ['Got First Data', 'Is Mobile', 'Has Selection'],
+  ['Renderer', 'Unicode Version', 'Loaded Add-ons'],
+];
+
+const DEBUG_INFO_WIDE_KEYS = new Set([
+  'Working Path',
+  'Detected Terminals',
+  'Detected Shells',
+  'Font',
+  'User Agent',
+  'Current Time',
+]);
+
 function MobileTerminalToolbar({
   sessionId,
   onResize,
@@ -141,6 +164,7 @@ interface TerminalProps {
   cwd: string;
   visible: boolean;
   clientId?: string;
+  voiceStatus?: 'idle' | 'ready' | 'recording' | 'error';
   onShellIntegrationDetected?: () => void;
   onCwdChanged?: (cwd: string) => void;
   onSearchRequested?: () => void;
@@ -160,7 +184,7 @@ export interface TerminalHandle {
   clearSearch: () => void;
 }
 
-const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId, onShellIntegrationDetected, onCwdChanged, onSearchRequested, onRendererFallback }, ref) => {
+const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId, voiceStatus = 'idle', onShellIntegrationDetected, onCwdChanged, onSearchRequested, onRendererFallback }, ref) => {
   // Keep desktop PTY on polling until the event-stream path can preserve replay semantics.
   const enableDesktopEventStreaming = false;
   useTranslation();
@@ -202,6 +226,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   onShellIntDetectedRef.current = onShellIntegrationDetected;
   const onCwdChangedRef = useRef(onCwdChanged);
   onCwdChangedRef.current = onCwdChanged;
+  const voiceStatusRef = useRef(voiceStatus);
+  voiceStatusRef.current = voiceStatus;
   const onSearchRequestedRef = useRef(onSearchRequested);
   onSearchRequestedRef.current = onSearchRequested;
   const onRendererFallbackRef = useRef(onRendererFallback);
@@ -221,6 +247,15 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     handleTouchStart: (e: TouchEvent) => void;
     handleTouchMove: (e: TouchEvent) => void;
     handleTouchEnd: () => void;
+  } | null>(null);
+  const pasteHandlerRef = useRef<{
+    el: HTMLElement;
+    handlePaste: (e: ClipboardEvent) => void;
+  } | null>(null);
+  const pendingPasteFallbackRef = useRef<number | null>(null);
+  const recentFallbackPasteRef = useRef<{
+    text: string;
+    timestamp: number;
   } | null>(null);
 
   // Detect mobile device on mount
@@ -255,17 +290,45 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     handleCloseContextMenu();
   }, [handleCloseContextMenu]);
 
+  const sendPastedText = useCallback((text: string, source: 'clipboard-event' | 'fallback' | 'menu' = 'clipboard-event') => {
+    if (!text) return;
+    const normalizedText = text.replace(/\r\n?/g, '\n');
+    const recentFallbackPaste = recentFallbackPasteRef.current;
+    if (
+      source === 'clipboard-event' &&
+      recentFallbackPaste &&
+      recentFallbackPaste.text === normalizedText &&
+      Date.now() - recentFallbackPaste.timestamp < 150
+    ) {
+      recentFallbackPasteRef.current = null;
+      return;
+    }
+    if (source === 'fallback') {
+      recentFallbackPasteRef.current = { text: normalizedText, timestamp: Date.now() };
+    } else if (recentFallbackPaste && Date.now() - recentFallbackPaste.timestamp >= 150) {
+      recentFallbackPasteRef.current = null;
+    }
+    const isMultiline = /[\r\n]/.test(text);
+    if (adapterRef.current) {
+      adapterRef.current.paste(text, { forceBracketed: isMultiline });
+    } else {
+      const fallback = isMultiline
+        ? `\x1b[200~${text.replace(/\r\n|\r|\n/g, '\r')}\x1b[201~`
+        : text;
+      writeToPty(sessionIdRef.current, fallback);
+    }
+    adapterRef.current?.focus();
+  }, []);
+
   const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text && adapterRef.current) {
-        writeToPty(sessionIdRef.current, text);
-      }
+      sendPastedText(text, 'menu');
     } catch {
       // Ignore paste errors
     }
     handleCloseContextMenu();
-  }, [handleCloseContextMenu]);
+  }, [handleCloseContextMenu, sendPastedText]);
 
   const handleClear = useCallback(() => {
     adapterRef.current?.clear();
@@ -276,6 +339,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     visible: boolean;
     data: Record<string, string>;
   }>({ visible: false, data: {} });
+  const [debugInfoCopied, setDebugInfoCopied] = useState(false);
 
   const handleShowDebugInfo = useCallback(async () => {
     const windowLabel = isTauri()
@@ -286,6 +350,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     const selection = adapterRef.current?.getSelection() ?? '';
     const adapterDebug = adapterRef.current?.getDebugInfo?.() ?? {};
     const terminalPreferenceDebug = getTerminalPreferenceDebugInfo();
+    setDebugInfoCopied(false);
     setDebugInfo({
       visible: true,
       data: {
@@ -315,8 +380,48 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   }, [actualCwd, clientId, wsConnected, initStatus, initError, isMobile, handleCloseContextMenu]);
 
   const handleCloseDebugInfo = useCallback(() => {
+    setDebugInfoCopied(false);
     setDebugInfo(prev => ({ ...prev, visible: false }));
   }, []);
+
+  const handleCopyDebugInfo = useCallback(async () => {
+    const text = Object.entries(debugInfo.data)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setDebugInfoCopied(true);
+      window.setTimeout(() => setDebugInfoCopied(false), 1500);
+    } catch {
+      setDebugInfoCopied(false);
+    }
+  }, [debugInfo.data]);
+
+  const debugInfoRows = (() => {
+    const consumed = new Set<string>();
+    const rows: Array<Array<[string, string]>> = [];
+
+    for (const group of DEBUG_INFO_ROW_GROUPS) {
+      const fields = group
+        .map((key) => {
+          const value = debugInfo.data[key];
+          return value === undefined ? null : ([key, value] as [string, string]);
+        })
+        .filter((field): field is [string, string] => field !== null);
+
+      if (fields.length > 0) {
+        fields.forEach(([key]) => consumed.add(key));
+        rows.push(fields);
+      }
+    }
+
+    for (const [key, value] of Object.entries(debugInfo.data)) {
+      if (consumed.has(key)) continue;
+      rows.push([[key, value]]);
+    }
+
+    return rows;
+  })();
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     longPressTimer.current = setTimeout(() => {
@@ -402,6 +507,17 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         touchH.el.removeEventListener('touchmove', touchH.handleTouchMove);
         touchH.el.removeEventListener('touchend', touchH.handleTouchEnd);
         touchHandlersRef.current = null;
+      }
+
+      const pasteH = pasteHandlerRef.current;
+      if (pasteH) {
+        pasteH.el.removeEventListener('paste', pasteH.handlePaste, true);
+        pasteHandlerRef.current = null;
+      }
+
+      if (pendingPasteFallbackRef.current !== null) {
+        clearTimeout(pendingPasteFallbackRef.current);
+        pendingPasteFallbackRef.current = null;
       }
 
       // Clean up disposables
@@ -545,10 +661,56 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
             onSearchRequestedRef.current?.();
             return false;
           }
-          if (e.altKey && e.code === 'KeyV') return false;
+          const isPasteShortcut =
+            !e.repeat &&
+            (((e.metaKey || e.ctrlKey) && !e.altKey && e.code === 'KeyV') ||
+              (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'Insert'));
+          if (isPasteShortcut) {
+            if (pendingPasteFallbackRef.current !== null) {
+              clearTimeout(pendingPasteFallbackRef.current);
+            }
+            pendingPasteFallbackRef.current = window.setTimeout(() => {
+              pendingPasteFallbackRef.current = null;
+              void navigator.clipboard.readText()
+                .then((text) => {
+                  sendPastedText(text, 'fallback');
+                })
+                .catch(() => {});
+            }, 40);
+            // Let the native paste event fire first; the async clipboard read is only a fallback
+            // for environments where the event never arrives.
+            return true;
+          }
+          if (e.altKey && e.code === 'KeyV') {
+            return !(voiceStatusRef.current === 'ready' || voiceStatusRef.current === 'recording');
+          }
           return true;
         });
         keyDisposableRef.current = keyDisposable;
+
+        const handleTerminalPaste = (event: ClipboardEvent) => {
+          const target = event.target;
+          if (!(target instanceof Node) || !terminalRef.current?.contains(target)) return;
+
+          if (pendingPasteFallbackRef.current !== null) {
+            clearTimeout(pendingPasteFallbackRef.current);
+            pendingPasteFallbackRef.current = null;
+          }
+
+          const text = event.clipboardData?.getData('text/plain') ?? '';
+          if (!text) return;
+
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          sendPastedText(text, 'clipboard-event');
+        };
+
+        terminalRef.current.addEventListener('paste', handleTerminalPaste, true);
+        pasteHandlerRef.current = {
+          el: terminalRef.current,
+          handlePaste: handleTerminalPaste,
+        };
 
         // Mouse selection handling
         const resetStuckSelection = (forceClear = false) => {
@@ -654,12 +816,13 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
           touchHandlersRef.current = { el, handleTouchStart, handleTouchMove, handleTouchEnd };
         }
 
-        // Input handler
+        // Input handler — passes xterm input directly to the PTY.
+        // Full-width character normalisation (U+FF01–U+FF5E → ASCII, U+3000 → space)
+        // was intentionally removed: that conversion should be the IME's responsibility,
+        // not the terminal's. Doing it here broke CJK input flows where users explicitly
+        // wanted full-width characters in the shell.
         const inputDisposable = adapter.onInput((data) => {
-          const converted = data.replace(/[\uff01-\uff5e]/g, (ch) =>
-            String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
-          ).replace(/\u3000/g, ' ');
-          writeToPty(sessionIdRef.current, converted);
+          writeToPty(sessionIdRef.current, data);
         });
         inputDisposableRef.current = inputDisposable;
 
@@ -701,6 +864,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       if (!exists) {
         setInitStatus('Creating PTY session...');
         const shell = getPreferredPtyShell();
+
         const payload = {
           sessionId: sessionIdRef.current,
           cwd: cwdRef.current,
@@ -763,7 +927,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
       setInitError(String(e));
       console.error('[terminal] Failed to initialize PTY:', e);
     }
-  }, [clientId, handleIncomingData, startReading]);
+  }, [clientId, handleIncomingData, sendPastedText, startReading]);
 
   // Create PTY session on first visibility
   useEffect(() => {
@@ -982,21 +1146,39 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               className="fixed inset-0 z-50"
               onClick={handleCloseDebugInfo}
             />
-            <div className="absolute z-[60] top-2 left-2 bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl p-3 min-w-[320px] max-w-[90vw] max-h-[80vh] overflow-auto select-text">
-              <div className="flex items-center justify-between mb-2">
+            <div className="absolute z-[60] top-2 left-2 w-[80vw] max-w-[80vw] max-h-[80vh] bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl select-text flex flex-col">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-700/80">
                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Terminal Debug Info</span>
-                <button
-                  onClick={handleCloseDebugInfo}
-                  className="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-700 transition-colors"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyDebugInfo}
+                    className="text-slate-300 hover:text-white text-xs px-2 py-1 rounded border border-slate-700 hover:bg-slate-800 transition-colors"
+                  >
+                    {debugInfoCopied ? 'Copied' : 'Copy'}
+                  </button>
+                  <button
+                    onClick={handleCloseDebugInfo}
+                    className="text-slate-400 hover:text-white text-xs px-1.5 py-1 rounded hover:bg-slate-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1">
-                {Object.entries(debugInfo.data).map(([key, value]) => (
-                  <div key={key} className="text-xs">
-                    <span className="text-slate-400 font-medium">{key}:</span>
-                    <span className="text-slate-200 ml-1 break-all font-mono">{value}</span>
+              <div className="space-y-1.5 overflow-y-auto px-3 py-3">
+                {debugInfoRows.map((row) => (
+                  <div
+                    key={row.map(([key]) => key).join('|')}
+                    className={row.length > 1 ? 'grid gap-x-3 gap-y-1 sm:grid-cols-2 xl:grid-cols-3' : ''}
+                  >
+                    {row.map(([key, value]) => (
+                      <div
+                        key={key}
+                        className={`text-xs ${DEBUG_INFO_WIDE_KEYS.has(key) ? 'col-span-full' : ''}`}
+                      >
+                        <span className="text-slate-400 font-medium">{key}:</span>
+                        <span className="text-slate-200 ml-1 break-all font-mono">{value}</span>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>

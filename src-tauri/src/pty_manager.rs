@@ -1,7 +1,7 @@
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
@@ -17,6 +17,73 @@ const DESKTOP_READER_TTL: Duration = Duration::from_secs(10);
 
 /// Shell integration script directory (set once during app setup)
 static SHELL_INTEGRATION_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+#[cfg(target_os = "windows")]
+fn resolve_git_bash_path() -> Option<String> {
+    let candidates = [
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+    ];
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        let path = format!(r"{}\Programs\Git\bin\bash.exe", local);
+        if std::path::Path::new(&path).exists() {
+            return Some(path);
+        }
+    }
+
+    None
+}
+
+fn resolve_shell_from_path_lookup(id: &str) -> Option<String> {
+    // First check if it's an absolute path
+    if std::path::Path::new(id).is_absolute() && std::path::Path::new(id).exists() {
+        return Some(id.to_string());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = std::process::Command::new("which")
+            .arg(id)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Some(path);
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let output = std::process::Command::new("where")
+            .arg(id)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                if let Some(path) = String::from_utf8_lossy(&out.stdout).lines().next() {
+                    let path = path.trim().to_string();
+                    if !path.is_empty() {
+                        return Some(path);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
 
 /// Get the default shell for the current platform.
 /// Windows: COMSPEC -> PowerShell -> cmd.exe
@@ -73,69 +140,44 @@ fn resolve_shell_from_id(id: &str) -> String {
             "powershell.exe".to_string()
         }
         #[cfg(target_os = "windows")]
-        "gitbash" => {
-            let candidates = [
-                r"C:\Program Files\Git\bin\bash.exe",
-                r"C:\Program Files (x86)\Git\bin\bash.exe",
-            ];
-            for path in &candidates {
-                if std::path::Path::new(path).exists() {
-                    return path.to_string();
-                }
+        "gitbash" => resolve_git_bash_path().unwrap_or_else(|| "bash.exe".to_string()),
+        #[cfg(target_os = "windows")]
+        "bash" => {
+            if let Some(path) = resolve_git_bash_path() {
+                return path;
             }
-            if let Ok(local) = std::env::var("LOCALAPPDATA") {
-                let p = format!(r"{}\Programs\Git\bin\bash.exe", local);
-                if std::path::Path::new(&p).exists() {
-                    return p;
-                }
+            if let Some(path) = resolve_shell_from_path_lookup("bash") {
+                return path;
             }
-            // Fallback
-            "bash.exe".to_string()
+            log::warn!("[pty] Shell 'bash' not found, using default shell");
+            get_default_shell()
         }
-        // Shell IDs: zsh, bash, fish, nu, pwsh — resolve via PATH lookup
+        #[cfg(not(target_os = "windows"))]
+        "pwsh" | "powershell" => {
+            log::warn!(
+                "[pty] PowerShell shells are only supported on Windows, using default shell"
+            );
+            get_default_shell()
+        }
+        // Shell IDs: zsh, bash, fish, nu, pwsh (on Windows) — resolve via PATH lookup.
+        // Note: "pwsh" intentionally uses PATH lookup rather than a hardcoded path because
+        // PowerShell 7 has many install locations (system-wide, per-user, scoop, winget).
+        // "powershell" uses hardcoded paths because Windows PowerShell 5.x is always in
+        // System32 and resolving it via `where` is slower and less reliable.
         other => {
-            // First check if it's an absolute path
-            if std::path::Path::new(other).is_absolute() && std::path::Path::new(other).exists() {
-                return other.to_string();
-            }
-            // Try to find the executable by name
-            #[cfg(not(target_os = "windows"))]
-            {
-                let output = std::process::Command::new("which")
-                    .arg(other)
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::null())
-                    .output();
-                if let Ok(out) = output {
-                    if out.status.success() {
-                        let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                        if !path.is_empty() {
-                            return path;
-                        }
-                    }
-                }
-            }
-            #[cfg(target_os = "windows")]
-            {
-                let output = std::process::Command::new("where")
-                    .arg(other)
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::null())
-                    .output();
-                if let Ok(out) = output {
-                    if out.status.success() {
-                        if let Some(path) = String::from_utf8_lossy(&out.stdout).lines().next() {
-                            let path = path.trim().to_string();
-                            if !path.is_empty() {
-                                return path;
-                            }
-                        }
-                    }
-                }
+            if let Some(path) = resolve_shell_from_path_lookup(other) {
+                return path;
             }
             log::warn!("[pty] Shell '{}' not found, using default shell", other);
             get_default_shell()
         }
+    }
+}
+
+pub(crate) fn requested_shell_path(shell: Option<&str>) -> String {
+    match shell {
+        Some(s) if !s.is_empty() => resolve_shell_from_id(s),
+        _ => get_default_shell(),
     }
 }
 
@@ -159,12 +201,68 @@ fn shell_escape_single_quote(s: &str) -> String {
     s.replace('\'', "'\\''")
 }
 
+fn append_bash_integration_args(args: &mut Vec<String>, init_file: String) {
+    args.retain(|arg| arg != "-i");
+    args.push("--init-file".to_string());
+    args.push(init_file);
+    args.push("-i".to_string());
+}
+
+/// Convert a Windows path string to a Git Bash-compatible Unix-style path.
+/// Strips the `\\?\` long-path prefix then converts `C:\...` to `/c/...`.
+fn windows_path_to_git_bash(path_str: &str) -> String {
+    // Remove Windows long path prefix \\?\ which Git Bash cannot handle.
+    let path_str = path_str.strip_prefix(r"\\?\").unwrap_or(path_str);
+
+    // Convert Windows drive path to Unix-style path for Git Bash.
+    // C:\path\to\file -> /c/path/to/file
+    if path_str.len() >= 3 && path_str.chars().nth(1) == Some(':') {
+        let drive = path_str.chars().next().unwrap().to_ascii_lowercase();
+        let rest = path_str[2..].replace('\\', "/");
+        format!("/{}{}", drive, rest)
+    } else {
+        path_str.replace('\\', "/")
+    }
+}
+
+fn bash_integration_init_path(integration_dir: &Path) -> Option<String> {
+    let init_file = integration_dir.join("bash-init.sh");
+    log::info!(
+        "[shell-integration] bash init_file exists: {}, path: {:?}",
+        init_file.exists(),
+        init_file
+    );
+    if !init_file.exists() {
+        return None;
+    }
+
+    let path_str = init_file.to_str()?;
+    Some(windows_path_to_git_bash(path_str))
+}
+
 fn get_zsh_integration_dir() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join("worktree-manager")
         .join("shell-integration")
         .join("zsh")
+}
+
+#[cfg(target_os = "windows")]
+fn powershell_integration_args(script: &Path) -> Option<Vec<String>> {
+    let path_str = script.to_str()?;
+    // Remove Windows long path prefix \\?\ — neither PowerShell 5.x nor 7+
+    // reliably supports it inside dot-source (. operator) invocations.
+    let path_str = path_str.strip_prefix(r"\\?\").unwrap_or(path_str);
+    let escaped = path_str.replace('\'', "''");
+    Some(vec![
+        "-noexit".to_string(),
+        "-nologo".to_string(),
+        "-ExecutionPolicy".to_string(),
+        "Bypass".to_string(),
+        "-command".to_string(),
+        format!(". '{}'", escaped),
+    ])
 }
 
 /// Initialize shell integration: store resource path and generate zsh ZDOTDIR wrappers.
@@ -225,7 +323,7 @@ pub fn init_shell_integration(resource_dir: PathBuf) {
 }
 
 /// Configure a PTY command for shell integration based on shell type.
-fn setup_shell_integration(cmd: &mut CommandBuilder, shell_path: &str) {
+fn setup_shell_integration(cmd: &mut CommandBuilder, shell_path: &str, args: &mut Vec<String>) {
     let integration_dir = match SHELL_INTEGRATION_DIR.get() {
         Some(dir) if dir.exists() => dir,
         _ => return,
@@ -241,11 +339,14 @@ fn setup_shell_integration(cmd: &mut CommandBuilder, shell_path: &str) {
 
     match shell_program_name(shell_path).as_str() {
         "bash" => {
-            let init_file = integration_dir.join("bash-init.sh");
-            if init_file.exists() {
-                if let Some(path_str) = init_file.to_str() {
-                    cmd.args(["--init-file", path_str]);
-                }
+            if let Some(unix_path) = bash_integration_init_path(integration_dir) {
+                log::info!(
+                    "[shell-integration] Adding bash args: --init-file {} -i",
+                    unix_path
+                );
+                append_bash_integration_args(args, unix_path);
+            } else {
+                log::warn!("[shell-integration] Failed to resolve bash init file path");
             }
         }
         "zsh" => {
@@ -259,20 +360,12 @@ fn setup_shell_integration(cmd: &mut CommandBuilder, shell_path: &str) {
                 }
             }
         }
+        #[cfg(target_os = "windows")]
         "pwsh" | "powershell" => {
-            // Shell integration takes over PowerShell startup args entirely.
-            // shell_startup_args() must return &[] for pwsh/powershell to avoid conflicts.
             let script = integration_dir.join("pwsh-integration.ps1");
             if script.exists() {
-                if let Some(path_str) = script.to_str() {
-                    // PowerShell single-quoted strings escape ' as '' (doubled)
-                    let escaped = path_str.replace('\'', "''");
-                    cmd.args([
-                        "-noexit",
-                        "-nologo",
-                        "-command",
-                        &format!(". '{}'", escaped),
-                    ]);
+                if let Some(script_args) = powershell_integration_args(&script) {
+                    args.extend(script_args);
                 }
             }
         }
@@ -447,6 +540,7 @@ pub struct PtySession {
     writer: Box<dyn Write + Send>,
     reader: PtyReader,
     child: Box<dyn Child + Send + Sync>,
+    shell_path: String,
     broadcast_tx: broadcast::Sender<Vec<u8>>,
     /// Ring buffer of recent PTY output for replaying to new subscribers.
     replay_buffer: Arc<Mutex<VecDeque<u8>>>,
@@ -501,16 +595,24 @@ impl PtyManager {
             .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
         // Use user-specified shell or fall back to default
-        let shell_path = match shell {
-            Some(s) if !s.is_empty() => resolve_shell_from_id(s),
-            _ => get_default_shell(),
-        };
+        let shell_path = requested_shell_path(shell);
         log::info!("PTY session '{}' using shell: {}", id, shell_path);
 
         let mut cmd = CommandBuilder::new(&shell_path);
-        cmd.args(shell_startup_args(&shell_path));
+
+        // Collect all args first, then add them together
+        let mut args = Vec::new();
+        for arg in shell_startup_args(&shell_path) {
+            args.push(arg.to_string());
+        }
+
         cmd.cwd(cwd);
-        setup_shell_integration(&mut cmd, &shell_path);
+        setup_shell_integration(&mut cmd, &shell_path, &mut args);
+
+        // Add all args at once
+        for arg in &args {
+            cmd.arg(arg);
+        }
 
         // Set environment variables for better terminal support
         cmd.env("TERM", "xterm-256color");
@@ -647,6 +749,7 @@ impl PtyManager {
                 desktop_buffer: desktop_pending_buffer,
             },
             child,
+            shell_path,
             broadcast_tx,
             replay_buffer,
         };
@@ -734,6 +837,13 @@ impl PtyManager {
         self.sessions.contains_key(id)
     }
 
+    pub fn session_shell_path(&self, id: &str) -> Option<String> {
+        self.sessions
+            .get(id)
+            .and_then(|session| session.lock().ok())
+            .map(|session| session.shell_path.clone())
+    }
+
     pub fn session_count(&self) -> usize {
         self.sessions.len()
     }
@@ -782,7 +892,14 @@ impl Default for PtyManager {
 
 #[cfg(test)]
 mod tests {
-    use super::{bytes_to_utf8_with_pending, shell_startup_args};
+    #[cfg(target_os = "windows")]
+    use super::powershell_integration_args;
+    use super::{
+        append_bash_integration_args, bytes_to_utf8_with_pending, requested_shell_path,
+        shell_startup_args, windows_path_to_git_bash,
+    };
+    #[cfg(target_os = "windows")]
+    use std::path::Path;
 
     #[test]
     fn empty_input() {
@@ -889,5 +1006,79 @@ mod tests {
     #[test]
     fn pwsh_uses_default_startup_args() {
         assert_eq!(shell_startup_args("pwsh"), &[] as &[&str]);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn powershell_integration_args_bypass_process_execution_policy() {
+        let script = Path::new(r"\\?\C:\Users\O'Brien\pwsh-integration.ps1");
+        let args = powershell_integration_args(script).unwrap();
+        // \\?\ prefix must be stripped: neither PS 5.x nor 7+ handles it
+        // reliably inside dot-source invocations.
+        assert_eq!(
+            args,
+            vec![
+                "-noexit",
+                "-nologo",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-command",
+                r". 'C:\Users\O''Brien\pwsh-integration.ps1'",
+            ]
+        );
+    }
+
+    #[test]
+    fn requested_shell_keeps_explicit_existing_absolute_path() {
+        let exe = std::env::current_exe().unwrap();
+        let exe_str = exe.to_string_lossy().to_string();
+        assert_eq!(requested_shell_path(Some(&exe_str)), exe_str);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn requested_shell_uses_git_bash_path_for_bash_id_when_available() {
+        if let Some(git_bash) = super::resolve_git_bash_path() {
+            assert_eq!(requested_shell_path(Some("bash")), git_bash);
+        }
+    }
+
+    #[test]
+    fn bash_integration_args_put_init_file_before_interactive_flag() {
+        let mut args = vec!["-i".to_string()];
+        append_bash_integration_args(&mut args, "/tmp/bash-init.sh".to_string());
+        assert_eq!(args, vec!["--init-file", "/tmp/bash-init.sh", "-i"]);
+    }
+
+    #[test]
+    fn windows_path_strips_long_path_prefix_and_converts_drive() {
+        assert_eq!(
+            windows_path_to_git_bash(r"\\?\C:\Users\test\bash-init.sh"),
+            "/c/Users/test/bash-init.sh"
+        );
+    }
+
+    #[test]
+    fn windows_path_converts_drive_without_long_prefix() {
+        assert_eq!(
+            windows_path_to_git_bash(r"C:\Users\test\bash-init.sh"),
+            "/c/Users/test/bash-init.sh"
+        );
+    }
+
+    #[test]
+    fn windows_path_preserves_unix_style_path_unchanged() {
+        assert_eq!(
+            windows_path_to_git_bash("/tmp/bash-init.sh"),
+            "/tmp/bash-init.sh"
+        );
+    }
+
+    #[test]
+    fn windows_path_converts_uppercase_drive_letter_to_lowercase() {
+        assert_eq!(
+            windows_path_to_git_bash(r"D:\Work\project\bash-init.sh"),
+            "/d/Work/project/bash-init.sh"
+        );
     }
 }

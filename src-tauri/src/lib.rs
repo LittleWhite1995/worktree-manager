@@ -2,6 +2,7 @@ pub mod cloud_client;
 mod commands;
 pub mod config;
 mod git_ops;
+pub(crate) mod http_origin_policy;
 pub mod http_server;
 pub mod mirror;
 mod pty_manager;
@@ -302,7 +303,7 @@ pub fn run() {
                 pty_manager::init_shell_integration(dir);
             }
 
-            // Start MCP server on port 42819 in background
+            // Start MCP server on the port expected by @worktree-manager/mcp.
             let mcp_port = 42819;
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = http_server::start_mcp_server(mcp_port).await {

@@ -1,3 +1,4 @@
+use crate::pty_manager::requested_shell_path;
 use crate::state::PTY_MANAGER;
 
 #[tauri::command]
@@ -8,20 +9,32 @@ pub(crate) fn pty_create(
     rows: u16,
     shell: Option<String>,
 ) -> Result<(), String> {
-    // Make create idempotent: if session already exists, skip
-    {
-        let manager = PTY_MANAGER
-            .lock()
-            .map_err(|e| format!("Lock error: {}", e))?;
-        if manager.has_session(&session_id) {
+    // Hold the lock for the entire check-close-create sequence to avoid
+    // TOCTOU races with concurrent IPC or HTTP requests on the same session.
+    let requested_shell = requested_shell_path(shell.as_deref());
+    let mut manager = PTY_MANAGER
+        .lock()
+        .map_err(|e| format!("Lock error: {}", e))?;
+
+    if let Some(existing_shell) = manager.session_shell_path(&session_id) {
+        if existing_shell == requested_shell {
             log::info!(
-                "[pty] Session already exists, skipping create: id={}, requested cols={}, rows={}",
+                "[pty] Session already exists, skipping create: id={}, requested cols={}, rows={}, shell={}",
                 session_id,
                 cols,
-                rows
+                rows,
+                requested_shell
             );
             return Ok(());
         }
+
+        log::info!(
+            "[pty] Session exists with different shell, recreating: id={}, existing_shell={}, requested_shell={}",
+            session_id,
+            existing_shell,
+            requested_shell
+        );
+        manager.close_session(&session_id)?;
     }
 
     log::info!(
@@ -32,9 +45,6 @@ pub(crate) fn pty_create(
         rows,
         shell
     );
-    let mut manager = PTY_MANAGER
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
     let result = manager.create_session(&session_id, &cwd, cols, rows, shell.as_deref());
     match &result {
         Ok(()) => log::info!("[pty] Session created: {}", session_id),

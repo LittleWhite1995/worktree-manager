@@ -548,7 +548,7 @@ pub(crate) fn get_app_icon(path: String) -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let icon_map = extract_windows_exe_icons_batch(&[path.clone()]);
+        let icon_map = extract_windows_exe_icons_batch(std::slice::from_ref(&path));
         return icon_map
             .get(&path)
             .filter(|s| !s.is_empty())
@@ -863,12 +863,13 @@ fn detect_terminals() -> Vec<DetectedTool> {
                 icon: None,
             });
         }
-        // Git Bash
-        let git_bash_candidates = [
+        // Git Bash terminal — keep in sync with build_windows_terminal_launch() in this file.
+        let mut gitbash_terminal_found = false;
+        let git_bash_terminal_candidates = [
             r"C:\Program Files\Git\git-bash.exe",
             r"C:\Program Files (x86)\Git\git-bash.exe",
         ];
-        for p in &git_bash_candidates {
+        for p in &git_bash_terminal_candidates {
             if std::path::Path::new(p).exists() {
                 results.push(DetectedTool {
                     id: "gitbash".into(),
@@ -876,7 +877,21 @@ fn detect_terminals() -> Vec<DetectedTool> {
                     path: p.to_string(),
                     icon: None,
                 });
+                gitbash_terminal_found = true;
                 break;
+            }
+        }
+        if !gitbash_terminal_found {
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                let p = format!(r"{}\Programs\Git\git-bash.exe", local);
+                if std::path::Path::new(&p).exists() {
+                    results.push(DetectedTool {
+                        id: "gitbash".into(),
+                        name: "Git Bash".into(),
+                        path: p,
+                        icon: None,
+                    });
+                }
             }
         }
     }
@@ -1239,7 +1254,6 @@ fn detect_shells() -> Vec<DetectedTool> {
             ("bash", "Bash"),
             ("fish", "Fish"),
             ("nu", "Nushell"),
-            ("pwsh", "PowerShell"),
         ];
         for (cmd, name) in &shells {
             if let Some(path) = check_executable(cmd) {
@@ -1281,12 +1295,13 @@ fn detect_shells() -> Vec<DetectedTool> {
             path: "cmd.exe".into(),
             icon: None,
         });
-        // Git Bash
-        let git_bash_candidates = [
+        // Git Bash — keep in sync with git_bash_shell_path() in this file.
+        let mut git_bash_found = false;
+        let git_bash_system_candidates = [
             r"C:\Program Files\Git\bin\bash.exe",
             r"C:\Program Files (x86)\Git\bin\bash.exe",
         ];
-        for p in &git_bash_candidates {
+        for p in &git_bash_system_candidates {
             if std::path::Path::new(p).exists() {
                 results.push(DetectedTool {
                     id: "bash".into(),
@@ -1294,7 +1309,21 @@ fn detect_shells() -> Vec<DetectedTool> {
                     path: p.to_string(),
                     icon: None,
                 });
+                git_bash_found = true;
                 break;
+            }
+        }
+        if !git_bash_found {
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                let p = format!(r"{}\Programs\Git\bin\bash.exe", local);
+                if std::path::Path::new(&p).exists() {
+                    results.push(DetectedTool {
+                        id: "bash".into(),
+                        name: "Git Bash".into(),
+                        path: p,
+                        icon: None,
+                    });
+                }
             }
         }
         // Nushell

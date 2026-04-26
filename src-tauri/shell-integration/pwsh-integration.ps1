@@ -1,5 +1,14 @@
 # OSC 633 shell integration for PowerShell
 # Supports Windows PowerShell 5.1 and PowerShell 7+
+#
+# Sequences emitted:   A (prompt start), B (prompt end), D (command finish), P;Cwd
+# Sequences NOT emitted: E (command text), C (command started)
+#
+# OSC 633;E and OSC 633;C require wrapping PSReadLine's ReadLine or
+# PSConsoleHostReadLine, which is fragile across PS 5.x / 7+ versions and
+# breaks some user profiles. The trade-off is intentional: command-text
+# tracking and the "command started" marker are unavailable in PowerShell
+# terminals. Shell prompt boundaries and CWD tracking still work normally.
 
 # Only load inside worktree-manager terminals
 if ($env:WORKTREE_MANAGER_SHELL_INTEGRATION -ne '1') { return }
@@ -27,7 +36,6 @@ foreach ($__wmP in $__wmProfiles) {
 $Global:__WMState = @{
     OriginalPrompt = $function:Prompt
     LastHistoryId  = -1
-    IsInExecution  = $false
 }
 
 # Escape control characters (\x00-\x1f), backslashes, and semicolons as \xHH.
@@ -44,24 +52,27 @@ function Global:__WM-Escape-Value([string]$value) {
 
 # Custom Prompt function: emits OSC 633 sequences around the original prompt.
 function Global:Prompt {
-    # Exit code: prefer $LASTEXITCODE for native commands, fall back to $? boolean
+    # Exit code: prefer $LASTEXITCODE for native commands, fall back to $? boolean.
+    # Known limitation: $? in Prompt context reflects the Prompt function's own last
+    # expression, not the user's last command, so it may report 0 even when a native
+    # command returned a non-zero exit code. $LASTEXITCODE is authoritative for native
+    # executables; $? is used only as a fallback for PowerShell-native commands that
+    # don't set $LASTEXITCODE. OSC 633;D is used for command navigation, not for
+    # precise exit-code display, so this imprecision is acceptable.
     $ExitCode = if ($global:?) { 0 }
                 elseif ($global:LASTEXITCODE) { $global:LASTEXITCODE }
                 else { 1 }
     $LastHistoryEntry = Get-History -Count 1
     $Result = ""
 
-    # D: previous command finished (only if a command was actually executed)
-    if ($Global:__WMState.LastHistoryId -ne -1) {
-        if ($Global:__WMState.IsInExecution) {
-            $Global:__WMState.IsInExecution = $false
-            if ($LastHistoryEntry.Id -eq $Global:__WMState.LastHistoryId) {
-                # No new command (Ctrl+C or empty enter)
-                $Result += "$([char]0x1b)]633;D`a"
-            } else {
-                $Result += "$([char]0x1b)]633;D;$ExitCode`a"
-            }
-        }
+    # D: previous command finished. Without PSConsoleHostReadLine wrapping,
+    # history growth is the safest signal that a command actually ran.
+    if (
+        $Global:__WMState.LastHistoryId -ne -1 -and
+        $LastHistoryEntry -and
+        $LastHistoryEntry.Id -ne $Global:__WMState.LastHistoryId
+    ) {
+        $Result += "$([char]0x1b)]633;D;$ExitCode`a"
     }
 
     # Update history tracking
@@ -90,24 +101,8 @@ function Global:Prompt {
     return $Result
 }
 
-# PSConsoleHostReadLine wrapper: captures command text via PSReadLine
-if (Get-Module -Name PSReadLine) {
-    function Global:PSConsoleHostReadLine {
-        $CommandLine = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine(
-            $host.Runspace, $ExecutionContext, $null)
-        $Global:__WMState.IsInExecution = $true
-
-        # E: command text (\xHH escaped)
-        [Console]::Write("$([char]0x1b)]633;E;$(__WM-Escape-Value $CommandLine)`a")
-        # C: command execution started
-        [Console]::Write("$([char]0x1b)]633;C`a")
-
-        return $CommandLine
-    }
-}
-
 } catch {
-    # Shell integration failed to load — shell still works normally
+    # Shell integration failed to load; shell still works normally
 } finally {
     $ErrorActionPreference = $__wmOrigEAP
 }
