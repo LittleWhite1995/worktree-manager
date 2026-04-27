@@ -84,6 +84,8 @@ export interface UseWorkspaceActionsReturn {
   setArchiveModal: (v: ArchiveModalState | null) => void;
   openArchiveModal: (worktree: WorktreeListItem) => Promise<void>;
   confirmArchiveIssue: (issueKey: string) => void;
+  terminateArchiveLockProcess: (pid: number) => Promise<void>;
+  terminatingArchiveLockPid: number | null;
   allArchiveIssuesConfirmed: boolean;
   handleArchiveWorktree: () => Promise<void>;
   deleteConfirmWorktree: WorktreeListItem | null;
@@ -154,6 +156,7 @@ export function useWorkspaceActions(
   // Context menu / archive states
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [archiveModal, setArchiveModal] = useState<ArchiveModalState | null>(null);
+  const [terminatingArchiveLockPid, setTerminatingArchiveLockPid] = useState<number | null>(null);
   const [deleteConfirmWorktree, setDeleteConfirmWorktree] = useState<WorktreeListItem | null>(null);
   const [batchArchiveModalOpen, setBatchArchiveModalOpen] = useState(false);
 
@@ -465,8 +468,36 @@ export function useWorkspaceActions(
     setArchiveModal({ ...archiveModal, confirmedIssues: newConfirmed });
   }, [archiveModal]);
 
+  const terminateArchiveLockProcess = useCallback(async (pid: number) => {
+    if (!archiveModal) return;
+    setTerminatingArchiveLockPid(pid);
+    try {
+      const process = archiveModal.status?.locked_processes.find((item) => item.pid === pid);
+      if (!process) return;
+      await workspace.terminateWorktreeLockingProcess(
+        archiveModal.worktree.name,
+        process.pid,
+        process.process_start_time,
+      );
+      const status = await workspace.checkWorktreeStatus(archiveModal.worktree.name);
+      setArchiveModal({
+        ...archiveModal,
+        status,
+        loading: false,
+        confirmedIssues: new Set(),
+      });
+    } catch (e) {
+      workspace.setError(String(e));
+    } finally {
+      setTerminatingArchiveLockPid(null);
+    }
+  }, [archiveModal, workspace]);
+
   const allArchiveIssuesConfirmed = (() => {
     if (!archiveModal?.status) return false;
+    if (archiveModal.status.locked_processes.length > 0 || archiveModal.status.lock_check_error) {
+      return false;
+    }
     const { projects } = archiveModal.status;
     const allIssueKeys: string[] = [];
     for (const proj of projects) {
@@ -672,6 +703,8 @@ export function useWorkspaceActions(
     setArchiveModal,
     openArchiveModal,
     confirmArchiveIssue,
+    terminateArchiveLockProcess,
+    terminatingArchiveLockPid,
     allArchiveIssuesConfirmed,
     handleArchiveWorktree,
     deleteConfirmWorktree,

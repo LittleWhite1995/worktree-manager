@@ -41,6 +41,7 @@ pub use commands::worktree::{
     create_worktree_impl, delete_archived_worktree_impl, deploy_to_main_impl,
     exit_main_occupation_impl, get_main_occupation_impl, get_main_workspace_status_impl,
     list_worktrees_impl, restore_worktree_impl, scan_linked_folders_internal,
+    terminate_worktree_locking_process_impl,
 };
 
 use commands::cloud::*;
@@ -171,6 +172,7 @@ pub fn run() {
             restore_worktree,
             delete_archived_worktree,
             check_worktree_status,
+            terminate_worktree_locking_process,
             add_project_to_worktree,
             deploy_to_main,
             exit_main_occupation,

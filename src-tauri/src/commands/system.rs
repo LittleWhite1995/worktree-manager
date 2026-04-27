@@ -1373,6 +1373,38 @@ pub fn set_git_path_internal(path: &str) {
     crate::utils::set_custom_git_path(path);
 }
 
+pub fn terminate_process_impl(pid: u32) -> Result<(), String> {
+    if pid == 0 {
+        return Err("Invalid process id".to_string());
+    }
+    if pid == std::process::id() {
+        return Err("Refusing to terminate the current app process".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    let output = Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .output()
+        .map_err(|e| format!("Failed to start taskkill: {}", e))?;
+
+    #[cfg(not(target_os = "windows"))]
+    let output = Command::new("kill")
+        .args(["-TERM", &pid.to_string()])
+        .output()
+        .map_err(|e| format!("Failed to start kill: {}", e))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!(
+            "Failed to terminate process {}: {}",
+            pid,
+            stderr.trim()
+        ))
+    }
+}
+
 #[tauri::command]
 pub(crate) fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()

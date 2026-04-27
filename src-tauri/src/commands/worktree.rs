@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::commands::window::broadcast_lock_state;
 use crate::config::{
@@ -12,7 +12,8 @@ use crate::state::PTY_MANAGER;
 use crate::types::{
     AddProjectToWorktreeRequest, CreateProjectRequest, CreateWorktreeRequest, DeployProjectError,
     DeployToMainResult, MainProjectStatus, MainWorkspaceOccupation, MainWorkspaceStatus,
-    ProjectConfig, ProjectStatus, ScannedFolder, WorktreeArchiveStatus, WorktreeListItem,
+    LockedProcessInfo, ProjectConfig, ProjectStatus, ScannedFolder, WorktreeArchiveStatus,
+    WorktreeListItem,
 };
 use crate::utils::{
     git_command, normalize_path, run_git_command_with_timeout, scan_dir_for_linkable_folders,
@@ -60,6 +61,339 @@ pub(crate) fn create_symlink(src: &std::path::Path, dst: &std::path::Path) -> st
 }
 
 // ==================== Tauri 命令：Worktree 操作 ====================
+
+#[cfg(target_os = "windows")]
+const LOCK_CHECK_MAX_RESOURCES: usize = 4096;
+#[cfg(target_os = "windows")]
+const LOCK_CHECK_BATCH_SIZE: usize = 128;
+#[cfg(target_os = "windows")]
+const LOCK_CHECK_PATHS_PER_PROCESS: usize = 8;
+
+#[cfg(target_os = "windows")]
+fn wide_string(value: &std::ffi::OsStr) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+
+    value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn fixed_wide_to_string(value: &[u16]) -> String {
+    let end = value.iter().position(|ch| *ch == 0).unwrap_or(value.len());
+    String::from_utf16_lossy(&value[..end])
+}
+
+#[cfg(target_os = "windows")]
+fn rm_app_type_name(value: i32) -> String {
+    use windows_sys::Win32::System::RestartManager::{
+        RmConsole, RmCritical, RmExplorer, RmMainWindow, RmOtherWindow, RmService,
+    };
+
+    match value {
+        RmMainWindow => "main_window",
+        RmOtherWindow => "other_window",
+        RmService => "service",
+        RmExplorer => "explorer",
+        RmConsole => "console",
+        RmCritical => "critical",
+        _ => "unknown",
+    }
+    .to_string()
+}
+
+#[cfg(target_os = "windows")]
+fn collect_lock_check_resources(root: &Path) -> Vec<PathBuf> {
+    let mut resources = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(path) = stack.pop() {
+        if resources.len() >= LOCK_CHECK_MAX_RESOURCES {
+            break;
+        }
+
+        resources.push(path.clone());
+        let Ok(entries) = fs::read_dir(&path) else {
+            continue;
+        };
+
+        for entry in entries.flatten() {
+            if resources.len() >= LOCK_CHECK_MAX_RESOURCES {
+                break;
+            }
+
+            let child = entry.path();
+            let Ok(metadata) = fs::symlink_metadata(&child) else {
+                continue;
+            };
+            use std::os::windows::fs::MetadataExt;
+            const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+            let is_reparse_point =
+                metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0;
+
+            resources.push(child.clone());
+            if metadata.is_dir() && !is_reparse_point {
+                stack.push(child);
+            }
+        }
+    }
+
+    resources
+}
+
+#[cfg(target_os = "windows")]
+fn filetime_to_string(value: windows_sys::Win32::Foundation::FILETIME) -> String {
+    (((value.dwHighDateTime as u64) << 32) | value.dwLowDateTime as u64).to_string()
+}
+
+#[cfg(target_os = "windows")]
+fn query_restart_manager(paths: &[PathBuf]) -> Result<Vec<LockedProcessInfo>, String> {
+    use windows_sys::Win32::Foundation::{ERROR_MORE_DATA, ERROR_SUCCESS};
+    use windows_sys::Win32::System::RestartManager::{
+        RmEndSession, RmGetList, RmRegisterResources, RmStartSession, CCH_RM_SESSION_KEY,
+        RM_PROCESS_INFO,
+    };
+
+    let mut session = 0u32;
+    let mut session_key = vec![0u16; (CCH_RM_SESSION_KEY + 1) as usize];
+    let start_result = unsafe { RmStartSession(&mut session, 0, session_key.as_mut_ptr()) };
+    if start_result != ERROR_SUCCESS {
+        return Err(format!("Restart Manager start failed: {}", start_result));
+    }
+
+    let result = (|| {
+        let wide_paths: Vec<Vec<u16>> = paths
+            .iter()
+            .map(|path| wide_string(path.as_os_str()))
+            .collect();
+        let path_ptrs: Vec<*const u16> = wide_paths.iter().map(|path| path.as_ptr()).collect();
+
+        let register_result = unsafe {
+            RmRegisterResources(
+                session,
+                path_ptrs.len() as u32,
+                path_ptrs.as_ptr(),
+                0,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+            )
+        };
+        if register_result != ERROR_SUCCESS {
+            return Err(format!(
+                "Restart Manager resource registration failed: {}",
+                register_result
+            ));
+        }
+
+        let mut needed = 0u32;
+        let mut count = 0u32;
+        let mut reboot_reasons = 0u32;
+        let first_result = unsafe {
+            RmGetList(
+                session,
+                &mut needed,
+                &mut count,
+                std::ptr::null_mut(),
+                &mut reboot_reasons,
+            )
+        };
+        if first_result == ERROR_SUCCESS && needed == 0 {
+            return Ok(Vec::new());
+        }
+        if first_result != ERROR_MORE_DATA && first_result != ERROR_SUCCESS {
+            return Err(format!(
+                "Restart Manager process query failed: {}",
+                first_result
+            ));
+        }
+
+        let mut processes = vec![RM_PROCESS_INFO::default(); needed as usize];
+        count = needed;
+        let second_result = unsafe {
+            RmGetList(
+                session,
+                &mut needed,
+                &mut count,
+                processes.as_mut_ptr(),
+                &mut reboot_reasons,
+            )
+        };
+        if second_result != ERROR_SUCCESS {
+            return Err(format!(
+                "Restart Manager process query failed: {}",
+                second_result
+            ));
+        }
+
+        processes.truncate(count as usize);
+        Ok(processes
+            .into_iter()
+            .map(|process| {
+                let app_name = fixed_wide_to_string(&process.strAppName);
+                let service_name = fixed_wide_to_string(&process.strServiceShortName);
+                LockedProcessInfo {
+                    pid: process.Process.dwProcessId,
+                    process_start_time: filetime_to_string(process.Process.ProcessStartTime),
+                    name: if app_name.is_empty() {
+                        service_name
+                    } else {
+                        app_name
+                    },
+                    application_type: rm_app_type_name(process.ApplicationType),
+                    restartable: process.bRestartable != 0,
+                    locked_paths: paths
+                        .iter()
+                        .take(LOCK_CHECK_PATHS_PER_PROCESS)
+                        .map(|path| normalize_path(&path.to_string_lossy()))
+                        .collect(),
+                }
+            })
+            .collect())
+    })();
+
+    unsafe {
+        RmEndSession(session);
+    }
+
+    result
+}
+
+#[cfg(target_os = "windows")]
+pub fn find_worktree_locking_processes(path: &Path) -> Result<Vec<LockedProcessInfo>, String> {
+    let resources = collect_lock_check_resources(path);
+    let mut by_pid: HashMap<u32, LockedProcessInfo> = HashMap::new();
+
+    for batch in resources.chunks(LOCK_CHECK_BATCH_SIZE) {
+        let processes = query_restart_manager(batch)?;
+        for mut process in processes {
+            match by_pid.entry(process.pid) {
+                Entry::Occupied(mut entry) => {
+                    let existing = entry.get_mut();
+                    for locked_path in process.locked_paths.drain(..) {
+                        if existing.locked_paths.len() >= LOCK_CHECK_PATHS_PER_PROCESS {
+                            break;
+                        }
+                        if !existing.locked_paths.contains(&locked_path) {
+                            existing.locked_paths.push(locked_path);
+                        }
+                    }
+                }
+                Entry::Vacant(entry) => {
+                    if process.name.is_empty() {
+                        process.name = format!("PID {}", process.pid);
+                    }
+                    entry.insert(process);
+                }
+            }
+        }
+    }
+
+    let current_pid = std::process::id();
+    let mut result: Vec<LockedProcessInfo> = by_pid
+        .into_values()
+        .filter(|process| process.pid != current_pid)
+        .collect();
+    result.sort_by(|a, b| a.name.cmp(&b.name).then(a.pid.cmp(&b.pid)));
+    Ok(result)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn find_worktree_locking_processes(_path: &Path) -> Result<Vec<LockedProcessInfo>, String> {
+    Ok(Vec::new())
+}
+
+#[cfg(target_os = "windows")]
+fn probe_windows_rename(path: &Path) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Worktree path has no parent".to_string())?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Invalid worktree path".to_string())?;
+    let probe_path = parent.join(format!(
+        ".{}.archive-lock-check-{}",
+        name,
+        std::process::id()
+    ));
+
+    if probe_path.exists() {
+        fs::remove_dir_all(&probe_path)
+            .map_err(|e| format!("Failed to remove stale archive lock check directory: {}", e))?;
+    }
+
+    fs::rename(path, &probe_path)
+        .map_err(|e| format!("Worktree is in use and cannot be archived: {}", e))?;
+    fs::rename(&probe_path, path)
+        .map_err(|e| format!("Failed to restore worktree after archive lock check: {}", e))?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn ensure_windows_archive_file_usage_clear(path: &Path) -> Result<(), String> {
+    let locking_processes = find_worktree_locking_processes(path)?;
+    if !locking_processes.is_empty() {
+        let names = locking_processes
+            .iter()
+            .map(|process| format!("{} (PID {})", process.name, process.pid))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(format!(
+            "Worktree files are currently in use. End these processes before archiving: {}",
+            names
+        ));
+    }
+
+    probe_windows_rename(path)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn ensure_windows_archive_file_usage_clear(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+pub fn terminate_worktree_locking_process_impl(
+    window_label: &str,
+    name: String,
+    pid: u32,
+    process_start_time: String,
+) -> Result<(), String> {
+    let (workspace_path, config) =
+        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+
+    let worktree_path = PathBuf::from(&workspace_path)
+        .join(&config.worktrees_dir)
+        .join(&name);
+
+    if !worktree_path.exists() {
+        return Err("Worktree does not exist".to_string());
+    }
+
+    let locking_processes = find_worktree_locking_processes(&worktree_path)?;
+    let is_current_blocker = locking_processes.iter().any(|process| {
+        process.pid == pid && process.process_start_time == process_start_time
+    });
+
+    if !is_current_blocker {
+        return Err("Process is no longer locking this worktree".to_string());
+    }
+
+    crate::commands::system::terminate_process_impl(pid)
+}
+
+#[tauri::command]
+pub(crate) async fn terminate_worktree_locking_process(
+    window: tauri::Window,
+    name: String,
+    pid: u32,
+    process_start_time: String,
+) -> Result<(), String> {
+    let label = window.label().to_string();
+    tokio::task::spawn_blocking(move || {
+        terminate_worktree_locking_process_impl(&label, name, pid, process_start_time)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+}
 
 pub fn list_worktrees_impl(
     window_label: &str,
@@ -643,9 +977,13 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
         }
     }
 
-    // Step 2: Remove git worktrees first
+    // Step 2: On Windows, fail before mutating git worktree registrations if files are in use.
+    log::info!("[worktree] Step 2/4: Checking file usage for '{}'", name);
+    ensure_windows_archive_file_usage_clear(&worktree_path)?;
+
+    // Step 3: Remove git worktrees first
     log::info!(
-        "[worktree] Step 2/3: Removing git worktree registrations for '{}'",
+        "[worktree] Step 3/4: Removing git worktree registrations for '{}'",
         name
     );
     let projects_path = worktree_path.join("projects");
@@ -698,9 +1036,9 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
         }
     }
 
-    // Step 3: Rename directory to .archive
+    // Step 4: Rename directory to .archive
     log::info!(
-        "[worktree] Step 3/3: Renaming directory to '{}'",
+        "[worktree] Step 4/4: Renaming directory to '{}'",
         archive_name
     );
     // If archive directory already exists (e.g. from a previous failed attempt), remove it first
@@ -748,7 +1086,35 @@ pub fn check_worktree_status_impl(
         warnings: vec![],
         errors: vec![],
         projects: vec![],
+        locked_processes: vec![],
+        lock_check_supported: cfg!(target_os = "windows"),
+        lock_check_error: None,
     };
+
+    #[cfg(target_os = "windows")]
+    {
+        match find_worktree_locking_processes(&worktree_path) {
+            Ok(processes) => {
+                if !processes.is_empty() {
+                    status.can_archive = false;
+                    status.errors.push(format!(
+                        "Worktree files are currently in use by {} process(es)",
+                        processes.len()
+                    ));
+                    status.locked_processes = processes;
+                } else if let Err(e) = probe_windows_rename(&worktree_path) {
+                    status.can_archive = false;
+                    status.errors.push(e.clone());
+                    status.lock_check_error = Some(e);
+                }
+            }
+            Err(e) => {
+                status.can_archive = false;
+                status.errors.push(format!("File usage check failed: {}", e));
+                status.lock_check_error = Some(e);
+            }
+        }
+    }
 
     let projects_path = worktree_path.join("projects");
     if !projects_path.exists() {
