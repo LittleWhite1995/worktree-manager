@@ -484,7 +484,7 @@ export function useWorkspaceActions(
         ...archiveModal,
         status,
         loading: false,
-        confirmedIssues: new Set(),
+        confirmedIssues: archiveModal.confirmedIssues,
       });
     } catch (e) {
       workspace.setError(String(e));
@@ -523,7 +523,7 @@ export function useWorkspaceActions(
       }
       setArchiveModal(null);
     } catch (e) {
-      workspace.setError(String(e));
+      setArchiveModal((prev) => (prev ? { ...prev, archiveError: String(e) } : null));
     } finally {
       setArchiving(false);
     }

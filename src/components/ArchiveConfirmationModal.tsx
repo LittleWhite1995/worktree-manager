@@ -60,13 +60,6 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
                             <div className="mt-1 text-xs text-red-200/70">
                               {t('archive.lockedProcessDesc')}
                             </div>
-                            {process.locked_paths.length > 0 && (
-                              <div className="mt-2 space-y-1">
-                                {process.locked_paths.slice(0, 2).map((path) => (
-                                  <div key={path} className="text-xs text-slate-400 truncate select-text">{path}</div>
-                                ))}
-                              </div>
-                            )}
                           </div>
                           <Button
                             variant="destructive"
@@ -188,6 +181,17 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
             </div>
           ) : null}
         </div>
+
+        {archiveModal.archiveError && (
+          <div className="px-5 pb-4">
+            <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 text-sm text-red-200">
+              <div className="flex items-start gap-2">
+                <WarningIcon className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{archiveModal.archiveError}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="p-5 border-t border-slate-700 flex justify-end gap-3">
           <Button variant="secondary" onClick={onClose}>

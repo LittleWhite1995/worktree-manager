@@ -113,7 +113,6 @@ export interface LockedProcessInfo {
   name: string;
   application_type: string;
   restartable: boolean;
-  locked_paths: string[];
 }
 
 // Editor types — dynamic, any string editor ID from system detection
@@ -156,6 +155,7 @@ export interface ArchiveModalState {
   status: WorktreeArchiveStatus | null;
   loading: boolean;
   confirmedIssues: Set<string>;
+  archiveError?: string | null;
 }
 
 // Scanned folder type (from smart scan)

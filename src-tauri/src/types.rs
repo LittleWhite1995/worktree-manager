@@ -389,7 +389,6 @@ pub struct LockedProcessInfo {
     pub name: String,
     pub application_type: String,
     pub restartable: bool,
-    pub locked_paths: Vec<String>,
 }
 
 // ==================== 向已有 Worktree 添加项目 ====================

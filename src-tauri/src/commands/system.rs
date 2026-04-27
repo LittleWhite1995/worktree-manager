@@ -1381,6 +1381,10 @@ pub fn terminate_process_impl(pid: u32) -> Result<(), String> {
         return Err("Refusing to terminate the current app process".to_string());
     }
 
+    // /T terminates the full process tree. This is intentional: child processes
+    // (e.g. language servers, file watchers) spawned by the target process may
+    // be the actual holders of file handles, so killing only the parent would
+    // leave those handles open and the archive would still be blocked.
     #[cfg(target_os = "windows")]
     let output = Command::new("taskkill")
         .args(["/PID", &pid.to_string(), "/T", "/F"])

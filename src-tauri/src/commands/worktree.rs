@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -11,8 +11,8 @@ use crate::git_ops::{get_branch_status, get_worktree_info_for_branches};
 use crate::state::PTY_MANAGER;
 use crate::types::{
     AddProjectToWorktreeRequest, CreateProjectRequest, CreateWorktreeRequest, DeployProjectError,
-    DeployToMainResult, MainProjectStatus, MainWorkspaceOccupation, MainWorkspaceStatus,
-    LockedProcessInfo, ProjectConfig, ProjectStatus, ScannedFolder, WorktreeArchiveStatus,
+    DeployToMainResult, LockedProcessInfo, MainProjectStatus, MainWorkspaceOccupation,
+    MainWorkspaceStatus, ProjectConfig, ProjectStatus, ScannedFolder, WorktreeArchiveStatus,
     WorktreeListItem,
 };
 use crate::utils::{
@@ -66,8 +66,6 @@ pub(crate) fn create_symlink(src: &std::path::Path, dst: &std::path::Path) -> st
 const LOCK_CHECK_MAX_RESOURCES: usize = 4096;
 #[cfg(target_os = "windows")]
 const LOCK_CHECK_BATCH_SIZE: usize = 128;
-#[cfg(target_os = "windows")]
-const LOCK_CHECK_PATHS_PER_PROCESS: usize = 8;
 
 #[cfg(target_os = "windows")]
 fn wide_string(value: &std::ffi::OsStr) -> Vec<u16> {
@@ -126,8 +124,7 @@ fn collect_lock_check_resources(root: &Path) -> Vec<PathBuf> {
             };
             use std::os::windows::fs::MetadataExt;
             const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
-            let is_reparse_point =
-                metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0;
+            let is_reparse_point = metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0;
 
             resources.push(child.clone());
             if metadata.is_dir() && !is_reparse_point {
@@ -206,7 +203,10 @@ fn query_restart_manager(paths: &[PathBuf]) -> Result<Vec<LockedProcessInfo>, St
             ));
         }
 
-        let mut processes = vec![RM_PROCESS_INFO::default(); needed as usize];
+        // windows-sys does not derive Default for RM_PROCESS_INFO; use zeroed() instead.
+        let mut processes: Vec<RM_PROCESS_INFO> = (0..needed as usize)
+            .map(|_| unsafe { std::mem::zeroed() })
+            .collect();
         count = needed;
         let second_result = unsafe {
             RmGetList(
@@ -240,11 +240,6 @@ fn query_restart_manager(paths: &[PathBuf]) -> Result<Vec<LockedProcessInfo>, St
                     },
                     application_type: rm_app_type_name(process.ApplicationType),
                     restartable: process.bRestartable != 0,
-                    locked_paths: paths
-                        .iter()
-                        .take(LOCK_CHECK_PATHS_PER_PROCESS)
-                        .map(|path| normalize_path(&path.to_string_lossy()))
-                        .collect(),
                 }
             })
             .collect())
@@ -265,25 +260,10 @@ pub fn find_worktree_locking_processes(path: &Path) -> Result<Vec<LockedProcessI
     for batch in resources.chunks(LOCK_CHECK_BATCH_SIZE) {
         let processes = query_restart_manager(batch)?;
         for mut process in processes {
-            match by_pid.entry(process.pid) {
-                Entry::Occupied(mut entry) => {
-                    let existing = entry.get_mut();
-                    for locked_path in process.locked_paths.drain(..) {
-                        if existing.locked_paths.len() >= LOCK_CHECK_PATHS_PER_PROCESS {
-                            break;
-                        }
-                        if !existing.locked_paths.contains(&locked_path) {
-                            existing.locked_paths.push(locked_path);
-                        }
-                    }
-                }
-                Entry::Vacant(entry) => {
-                    if process.name.is_empty() {
-                        process.name = format!("PID {}", process.pid);
-                    }
-                    entry.insert(process);
-                }
+            if process.name.is_empty() {
+                process.name = format!("PID {}", process.pid);
             }
+            by_pid.entry(process.pid).or_insert(process);
         }
     }
 
@@ -316,15 +296,28 @@ fn probe_windows_rename(path: &Path) -> Result<(), String> {
         std::process::id()
     ));
 
-    if probe_path.exists() {
-        fs::remove_dir_all(&probe_path)
-            .map_err(|e| format!("Failed to remove stale archive lock check directory: {}", e))?;
+    match fs::remove_dir_all(&probe_path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            return Err(format!(
+                "Failed to remove stale archive lock check directory: {}",
+                e
+            ));
+        }
     }
 
     fs::rename(path, &probe_path)
         .map_err(|e| format!("Worktree is in use and cannot be archived: {}", e))?;
-    fs::rename(&probe_path, path)
-        .map_err(|e| format!("Failed to restore worktree after archive lock check: {}", e))?;
+    if let Err(e) = fs::rename(&probe_path, path) {
+        return Err(format!(
+            "Failed to restore worktree after archive lock check: {}. \
+             To recover, manually rename '{}' back to '{}'.",
+            e,
+            probe_path.display(),
+            path.display()
+        ));
+    }
     Ok(())
 }
 
@@ -357,6 +350,10 @@ pub fn terminate_worktree_locking_process_impl(
     pid: u32,
     process_start_time: String,
 ) -> Result<(), String> {
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
+        return Err("Invalid worktree name".to_string());
+    }
+
     let (workspace_path, config) =
         get_window_workspace_config(window_label).ok_or("No workspace selected")?;
 
@@ -369,9 +366,9 @@ pub fn terminate_worktree_locking_process_impl(
     }
 
     let locking_processes = find_worktree_locking_processes(&worktree_path)?;
-    let is_current_blocker = locking_processes.iter().any(|process| {
-        process.pid == pid && process.process_start_time == process_start_time
-    });
+    let is_current_blocker = locking_processes
+        .iter()
+        .any(|process| process.pid == pid && process.process_start_time == process_start_time);
 
     if !is_current_blocker {
         return Err("Process is no longer locking this worktree".to_string());
@@ -651,10 +648,17 @@ fn setup_project_worktree(
         .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
         .unwrap_or(false);
 
-    // Create worktree: use existing branch or create new one
+    // Check if the same-named remote branch already exists (after fetch, so tracking refs are current).
+    let remote_branch_exists = if !branch_exists {
+        crate::git_ops::check_remote_branch_exists(&main_proj_path, worktree_name).unwrap_or(false)
+    } else {
+        false
+    };
+
+    // Create worktree: use existing local branch, track existing remote branch, or create from base.
     let output = if branch_exists {
         log::info!(
-            "Branch '{}' already exists, using it for project {}",
+            "Branch '{}' already exists locally, using it for project {}",
             worktree_name,
             proj_req.name
         );
@@ -666,6 +670,26 @@ fn setup_project_worktree(
                 "add",
                 wt_proj_path.to_str().unwrap(),
                 worktree_name,
+            ])
+            .output()
+            .map_err(|e| format!("Failed to create worktree: {}", e))?
+    } else if remote_branch_exists {
+        log::info!(
+            "Remote branch 'origin/{}' already exists, tracking it for project {}",
+            worktree_name,
+            proj_req.name
+        );
+        git_command()
+            .args([
+                "-C",
+                main_proj_path.to_str().unwrap(),
+                "worktree",
+                "add",
+                "--track",
+                "-b",
+                worktree_name,
+                wt_proj_path.to_str().unwrap(),
+                &format!("origin/{}", worktree_name),
             ])
             .output()
             .map_err(|e| format!("Failed to create worktree: {}", e))?
@@ -708,42 +732,51 @@ fn setup_project_worktree(
         proj_req.name
     );
 
-    // Set upstream for the branch so git push works without -u flag
-    log::info!(
-        "[worktree] Project '{}': git push -u origin {}",
-        proj_req.name,
-        worktree_name
-    );
-    let push_output = run_git_command_with_timeout(
-        &["push", "-u", "origin", worktree_name],
-        wt_proj_path.to_str().unwrap(),
-    );
+    // When tracking an existing remote branch, --track already set the upstream.
+    // Only push (to create or update the remote branch) for new or locally-existing branches.
+    if !remote_branch_exists {
+        log::info!(
+            "[worktree] Project '{}': git push -u origin {}",
+            proj_req.name,
+            worktree_name
+        );
+        let push_output = run_git_command_with_timeout(
+            &["push", "-u", "origin", worktree_name],
+            wt_proj_path.to_str().unwrap(),
+        );
 
-    match push_output {
-        Ok(output) if output.status.success() => {
-            log::info!(
-                "[worktree] Project '{}': git push -u origin {} succeeded",
-                proj_req.name,
-                worktree_name
-            );
+        match push_output {
+            Ok(output) if output.status.success() => {
+                log::info!(
+                    "[worktree] Project '{}': git push -u origin {} succeeded",
+                    proj_req.name,
+                    worktree_name
+                );
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                log::warn!(
+                    "[worktree] Project '{}': git push -u origin {} failed (worktree created successfully): {}",
+                    proj_req.name,
+                    worktree_name,
+                    stderr
+                );
+            }
+            Err(e) => {
+                log::warn!(
+                    "[worktree] Project '{}': git push -u origin {} failed to execute (worktree created successfully): {}",
+                    proj_req.name,
+                    worktree_name,
+                    e
+                );
+            }
         }
-        Ok(output) => {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            log::warn!(
-                "[worktree] Project '{}': git push -u origin {} failed (worktree created successfully): {}",
-                proj_req.name,
-                worktree_name,
-                stderr
-            );
-        }
-        Err(e) => {
-            log::warn!(
-                "[worktree] Project '{}': git push -u origin {} failed to execute (worktree created successfully): {}",
-                proj_req.name,
-                worktree_name,
-                e
-            );
-        }
+    } else {
+        log::info!(
+            "[worktree] Project '{}': tracking origin/{}, skipping push",
+            proj_req.name,
+            worktree_name
+        );
     }
 
     // Link configured folders
@@ -958,7 +991,7 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
 
     // Step 1: Close all PTY sessions associated with this worktree
     log::info!(
-        "[worktree] Step 1/3: Closing PTY sessions for worktree '{}'",
+        "[worktree] Step 1/4: Closing PTY sessions for worktree '{}'",
         name
     );
     {
@@ -1102,15 +1135,13 @@ pub fn check_worktree_status_impl(
                         processes.len()
                     ));
                     status.locked_processes = processes;
-                } else if let Err(e) = probe_windows_rename(&worktree_path) {
-                    status.can_archive = false;
-                    status.errors.push(e.clone());
-                    status.lock_check_error = Some(e);
                 }
             }
             Err(e) => {
                 status.can_archive = false;
-                status.errors.push(format!("File usage check failed: {}", e));
+                status
+                    .errors
+                    .push(format!("File usage check failed: {}", e));
                 status.lock_check_error = Some(e);
             }
         }
@@ -1656,14 +1687,20 @@ pub fn add_project_to_worktree_impl(
         .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
         .unwrap_or(false);
 
-    // Step 2: Create worktree - use existing branch or create new one
+    let remote_branch_exists = if !branch_exists {
+        crate::git_ops::check_remote_branch_exists(&main_proj_path, &branch_name).unwrap_or(false)
+    } else {
+        false
+    };
+
+    // Step 2: Create worktree - use existing local branch, track remote, or create from base.
     log::info!(
         "[worktree] Step 2/3: git worktree add for project '{}'",
         request.project_name
     );
     let output = if branch_exists {
         log::info!(
-            "[worktree] Branch '{}' already exists, using it for project '{}'",
+            "[worktree] Branch '{}' already exists locally, using it for project '{}'",
             branch_name,
             request.project_name
         );
@@ -1675,6 +1712,26 @@ pub fn add_project_to_worktree_impl(
                 "add",
                 wt_proj_path.to_str().unwrap(),
                 &branch_name,
+            ])
+            .output()
+            .map_err(|e| format!("Failed to create worktree: {}", e))?
+    } else if remote_branch_exists {
+        log::info!(
+            "[worktree] Remote branch 'origin/{}' already exists, tracking it for project '{}'",
+            branch_name,
+            request.project_name
+        );
+        git_command()
+            .args([
+                "-C",
+                main_proj_path.to_str().unwrap(),
+                "worktree",
+                "add",
+                "--track",
+                "-b",
+                &branch_name,
+                wt_proj_path.to_str().unwrap(),
+                &format!("origin/{}", branch_name),
             ])
             .output()
             .map_err(|e| format!("Failed to create worktree: {}", e))?
@@ -1717,38 +1774,48 @@ pub fn add_project_to_worktree_impl(
         request.project_name
     );
 
-    // Push to create remote branch and set upstream tracking.
-    // Even though there are no user commits yet, this is necessary to prevent
-    // IDEs from defaulting to push to the base branch (uat/main).
-    let push_output = run_git_command_with_timeout(
-        &["push", "-u", "origin", &branch_name],
-        wt_proj_path.to_str().unwrap(),
-    );
-    match push_output {
-        Ok(p) if p.status.success() => {
-            log::info!(
-                "[worktree] Project '{}': git push -u origin {} succeeded",
-                request.project_name,
-                branch_name
-            );
+    // When tracking an existing remote branch, --track already set the upstream.
+    // Only push (to create the remote branch) for new or locally-existing branches.
+    if !remote_branch_exists {
+        // Push to create remote branch and set upstream tracking.
+        // Even though there are no user commits yet, this is necessary to prevent
+        // IDEs from defaulting to push to the base branch (uat/main).
+        let push_output = run_git_command_with_timeout(
+            &["push", "-u", "origin", &branch_name],
+            wt_proj_path.to_str().unwrap(),
+        );
+        match push_output {
+            Ok(p) if p.status.success() => {
+                log::info!(
+                    "[worktree] Project '{}': git push -u origin {} succeeded",
+                    request.project_name,
+                    branch_name
+                );
+            }
+            Ok(p) => {
+                let stderr = String::from_utf8_lossy(&p.stderr);
+                log::warn!(
+                    "[worktree] Project '{}': git push -u origin {} failed (project added successfully): {}",
+                    request.project_name,
+                    branch_name,
+                    stderr
+                );
+            }
+            Err(e) => {
+                log::warn!(
+                    "[worktree] Project '{}': git push -u origin {} failed to execute: {}",
+                    request.project_name,
+                    branch_name,
+                    e
+                );
+            }
         }
-        Ok(p) => {
-            let stderr = String::from_utf8_lossy(&p.stderr);
-            log::warn!(
-                "[worktree] Project '{}': git push -u origin {} failed (project added successfully): {}",
-                request.project_name,
-                branch_name,
-                stderr
-            );
-        }
-        Err(e) => {
-            log::warn!(
-                "[worktree] Project '{}': git push -u origin {} failed to execute: {}",
-                request.project_name,
-                branch_name,
-                e
-            );
-        }
+    } else {
+        log::info!(
+            "[worktree] Project '{}': tracking origin/{}, skipping push",
+            request.project_name,
+            branch_name
+        );
     }
 
     // Step 3: Link configured folders

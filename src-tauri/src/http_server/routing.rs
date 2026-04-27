@@ -39,8 +39,8 @@ use super::{
     h_switch_workspace, h_sync_with_base_branch, h_terminate_worktree_locking_process,
     h_test_mirror_speed, h_unlock_worktree, h_unregister_window, h_update_share_password,
     h_vault_link, h_vault_status, h_voice_is_active, h_voice_refine_text, h_voice_send_audio,
-    h_voice_start, h_voice_stop, h_ws_upgrade, is_allowed_origin, load_mcp_config,
-    save_mcp_config, McpConfig,
+    h_voice_start, h_voice_stop, h_ws_upgrade, is_allowed_origin, load_mcp_config, save_mcp_config,
+    McpConfig,
 };
 
 pub(super) fn build_cors_layer() -> CorsLayer {
