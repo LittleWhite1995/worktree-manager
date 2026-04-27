@@ -7391,6 +7391,7 @@ dependencies = [
  "uuid",
  "wait-timeout",
  "windows-icons",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

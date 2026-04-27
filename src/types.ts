@@ -102,6 +102,17 @@ export interface WorktreeArchiveStatus {
   warnings: string[];
   errors: string[];
   projects: BranchStatus[];
+  locked_processes: LockedProcessInfo[];
+  lock_check_supported: boolean;
+  lock_check_error: string | null;
+}
+
+export interface LockedProcessInfo {
+  pid: number;
+  process_start_time: string;
+  name: string;
+  application_type: string;
+  restartable: boolean;
 }
 
 // Editor types — dynamic, any string editor ID from system detection
@@ -144,6 +155,7 @@ export interface ArchiveModalState {
   status: WorktreeArchiveStatus | null;
   loading: boolean;
   confirmedIssues: Set<string>;
+  archiveError?: string | null;
 }
 
 // Scanned folder type (from smart scan)

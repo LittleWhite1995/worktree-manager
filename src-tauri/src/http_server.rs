@@ -57,6 +57,7 @@ use crate::{
     scan_existing_projects_impl,
     set_window_workspace_impl,
     switch_workspace_impl,
+    terminate_worktree_locking_process_impl,
     unlock_worktree_impl,
     unregister_window_impl,
     AddProjectToWorktreeRequest,
@@ -241,6 +242,34 @@ async fn h_check_worktree_status(headers: HeaderMap, Json(args): Json<Value>) ->
     let sid = session_id(&headers);
     let name = args["name"].as_str().unwrap_or("").to_string();
     result_json(check_worktree_status_impl(&sid, name))
+}
+
+async fn h_terminate_worktree_locking_process(
+    headers: HeaderMap,
+    Json(args): Json<Value>,
+) -> Response {
+    let sid = session_id(&headers);
+    let name = args["name"].as_str().unwrap_or("").to_string();
+    let Some(pid_value) = args["pid"].as_u64() else {
+        return (StatusCode::BAD_REQUEST, "Invalid pid").into_response();
+    };
+    if pid_value > u32::MAX as u64 {
+        return (StatusCode::BAD_REQUEST, "Invalid pid").into_response();
+    }
+    let process_start_time = args
+        .get("processStartTime")
+        .or_else(|| args.get("process_start_time"))
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    if process_start_time.is_empty() {
+        return (StatusCode::BAD_REQUEST, "Invalid processStartTime").into_response();
+    }
+    result_ok(terminate_worktree_locking_process_impl(
+        &sid,
+        name,
+        pid_value as u32,
+        process_start_time.to_string(),
+    ))
 }
 
 async fn h_restore_worktree(headers: HeaderMap, Json(args): Json<Value>) -> Response {

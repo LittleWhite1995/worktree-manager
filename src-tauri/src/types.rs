@@ -374,6 +374,21 @@ pub struct WorktreeArchiveStatus {
     pub warnings: Vec<String>,
     pub errors: Vec<String>,
     pub projects: Vec<crate::git_ops::BranchStatus>,
+    #[serde(default)]
+    pub locked_processes: Vec<LockedProcessInfo>,
+    #[serde(default)]
+    pub lock_check_supported: bool,
+    #[serde(default)]
+    pub lock_check_error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct LockedProcessInfo {
+    pub pid: u32,
+    pub process_start_time: String,
+    pub name: String,
+    pub application_type: String,
+    pub restartable: bool,
 }
 
 // ==================== 向已有 Worktree 添加项目 ====================

@@ -42,6 +42,7 @@ fn is_localhost_only_path(path: &str) -> bool {
             | "/api/test_mirror_speed"
             | "/api/save_custom_mirrors"
             | "/api/open_devtools"
+            | "/api/terminate_worktree_locking_process"
     )
 }
 

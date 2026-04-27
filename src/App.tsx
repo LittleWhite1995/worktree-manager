@@ -518,9 +518,11 @@ function App() {
             archiveModal={actions.archiveModal}
             onClose={() => actions.setArchiveModal(null)}
             onConfirmIssue={actions.confirmArchiveIssue}
+            onTerminateProcess={actions.terminateArchiveLockProcess}
             onArchive={actions.handleArchiveWorktree}
             areAllIssuesConfirmed={actions.allArchiveIssuesConfirmed}
             archiving={actions.archiving}
+            terminatingProcessPid={actions.terminatingArchiveLockPid}
           />
         )}
 

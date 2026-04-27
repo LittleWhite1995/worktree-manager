@@ -1,25 +1,29 @@
 import type { FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { StatusDot, GitBranchIcon, RefreshIcon, CheckIcon, CheckCircleIcon } from './Icons';
+import { StatusDot, GitBranchIcon, RefreshIcon, CheckIcon, CheckCircleIcon, WarningIcon } from './Icons';
 import type { ArchiveModalState } from '../types';
 
 interface ArchiveConfirmationModalProps {
   archiveModal: ArchiveModalState;
   onClose: () => void;
   onConfirmIssue: (issueKey: string) => void;
+  onTerminateProcess: (pid: number) => void;
   onArchive: () => void;
   areAllIssuesConfirmed: boolean;
   archiving?: boolean;
+  terminatingProcessPid?: number | null;
 }
 
 export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
   archiveModal,
   onClose,
   onConfirmIssue,
+  onTerminateProcess,
   onArchive,
   areAllIssuesConfirmed,
   archiving = false,
+  terminatingProcessPid = null,
 }) => {
   const { t } = useTranslation();
   return (
@@ -40,6 +44,48 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
             </div>
           ) : archiveModal.status ? (
             <div className="space-y-4">
+              {archiveModal.status.locked_processes.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-slate-300 mb-2">{t('archive.fileUsage')}</h4>
+                  <div className="space-y-2">
+                    {archiveModal.status.locked_processes.map((process) => (
+                      <div key={process.pid} className="bg-red-950/30 border border-red-900/50 rounded-lg p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 text-red-200">
+                              <WarningIcon className="w-4 h-4 text-red-400 shrink-0" />
+                              <span className="font-medium truncate">{process.name}</span>
+                              <span className="text-xs text-red-300/70 shrink-0">PID {process.pid}</span>
+                            </div>
+                            <div className="mt-1 text-xs text-red-200/70">
+                              {t('archive.lockedProcessDesc')}
+                            </div>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => onTerminateProcess(process.pid)}
+                            disabled={terminatingProcessPid !== null}
+                            className="shrink-0"
+                          >
+                            {terminatingProcessPid === process.pid ? t('archive.terminating') : t('archive.terminateProcess')}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {archiveModal.status.lock_check_error && archiveModal.status.locked_processes.length === 0 && (
+                <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 text-sm text-red-200">
+                  <div className="flex items-start gap-2">
+                    <WarningIcon className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <span>{archiveModal.status.lock_check_error}</span>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <h4 className="text-sm font-medium text-slate-300 mb-2">{t('archive.projectStatus')}</h4>
                 <div className="space-y-2">
@@ -135,6 +181,17 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
             </div>
           ) : null}
         </div>
+
+        {archiveModal.archiveError && (
+          <div className="px-5 pb-4">
+            <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 text-sm text-red-200">
+              <div className="flex items-start gap-2">
+                <WarningIcon className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{archiveModal.archiveError}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="p-5 border-t border-slate-700 flex justify-end gap-3">
           <Button variant="secondary" onClick={onClose}>

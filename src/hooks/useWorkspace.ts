@@ -43,6 +43,7 @@ export interface UseWorkspaceReturn {
   restoreWorktree: (name: string) => Promise<void>;
   deleteArchivedWorktree: (name: string) => Promise<void>;
   checkWorktreeStatus: (name: string) => Promise<WorktreeArchiveStatus>;
+  terminateWorktreeLockingProcess: (name: string, pid: number, processStartTime: string) => Promise<void>;
   openInEditor: (path: string, editor: EditorType) => Promise<void>;
   openInTerminal: (path: string, terminal?: string) => Promise<void>;
   revealInFinder: (path: string) => Promise<void>;
@@ -242,6 +243,10 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     return callBackend<WorktreeArchiveStatus>("check_worktree_status", { name });
   }, []);
 
+  const terminateWorktreeLockingProcess = useCallback(async (name: string, pid: number, processStartTime: string): Promise<void> => {
+    return callBackend<void>("terminate_worktree_locking_process", { name, pid, processStartTime });
+  }, []);
+
   const openInEditor = useCallback(async (path: string, editor: EditorType) => {
     try {
       let customPath: string | undefined;
@@ -342,6 +347,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     restoreWorktree,
     deleteArchivedWorktree,
     checkWorktreeStatus,
+    terminateWorktreeLockingProcess,
     openInEditor,
     openInTerminal,
     revealInFinder,
