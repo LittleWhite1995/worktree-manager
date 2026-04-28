@@ -302,6 +302,7 @@ function App() {
                       error={workspace.error}
                       onClearError={() => workspace.setError(null)}
                       onRefresh={workspace.loadData}
+                      onSilentRefresh={() => workspace.loadData({ silent: true })}
                       onOpenTerminalPanel={terminalHook.handleTerminalTabClick}
                       occupation={mainOccupation.occupation}
                       deploying={mainOccupation.deploying}

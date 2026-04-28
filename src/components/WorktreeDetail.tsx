@@ -100,6 +100,7 @@ interface WorktreeDetailProps {
   onRemoveProject?: (name: string) => Promise<void>;
   onAddProjectToWorktree?: () => void;
   onRefresh?: () => void;
+  onSilentRefresh?: () => void;
   onOpenTerminalPanel?: (path: string) => void;
   error: string | null;
   onClearError: () => void;
@@ -478,6 +479,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   onRemoveProject,
   onAddProjectToWorktree,
   onRefresh,
+  onSilentRefresh,
   onOpenTerminalPanel,
   error,
   onClearError,
@@ -1243,6 +1245,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                     currentBranch={proj.current_branch}
                     worktreeDisplayName={selectedWorktree.display_name || selectedWorktree.name}
                     onRefresh={onRefresh}
+                    onSilentRefresh={onSilentRefresh}
                     onOpenTerminal={onOpenTerminalPanel}
                     autoRefreshSlot={selectedWorktree.is_archived ? undefined : index}
                   />
