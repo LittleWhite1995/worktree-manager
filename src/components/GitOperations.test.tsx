@@ -73,7 +73,7 @@ describe('GitOperations', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(14_999);
     });
-    expect(backend.fetchProjectRemote).not.toHaveBeenCalled();
+    expect(backend.getBranchDiffStats).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
@@ -81,6 +81,28 @@ describe('GitOperations', () => {
       await Promise.resolve();
     });
 
-    expect(backend.fetchProjectRemote).toHaveBeenCalledTimes(1);
+    expect(backend.getBranchDiffStats).toHaveBeenCalledTimes(2);
+    expect(backend.fetchProjectRemote).not.toHaveBeenCalled();
+  });
+
+  it('auto-refresh does not call setLoading when onSilentRefresh is provided', async () => {
+    const onSilentRefresh = vi.fn().mockResolvedValue(undefined);
+    render(
+      <GitOperations
+        projectPath="/test"
+        projectName="test"
+        baseBranch="main"
+        testBranch="test"
+        currentBranch="feature"
+        autoRefreshSlot={0}
+        onSilentRefresh={onSilentRefresh}
+      />
+    );
+    // Advance past AUTO_REFRESH_INTERVAL_MS (60000ms)
+    await act(async () => {
+      vi.advanceTimersByTime(61000);
+      await Promise.resolve();
+    });
+    expect(onSilentRefresh).toHaveBeenCalled();
   });
 });
