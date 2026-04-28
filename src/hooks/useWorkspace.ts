@@ -25,7 +25,7 @@ export interface UseWorkspaceReturn {
   error: string | null;
   setError: (error: string | null) => void;
   loadWorkspaces: () => Promise<void>;
-  loadData: () => Promise<void>;
+  loadData: (options?: { silent?: boolean }) => Promise<void>;
   switchWorkspace: (path: string) => Promise<void>;
   addWorkspace: (name: string, path: string) => Promise<void>;
   createWorkspace: (name: string, path: string) => Promise<void>;
@@ -100,14 +100,15 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     }
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (options?: { silent?: boolean }) => {
     const version = ++loadVersion.current;
     const t0 = performance.now();
-    // Only show full-page loading on initial load, use refreshing for subsequent
-    if (!initialLoadDone.current) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
+    if (!options?.silent) {
+      if (!initialLoadDone.current) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
     }
     setError(null);
     try {
@@ -115,11 +116,8 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
         callBackend<WorkspaceConfig>("get_workspace_config"),
         callBackend<WorktreeListItem[]>("list_worktrees", { includeArchived: true }),
         callBackend<MainWorkspaceStatus>("get_main_workspace_status"),
-        // get_config_path_info is localhost-only; in browser sharing mode it returns 403.
-        // Catch individually so it doesn't break the entire loadData.
         callBackend<string>("get_config_path_info").catch(() => ''),
       ]);
-      // Discard stale results if a newer load has started
       if (version !== loadVersion.current) {
         console.log(`[ws] loadData: discarded (stale v${version}, current v${loadVersion.current})`);
         return;
@@ -134,7 +132,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
       if (version !== loadVersion.current) return;
       setError(String(e));
     } finally {
-      if (version === loadVersion.current) {
+      if (version === loadVersion.current && !options?.silent) {
         setLoading(false);
         setRefreshing(false);
       }
