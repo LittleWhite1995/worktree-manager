@@ -1,15 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
-  WorktreeSidebar,
-  WorktreeDetail,
-  TerminalPanel,
-  SettingsView,
   WelcomeView,
-  CreateWorktreeModal,
   AddWorkspaceModal,
   CreateWorkspaceModal,
-  AddProjectModal,
+  CreateWorktreeModal,
   AddProjectToWorktreeModal,
   ArchiveConfirmationModal,
   WorktreeContextMenu,
@@ -19,6 +14,8 @@ import {
   GlobalDialogs,
   MobileWorktreeList,
   MobileWorktreeDetail,
+  WorkspaceGrid,
+  WorkspaceCell,
 } from "./components";
 import { useAppShellState } from "./hooks/useAppShellState";
 import { Input } from "@/components/ui/input";
@@ -55,15 +52,9 @@ function App() {
     browserAuth,
     workspace,
     shareWorkspaceName,
-    viewMode,
-    setViewMode,
     isMobileWeb,
-    sidebarCollapsed,
-    setSidebarCollapsed,
     mobileView,
     setMobileView,
-    terminalFullscreen,
-    setTerminalFullscreen,
     showShortcutHelp,
     setShowShortcutHelp,
     terminalTabMenu,
@@ -72,7 +63,6 @@ function App() {
     share,
     locks,
     mainOccupation,
-    setSelectedWorktree,
     terminalHook,
     actions,
     updater,
@@ -81,7 +71,6 @@ function App() {
     setWasKicked,
     voice,
     openSettings,
-    handleSaveConfig,
     handleTerminalTabContextMenu,
   } = useAppShellState(t);
 
@@ -199,160 +188,19 @@ function App() {
           </div>
         )}
 
-        {/* ==================== Desktop Layout ==================== */}
-        {!isMobileWeb && (
-          <>
-            {/* Settings View (desktop) */}
-            <div
-              className="h-screen bg-slate-900 text-slate-100 p-6 overflow-y-auto"
-              style={{ display: viewMode === 'settings' && workspace.config ? 'block' : 'none' }}
-            >
-              {workspace.config && (
-                <SettingsView
-                  workspaceConfig={workspace.config}
-                  configPath={workspace.configPath}
-                  error={workspace.error}
-                  onBack={() => setViewMode('main')}
-                  onSaveConfig={handleSaveConfig}
-                  onClearError={() => workspace.setError(null)}
-                  onCheckUpdate={() => updater.openCheckerDialog()}
-                  checkingUpdate={updater.state === 'checking'}
-                  workspaces={workspace.workspaces}
-                  currentWorkspace={workspace.currentWorkspace}
-                  onRemoveWorkspace={workspace.removeWorkspace}
-                />
-              )}
-            </div>
+        {/* Desktop Layout */}
+        {!isMobileWeb && isTauri() && workspace.currentWorkspace && (
+          <WorkspaceGrid currentWorkspacePath={workspace.currentWorkspace.path} />
+        )}
 
-            {/* Main View (desktop) */}
-            <div
-              className="h-screen bg-slate-900 text-slate-100 flex overflow-hidden"
-              style={{ display: viewMode === 'main' ? 'flex' : 'none' }}
-            >
-              {!terminalFullscreen && (
-                <WorktreeSidebar
-                  workspaces={workspace.workspaces}
-                  currentWorkspace={workspace.currentWorkspace}
-                  showWorkspaceMenu={modals.showWorkspaceMenu}
-                  onShowWorkspaceMenu={(v) => modals.setModal('showWorkspaceMenu', v)}
-                  onSwitchWorkspace={actions.handleSwitchWorkspace}
-                  onAddWorkspace={() => modals.setModal('showAddWorkspaceModal', true)}
-                  mainWorkspace={workspace.mainWorkspace}
-                  worktrees={workspace.worktrees}
-                  selectedWorktree={actions.selectedWorktree}
-                  onSelectWorktree={actions.handleSelectWorktree}
-                  showArchived={modals.showArchived}
-                  onToggleArchived={() => modals.toggleModal('showArchived')}
-                  onContextMenu={actions.handleContextMenu}
-                  onRefresh={workspace.loadData}
-                  refreshing={workspace.refreshing}
-                  onOpenSettings={openSettings}
-                  onOpenCreateModal={actions.openCreateModal}
-                  updaterState={updater.state}
-                  onCheckUpdate={() => updater.openCheckerDialog()}
-                  onOpenInNewWindow={isTauri() ? actions.handleOpenInNewWindow : undefined}
-                  lockedWorktrees={locks.lockedWorktrees}
-                  collapsed={sidebarCollapsed}
-                  onToggleCollapsed={() => setSidebarCollapsed(prev => !prev)}
-                  switchingWorkspace={actions.switchingWorkspace}
-                  shareActive={share.shareActive}
-                  shareUrls={share.shareUrls}
-                  shareNgrokUrl={share.shareNgrokUrl}
-                  sharePassword={share.sharePassword}
-                  onStartShare={share.handleStartShare}
-                  onStopShare={share.handleStopShare}
-                  onUpdateSharePassword={share.handleUpdateSharePassword}
-                  ngrokLoading={share.ngrokLoading}
-                  onToggleNgrok={share.handleToggleNgrok}
-                  connectedClients={share.connectedClients}
-                  onKickClient={share.handleKickClient}
-                  hasLastConfig={share.hasLastConfig}
-                  onQuickShare={share.handleQuickShare}
-                  hasNgrokToken={share.hasNgrokToken}
-                  occupation={mainOccupation.occupation}
-                  batchArchiveModalOpen={actions.batchArchiveModalOpen}
-                  onToggleBatchArchiveModal={() => actions.setBatchArchiveModalOpen(!actions.batchArchiveModalOpen)}
-                  onBatchRestore={actions.handleBatchRestore}
-                  onBatchDelete={actions.handleBatchDelete}
-                />
-              )}
-
-              <div className="flex-1 min-w-0 flex flex-col bg-slate-900">
-                {!terminalFullscreen && (
-                  <div className="flex-1 p-6 overflow-y-auto min-h-0">
-                    <WorktreeDetail
-                      selectedWorktree={actions.selectedWorktree}
-                      mainWorkspace={workspace.mainWorkspace}
-                      selectedEditor={actions.selectedEditor}
-                      showEditorMenu={modals.showEditorMenu}
-                      onShowEditorMenu={(v) => modals.setModal('showEditorMenu', v)}
-                      onSelectEditor={actions.setSelectedEditor}
-                      onOpenInEditor={actions.handleOpenInEditor}
-                      onOpenInTerminal={workspace.openInTerminal}
-                      onRevealInFinder={workspace.revealInFinder}
-                      onSwitchBranch={workspace.switchBranch}
-                      onArchive={() => actions.selectedWorktree && actions.openArchiveModal(actions.selectedWorktree)}
-                      onRestore={actions.handleRestoreWorktree}
-                      restoring={actions.restoringWorktree}
-                      switching={actions.switchingWorktree}
-                      onDelete={actions.selectedWorktree?.is_archived ? () => actions.setDeleteConfirmWorktree(actions.selectedWorktree) : undefined}
-                      onAddProject={() => modals.setModal('showAddProjectModal', true)}
-                      onRemoveProject={!actions.selectedWorktree ? actions.handleRemoveProject : undefined}
-                      onAddProjectToWorktree={() => modals.setModal('showAddProjectToWorktreeModal', true)}
-                      error={workspace.error}
-                      onClearError={() => workspace.setError(null)}
-                      onRefresh={workspace.loadData}
-                      onSilentRefresh={() => workspace.loadData({ silent: true })}
-                      onOpenTerminalPanel={terminalHook.handleTerminalTabClick}
-                      occupation={mainOccupation.occupation}
-                      deploying={mainOccupation.deploying}
-                      exiting={mainOccupation.exiting}
-                      onDeployToMain={isTauri() ? mainOccupation.deployToMain : undefined}
-                      onExitOccupation={mainOccupation.exitOccupation}
-                      onRefreshAfterDeploy={() => { setSelectedWorktree(null); workspace.loadData(); }}
-                    />
-                  </div>
-                )}
-
-                <TerminalPanel
-                  visible={terminalHook.terminalVisible}
-                  height={terminalHook.terminalHeight}
-                  onStartResize={() => terminalHook.setIsResizing(true)}
-                  terminalTabs={terminalHook.terminalTabs}
-                  activatedTerminals={terminalHook.activatedTerminals}
-                  mountedTerminals={terminalHook.mountedTerminals}
-                  activeTerminalTab={terminalHook.activeTerminalTab}
-                  onTabClick={terminalHook.handleTerminalTabClick}
-                  onTabContextMenu={handleTerminalTabContextMenu}
-                  onCloseTab={terminalHook.handleCloseTerminalTab}
-                  onCloseAllTabs={terminalHook.handleCloseAllTerminalTabs}
-                  onToggle={terminalHook.handleToggleTerminal}
-                  onCollapse={() => terminalHook.setTerminalVisible(false)}
-                  isFullscreen={terminalFullscreen}
-                  onToggleFullscreen={() => {
-                    const next = !terminalFullscreen;
-                    setTerminalFullscreen(next);
-                    if (next && !terminalHook.terminalVisible) {
-                      terminalHook.handleToggleTerminal();
-                    }
-                  }}
-                  voiceStatus={voice.voiceStatus}
-                  voiceError={voice.voiceError}
-                  voiceWarning={voice.voiceWarning}
-                  isKeyHeld={voice.isKeyHeld}
-                  analyserNode={voice.analyserNode}
-                  onToggleVoice={voice.toggleVoice}
-                  onStopRecording={voice.stopRecording}
-                  staging={voice.staging}
-                  clientId={terminalHook.clientId}
-                  hasShellIntegration={terminalHook.shellIntegrationMap.get(terminalHook.activeTerminalTab ?? '') ?? false}
-                  onShellIntegrationDetected={(path) => terminalHook.markShellIntegrationActive(path)}
-                  onCwdChanged={(path, cwd) => terminalHook.updateTerminalCwd(path, cwd)}
-                />
-
-              </div>
-            </div>
-          </>
+        {/* Web Browser Layout (single cell, no grid) */}
+        {!isMobileWeb && !isTauri() && workspace.currentWorkspace && (
+          <div className="h-screen">
+            <WorkspaceCell
+              initialWorkspacePath={workspace.currentWorkspace.path}
+              closable={false}
+            />
+          </div>
         )}
 
         {/* ==================== Mobile Layout ==================== */}
@@ -428,116 +276,96 @@ function App() {
           </div>
         )}
 
-        {/* Modals */}
-        <CreateWorktreeModal
-          open={modals.showCreateModal && !!workspace.config}
-          onOpenChange={(v) => modals.setModal('showCreateModal', v)}
-          config={workspace.config}
-          worktreeName={actions.newWorktreeName}
-          onWorktreeNameChange={actions.setNewWorktreeName}
-          folderAlias={actions.folderAlias}
-          onFolderAliasChange={actions.setFolderAlias}
-          useFolderAlias={actions.useFolderAlias}
-          onUseFolderAliasChange={actions.setUseFolderAlias}
-          selectedProjects={actions.selectedProjects}
-          onToggleProject={actions.toggleProjectSelection}
-          onUpdateBaseBranch={actions.updateProjectBaseBranch}
-          onSubmit={actions.handleCreateWorktree}
-          creating={actions.creating}
-        />
+        {/* Mobile-only Modals (desktop/web modals are inside WorkspaceCell) */}
+        {isMobileWeb && (
+          <>
+            <CreateWorktreeModal
+              open={modals.showCreateModal && !!workspace.config}
+              onOpenChange={(v) => modals.setModal('showCreateModal', v)}
+              config={workspace.config}
+              worktreeName={actions.newWorktreeName}
+              onWorktreeNameChange={actions.setNewWorktreeName}
+              folderAlias={actions.folderAlias}
+              onFolderAliasChange={actions.setFolderAlias}
+              useFolderAlias={actions.useFolderAlias}
+              onUseFolderAliasChange={actions.setUseFolderAlias}
+              selectedProjects={actions.selectedProjects}
+              onToggleProject={actions.toggleProjectSelection}
+              onUpdateBaseBranch={actions.updateProjectBaseBranch}
+              onSubmit={actions.handleCreateWorktree}
+              creating={actions.creating}
+            />
 
-        {isTauri() && (
-          <AddWorkspaceModal
-            open={modals.showAddWorkspaceModal}
-            onOpenChange={(v) => modals.setModal('showAddWorkspaceModal', v)}
-            name={actions.newWorkspaceName}
-            onNameChange={actions.setNewWorkspaceName}
-            path={actions.newWorkspacePath}
-            onPathChange={actions.setNewWorkspacePath}
-            onSubmit={actions.handleAddWorkspace}
-            loading={actions.addingWorkspace}
-          />
+            <AddProjectToWorktreeModal
+              open={modals.showAddProjectToWorktreeModal}
+              onOpenChange={(v) => modals.setModal('showAddProjectToWorktreeModal', v)}
+              config={workspace.config}
+              worktree={actions.selectedWorktree}
+              onSubmit={actions.handleAddProjectToWorktree}
+              adding={actions.addingProjectToWorktree}
+            />
+
+            {/* Context Menus */}
+            {actions.contextMenu && (
+              <WorktreeContextMenu
+                x={actions.contextMenu.x}
+                y={actions.contextMenu.y}
+                onClose={() => actions.setContextMenu(null)}
+                onArchive={() => actions.openArchiveModal(actions.contextMenu!.worktree)}
+              />
+            )}
+
+            {terminalTabMenu && (
+              <TerminalTabContextMenu
+                x={terminalTabMenu.x}
+                y={terminalTabMenu.y}
+                onClose={() => setTerminalTabMenu(null)}
+                onDuplicate={() => {
+                  terminalHook.handleDuplicateTerminal(terminalTabMenu.path);
+                  setTerminalTabMenu(null);
+                }}
+                onCloseTab={() => {
+                  terminalHook.handleCloseTerminalTab(terminalTabMenu.path);
+                  setTerminalTabMenu(null);
+                }}
+                onCloseOtherTabs={() => {
+                  terminalHook.handleCloseOtherTerminalTabs(terminalTabMenu.path);
+                  setTerminalTabMenu(null);
+                }}
+                onCloseAllTabs={() => {
+                  terminalHook.handleCloseAllTerminalTabs();
+                  setTerminalTabMenu(null);
+                }}
+              />
+            )}
+
+            {/* Archive Confirmation Modal */}
+            {actions.archiveModal && (
+              <ArchiveConfirmationModal
+                archiveModal={actions.archiveModal}
+                onClose={() => actions.setArchiveModal(null)}
+                onConfirmIssue={actions.confirmArchiveIssue}
+                onTerminateProcess={actions.terminateArchiveLockProcess}
+                onArchive={actions.handleArchiveWorktree}
+                areAllIssuesConfirmed={actions.allArchiveIssuesConfirmed}
+                archiving={actions.archiving}
+                terminatingProcessPid={actions.terminatingArchiveLockPid}
+              />
+            )}
+
+            <GlobalDialogs
+              updater={updater}
+              share={share}
+              showShortcutHelp={showShortcutHelp}
+              onSetShowShortcutHelp={setShowShortcutHelp}
+              onOpenSettings={openSettings}
+              deleteConfirmWorktree={actions.deleteConfirmWorktree}
+              onSetDeleteConfirmWorktree={actions.setDeleteConfirmWorktree}
+              onDeleteArchivedWorktree={actions.handleDeleteArchivedWorktree}
+              deletingArchived={actions.deletingArchived}
+            />
+          </>
         )}
-
-        <AddProjectModal
-          open={modals.showAddProjectModal}
-          onOpenChange={(v) => modals.setModal('showAddProjectModal', v)}
-          onSubmit={actions.handleAddProject}
-          loading={actions.cloningProject}
-          scanLinkedFolders={workspace.scanLinkedFolders}
-          workspacePath={workspace.currentWorkspace?.path}
-          onUpdateLinkedFolders={actions.handleUpdateLinkedFolders}
-          onSuccess={workspace.loadData}
-        />
-
-        <AddProjectToWorktreeModal
-          open={modals.showAddProjectToWorktreeModal}
-          onOpenChange={(v) => modals.setModal('showAddProjectToWorktreeModal', v)}
-          config={workspace.config}
-          worktree={actions.selectedWorktree}
-          onSubmit={actions.handleAddProjectToWorktree}
-          adding={actions.addingProjectToWorktree}
-        />
-
-        {/* Context Menus */}
-        {actions.contextMenu && (
-          <WorktreeContextMenu
-            x={actions.contextMenu.x}
-            y={actions.contextMenu.y}
-            onClose={() => actions.setContextMenu(null)}
-            onArchive={() => actions.openArchiveModal(actions.contextMenu!.worktree)}
-          />
-        )}
-
-        {terminalTabMenu && (
-          <TerminalTabContextMenu
-            x={terminalTabMenu.x}
-            y={terminalTabMenu.y}
-            onClose={() => setTerminalTabMenu(null)}
-            onDuplicate={() => {
-              terminalHook.handleDuplicateTerminal(terminalTabMenu.path);
-              setTerminalTabMenu(null);
-            }}
-            onCloseTab={() => {
-              terminalHook.handleCloseTerminalTab(terminalTabMenu.path);
-              setTerminalTabMenu(null);
-            }}
-            onCloseOtherTabs={() => {
-              terminalHook.handleCloseOtherTerminalTabs(terminalTabMenu.path);
-              setTerminalTabMenu(null);
-            }}
-            onCloseAllTabs={() => {
-              terminalHook.handleCloseAllTerminalTabs();
-              setTerminalTabMenu(null);
-            }}
-          />
-        )}
-
-        {/* Archive Confirmation Modal */}
-        {actions.archiveModal && (
-          <ArchiveConfirmationModal
-            archiveModal={actions.archiveModal}
-            onClose={() => actions.setArchiveModal(null)}
-            onConfirmIssue={actions.confirmArchiveIssue}
-            onTerminateProcess={actions.terminateArchiveLockProcess}
-            onArchive={actions.handleArchiveWorktree}
-            areAllIssuesConfirmed={actions.allArchiveIssuesConfirmed}
-            archiving={actions.archiving}
-            terminatingProcessPid={actions.terminatingArchiveLockPid}
-          />
-        )}
-
-        <GlobalDialogs
-          updater={updater}
-          share={share}
-          showShortcutHelp={showShortcutHelp}
-          onSetShowShortcutHelp={setShowShortcutHelp}
-          onOpenSettings={openSettings}
-          deleteConfirmWorktree={actions.deleteConfirmWorktree}
-          onSetDeleteConfirmWorktree={actions.setDeleteConfirmWorktree}
-          onDeleteArchivedWorktree={actions.handleDeleteArchivedWorktree}
-          deletingArchived={actions.deletingArchived}
-        />
 
       </>
     </ToastProvider >
