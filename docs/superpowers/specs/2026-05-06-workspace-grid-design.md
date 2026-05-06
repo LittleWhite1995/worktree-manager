@@ -13,13 +13,13 @@ When working across multiple projects/workspaces simultaneously, users must clic
 ### Component Hierarchy
 
 ```
-App.tsx (minimal change: desktop workspace view → <AppGrid />)
+App.tsx (minimal change: desktop workspace view → <WorkspaceGrid />)
   ├─ Init/Loading flow → unchanged
-  ├─ Desktop workspace → <AppGrid />
+  ├─ Desktop workspace → <WorkspaceGrid />
   ├─ Web browser       → <WorkspaceCell /> (single instance, default cellId "0-0")
   └─ Mobile            → existing mobile layout (unchanged)
 
-AppGrid.tsx (NEW — grid state management, add/close logic, layout)
+WorkspaceGrid.tsx (NEW — grid state management, add/close logic, layout)
   ├─ CellContext.Provider per cell
   ├─ GridRow[0]
   │    ├─ <WorkspaceCell /> [0,0] (primary, not closable)
@@ -35,7 +35,7 @@ AppGrid.tsx (NEW — grid state management, add/close logic, layout)
 WorkspaceCell.tsx (NEW — independent workspace view, extracted from App.tsx desktop layout)
   ├─ Reads cellId from CellContext
   ├─ Own useAppShellState instance (cellId-aware)
-  ├─ CloseButton (top-right, conditional, provided by AppGrid)
+  ├─ CloseButton (top-right, conditional, provided by WorkspaceGrid)
   ├─ WorktreeSidebar (L)
   └─ ContentArea (R)
        ├─ WorktreeDetail / SettingsView
@@ -54,7 +54,7 @@ interface CellContextValue {
 const CellContext = createContext<CellContextValue>({ cellId: '0-0', isPrimary: true });
 ```
 
-- **AppGrid:** wraps each WorkspaceCell in `<CellContext.Provider value={{ cellId, isPrimary }}>`
+- **WorkspaceGrid:** wraps each WorkspaceCell in `<CellContext.Provider value={{ cellId, isPrimary }}>`
 - **Web browser / no grid:** no Provider needed — hooks read default value `{ cellId: "0-0", isPrimary: true }`, behaving exactly as current code
 - **Hooks** (`useWorkspace`, `useAppShellState`): call `useContext(CellContext)` to determine behavior. No prop drilling, no signature changes to hooks.
 
@@ -62,8 +62,8 @@ const CellContext = createContext<CellContextValue>({ cellId: '0-0', isPrimary: 
 
 | File | Change |
 |------|--------|
-| `App.tsx` | Desktop path renders `<AppGrid />`, Web path renders `<WorkspaceCell />`. Init, mobile untouched. |
-| `AppGrid.tsx` | **NEW** — Grid state, layout, add/close logic |
+| `App.tsx` | Desktop path renders `<WorkspaceGrid />`, Web path renders `<WorkspaceCell />`. Init, mobile untouched. |
+| `WorkspaceGrid.tsx` | **NEW** — Grid state, layout, add/close logic |
 | `WorkspaceCell.tsx` | **NEW** — Independent workspace view extracted from App.tsx desktop layout |
 | `contexts/CellContext.ts` | **NEW** — CellContext definition |
 | `TerminalPanel.tsx` | Add worktree name badge when terminal is fullscreen |
