@@ -53,10 +53,10 @@ export interface UseAppShellStateReturn {
   handleTerminalTabContextMenu: (e: React.MouseEvent, path: string, name: string) => void;
 }
 
-export function useAppShellState(t: TFunction): UseAppShellStateReturn {
+export function useAppShellState(t: TFunction, initialWorkspacePath?: string): UseAppShellStateReturn {
   const browserAuth = useBrowserAuth();
   const { isPrimary } = useCellContext();
-  const workspace = useWorkspace(browserAuth.browserAuthenticated);
+  const workspace = useWorkspace(browserAuth.browserAuthenticated, initialWorkspacePath);
 
   const [shareWorkspaceName, setShareWorkspaceName] = useState<string | null>(null);
   const [pendingAutoSelectWorktree, setPendingAutoSelectWorktree] = useState<string | null>(null);

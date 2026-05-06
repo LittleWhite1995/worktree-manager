@@ -58,7 +58,7 @@ export interface UseWorkspaceReturn {
   getLockedWorktrees: (workspacePath: string) => Promise<Record<string, string>>;
 }
 
-export function useWorkspace(ready = true): UseWorkspaceReturn {
+export function useWorkspace(ready = true, initialWorkspacePath?: string): UseWorkspaceReturn {
   const [workspaces, setWorkspaces] = useState<WorkspaceRef[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceRef | null>(null);
   const [config, setConfig] = useState<WorkspaceConfig | null>(null);
@@ -71,6 +71,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
   const initialLoadDone = useRef(false);
   const loadVersion = useRef(0);
   const { isPrimary } = useCellContext();
+  const explicitPath = !isPrimary ? initialWorkspacePath : undefined;
 
   // 初始化时注册窗口 workspace 绑定（从 URL 参数获取）
   useEffect(() => {
@@ -91,9 +92,10 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
   const loadWorkspaces = useCallback(async () => {
     const t0 = performance.now();
     try {
+      const extra = explicitPath ? { workspacePath: explicitPath } : {};
       const [wsList, current] = await Promise.all([
         callBackend<WorkspaceRef[]>("list_workspaces"),
-        callBackend<WorkspaceRef | null>("get_current_workspace"),
+        callBackend<WorkspaceRef | null>("get_current_workspace", extra),
       ]);
       setWorkspaces(wsList);
       setCurrentWorkspace(current);
@@ -101,7 +103,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     } catch (e) {
       setError(String(e));
     }
-  }, []);
+  }, [explicitPath]);
 
   const loadData = useCallback(async (options?: { silent?: boolean }) => {
     const version = ++loadVersion.current;
@@ -115,11 +117,12 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     }
     setError(null);
     try {
+      const extra = explicitPath ? { workspacePath: explicitPath } : {};
       const [cfg, wts, main, path] = await Promise.all([
-        callBackend<WorkspaceConfig>("get_workspace_config"),
-        callBackend<WorktreeListItem[]>("list_worktrees", { includeArchived: true }),
-        callBackend<MainWorkspaceStatus>("get_main_workspace_status"),
-        callBackend<string>("get_config_path_info").catch(() => ''),
+        callBackend<WorkspaceConfig>("get_workspace_config", extra),
+        callBackend<WorktreeListItem[]>("list_worktrees", { includeArchived: true, ...extra }),
+        callBackend<MainWorkspaceStatus>("get_main_workspace_status", extra),
+        callBackend<string>("get_config_path_info", extra).catch(() => ''),
       ]);
       if (version !== loadVersion.current) {
         console.log(`[ws] loadData: discarded (stale v${version}, current v${loadVersion.current})`);
@@ -140,7 +143,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
         setRefreshing(false);
       }
     }
-  }, []);
+  }, [explicitPath]);
 
   useEffect(() => {
     if (!ready) return;
@@ -161,8 +164,9 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     setMainWorkspace(null);
     setError(null);
     try {
+      const extra = explicitPath ? { workspacePath: explicitPath } : {};
       const t1 = performance.now();
-      await callBackend("switch_workspace", { path });
+      await callBackend("switch_workspace", { path, ...extra });
       console.log(`[ws]   backend switch: ${(performance.now() - t1).toFixed(1)}ms`);
       // loadWorkspaces and loadData are independent after switch — run in parallel
       await Promise.all([loadWorkspaces(), loadData()]);
@@ -171,7 +175,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
       setError(String(e));
       setLoading(false);
     }
-  }, [loadWorkspaces, loadData]);
+  }, [explicitPath, loadWorkspaces, loadData]);
 
   const addWorkspace = useCallback(async (name: string, path: string) => {
     try {
@@ -292,10 +296,11 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
   }, [loadData]);
 
   const saveConfig = useCallback(async (newConfig: WorkspaceConfig) => {
-    await callBackend("save_workspace_config", { config: newConfig });
+    const extra = explicitPath ? { workspacePath: explicitPath } : {};
+    await callBackend("save_workspace_config", { config: newConfig, ...extra });
     setConfig(newConfig);
     await loadData();
-  }, [loadData]);
+  }, [explicitPath, loadData]);
 
   const scanLinkedFolders = useCallback(async (projectPath: string): Promise<ScannedFolder[]> => {
     return callBackend<ScannedFolder[]>("scan_linked_folders", { projectPath });
