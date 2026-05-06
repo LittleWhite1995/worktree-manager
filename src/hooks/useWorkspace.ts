@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { callBackend, isTauri } from '../lib/backend';
+import { useCellContext } from '../contexts/CellContext';
 import { getPreferredExternalTerminal, getShellForTerminalLaunch, logTerminalPreferenceDebugInfo } from '../lib/terminalPreferences';
 import type {
   WorkspaceRef,
@@ -69,10 +70,12 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
   const [error, setError] = useState<string | null>(null);
   const initialLoadDone = useRef(false);
   const loadVersion = useRef(0);
+  const { isPrimary } = useCellContext();
 
   // 初始化时注册窗口 workspace 绑定（从 URL 参数获取）
   useEffect(() => {
     if (!ready) return;
+    if (!isPrimary) return; // Secondary cells don't bind to window
     const params = new URLSearchParams(window.location.search);
     const workspacePath = params.get('workspace');
     if (workspacePath) {
@@ -83,7 +86,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
 
     // 窗口关闭时的清理由 Rust 层 on_window_event 处理，
     // 不在前端注册 onCloseRequested 以避免阻塞窗口关闭
-  }, [ready]);
+  }, [ready, isPrimary]);
 
   const loadWorkspaces = useCallback(async () => {
     const t0 = performance.now();
