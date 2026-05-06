@@ -415,11 +415,25 @@ pub fn list_worktrees_impl(
 pub(crate) async fn list_worktrees(
     window: tauri::Window,
     include_archived: bool,
+    workspace_path: Option<String>,
 ) -> Result<Vec<WorktreeListItem>, String> {
-    let label = window.label().to_string();
-    tokio::task::spawn_blocking(move || list_worktrees_impl(&label, include_archived))
+    if let Some(path) = workspace_path {
+        let config = crate::config::load_workspace_config(&path);
+        tokio::task::spawn_blocking(move || {
+            let worktrees_path = std::path::PathBuf::from(&path).join(&config.worktrees_dir);
+            if !worktrees_path.exists() {
+                return Ok(vec![]);
+            }
+            scan_worktrees_dir(&worktrees_path, &config, include_archived)
+        })
         .await
         .map_err(|e| format!("Task join error: {}", e))?
+    } else {
+        let label = window.label().to_string();
+        tokio::task::spawn_blocking(move || list_worktrees_impl(&label, include_archived))
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?
+    }
 }
 
 /// Load worktree folder-name → display-name mapping from mapping.json
@@ -558,12 +572,12 @@ fn scan_worktrees_dir(
     Ok(result)
 }
 
-pub fn get_main_workspace_status_impl(window_label: &str) -> Result<MainWorkspaceStatus, String> {
+fn get_main_workspace_status_by_path(
+    workspace_path: &str,
+    config: &crate::types::WorkspaceConfig,
+) -> Result<MainWorkspaceStatus, String> {
     let start = std::time::Instant::now();
-    let (workspace_path, config) =
-        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
-
-    let root_path = PathBuf::from(&workspace_path);
+    let root_path = PathBuf::from(workspace_path);
     let projects_path = root_path.join("projects");
 
     let mut projects = vec![];
@@ -607,14 +621,30 @@ pub fn get_main_workspace_status_impl(window_label: &str) -> Result<MainWorkspac
     Ok(result)
 }
 
+pub fn get_main_workspace_status_impl(window_label: &str) -> Result<MainWorkspaceStatus, String> {
+    let (workspace_path, config) =
+        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+    get_main_workspace_status_by_path(&workspace_path, &config)
+}
+
 #[tauri::command]
 pub(crate) async fn get_main_workspace_status(
     window: tauri::Window,
+    workspace_path: Option<String>,
 ) -> Result<MainWorkspaceStatus, String> {
-    let label = window.label().to_string();
-    tokio::task::spawn_blocking(move || get_main_workspace_status_impl(&label))
+    if let Some(path) = workspace_path {
+        tokio::task::spawn_blocking(move || {
+            let config = crate::config::load_workspace_config(&path);
+            get_main_workspace_status_by_path(&path, &config)
+        })
         .await
         .map_err(|e| format!("Task join error: {}", e))?
+    } else {
+        let label = window.label().to_string();
+        tokio::task::spawn_blocking(move || get_main_workspace_status_impl(&label))
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?
+    }
 }
 
 /// Set up a single project inside a worktree: fetch → branch check → worktree add → symlink.
