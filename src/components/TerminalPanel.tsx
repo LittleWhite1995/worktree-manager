@@ -262,6 +262,7 @@ interface TerminalPanelProps {
   hasShellIntegration?: boolean;
   onShellIntegrationDetected?: (path: string) => void;
   onCwdChanged?: (path: string, cwd: string) => void;
+  selectedWorktreeName?: string | null;
 }
 
 export const TerminalPanel: FC<TerminalPanelProps> = ({
@@ -293,6 +294,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   hasShellIntegration,
   onShellIntegrationDetected,
   onCwdChanged,
+  selectedWorktreeName,
 }) => {
   const { t } = useTranslation();
   const [showError, setShowError] = useState<string | null>(null);
@@ -501,6 +503,12 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             })}
           </div>
         </div>
+        {/* Worktree name badge (fullscreen only) */}
+        {isFullscreen && selectedWorktreeName && (
+          <span className="text-xs text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded shrink-0">
+            {selectedWorktreeName}
+          </span>
+        )}
         {/* Close All, Voice, Fullscreen & Collapse buttons */}
         {visible && (
           <div className="flex items-center mx-1">
