@@ -15,6 +15,7 @@ import {
 import { useVoiceInput } from "./useVoiceInput";
 import { callBackend, isTauri, setWindowTitle, getShareInfo, clearSessionId } from "../lib/backend";
 import { getWebSocketManager } from "../lib/websocket";
+import { useCellContext } from '../contexts/CellContext';
 import type { ViewMode, TerminalTabMenuState, WorkspaceConfig, WorktreeListItem } from "../types";
 
 export interface UseAppShellStateReturn {
@@ -54,6 +55,7 @@ export interface UseAppShellStateReturn {
 
 export function useAppShellState(t: TFunction): UseAppShellStateReturn {
   const browserAuth = useBrowserAuth();
+  const { isPrimary } = useCellContext();
   const workspace = useWorkspace(browserAuth.browserAuthenticated);
 
   const [shareWorkspaceName, setShareWorkspaceName] = useState<string | null>(null);
@@ -194,12 +196,13 @@ export function useAppShellState(t: TFunction): UseAppShellStateReturn {
   ]);
 
   useEffect(() => {
+    if (!isPrimary) return; // Only primary cell sets window title
     const wsName = workspace.currentWorkspace?.name;
     const title = !wsName
       ? "Worktree Manager"
       : `${wsName} - ${actions.selectedWorktree ? actions.selectedWorktree.name : t("app.mainWorkspace")}`;
     setWindowTitle(title);
-  }, [actions.selectedWorktree, t, workspace.currentWorkspace?.name]);
+  }, [isPrimary, actions.selectedWorktree, t, workspace.currentWorkspace?.name]);
 
   const handleTerminalTabContextMenu = useCallback(
     (e: React.MouseEvent, path: string, name: string) => {
@@ -228,6 +231,8 @@ export function useAppShellState(t: TFunction): UseAppShellStateReturn {
   );
 
   useEffect(() => {
+    if (!isPrimary) return; // Only primary cell registers global shortcuts
+
     function handleKeyDown(e: KeyboardEvent): void {
       const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"]');
       if (e.key === "Escape") {
@@ -278,7 +283,7 @@ export function useAppShellState(t: TFunction): UseAppShellStateReturn {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("click", handleClick);
     };
-  }, [actions, modals, openSettings, terminalFullscreen, viewMode, workspace.config]);
+  }, [isPrimary, actions, modals, openSettings, terminalFullscreen, viewMode, workspace.config]);
 
   return {
     browserAuth,
