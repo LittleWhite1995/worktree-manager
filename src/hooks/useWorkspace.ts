@@ -65,7 +65,7 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
   const [worktrees, setWorktrees] = useState<WorktreeListItem[]>([]);
   const [mainWorkspace, setMainWorkspace] = useState<MainWorkspaceStatus | null>(null);
   const [configPath, setConfigPath] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!shellMode);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const initialLoadDone = useRef(false);
@@ -151,7 +151,6 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
     initialLoadDone.current = true;
     if (shellMode) {
       // Shell mode: only load workspace list (cells handle their own worktree data)
-      setLoading(false);
       loadWorkspaces();
     } else {
       loadWorkspaces().then(() => loadData());
