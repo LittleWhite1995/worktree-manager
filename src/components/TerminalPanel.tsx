@@ -411,7 +411,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
   return (
     <div
-      className={`border-t border-slate-700 flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-slate-900' : 'shrink-0'} ${isFullscreen ? 'fixed inset-0 z-50 border-t-0 bg-slate-900' : ''}`}
+      className={`border-t border-slate-700 flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-slate-900' : 'shrink-0'} ${isFullscreen ? 'absolute inset-0 z-50 border-t-0 bg-slate-900' : ''}`}
       style={isFullscreen || fillContainer ? undefined : { height: visible ? height : 32 }}
     >
       {/* Resize handle - hidden in fullscreen */}
