@@ -151,6 +151,7 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
     initialLoadDone.current = true;
     if (shellMode) {
       // Shell mode: only load workspace list (cells handle their own worktree data)
+      setLoading(false);
       loadWorkspaces();
     } else {
       loadWorkspaces().then(() => loadData());
