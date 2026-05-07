@@ -666,20 +666,12 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
             (((e.metaKey || e.ctrlKey) && !e.altKey && e.code === 'KeyV') ||
               (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'Insert'));
           if (isPasteShortcut) {
-            if (pendingPasteFallbackRef.current !== null) {
-              clearTimeout(pendingPasteFallbackRef.current);
-            }
-            pendingPasteFallbackRef.current = window.setTimeout(() => {
-              pendingPasteFallbackRef.current = null;
-              void navigator.clipboard.readText()
-                .then((text) => {
-                  sendPastedText(text, 'fallback');
-                })
-                .catch(() => {});
-            }, 40);
-            // Let the native paste event fire first; the async clipboard read is only a fallback
-            // for environments where the event never arrives.
-            return true;
+            // Block xterm from handling paste to avoid:
+            // - Duplicate paste on Windows (xterm has built-in Ctrl+V handling)
+            // - macOS clipboard permission popup (xterm may call navigator.clipboard.readText())
+            // Returning false does NOT preventDefault — the browser still fires the native
+            // paste ClipboardEvent, which handleTerminalPaste catches via event.clipboardData.
+            return false;
           }
           if (e.altKey && e.code === 'KeyV') {
             return !(voiceStatusRef.current === 'ready' || voiceStatusRef.current === 'recording');

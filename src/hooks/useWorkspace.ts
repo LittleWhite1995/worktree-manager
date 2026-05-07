@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { callBackend, isTauri } from '../lib/backend';
+import { useCellContext } from '../contexts/CellContext';
 import { getPreferredExternalTerminal, getShellForTerminalLaunch, logTerminalPreferenceDebugInfo } from '../lib/terminalPreferences';
 import type {
   WorkspaceRef,
@@ -25,7 +26,7 @@ export interface UseWorkspaceReturn {
   error: string | null;
   setError: (error: string | null) => void;
   loadWorkspaces: () => Promise<void>;
-  loadData: () => Promise<void>;
+  loadData: (options?: { silent?: boolean }) => Promise<void>;
   switchWorkspace: (path: string) => Promise<void>;
   addWorkspace: (name: string, path: string) => Promise<void>;
   createWorkspace: (name: string, path: string) => Promise<void>;
@@ -57,22 +58,25 @@ export interface UseWorkspaceReturn {
   getLockedWorktrees: (workspacePath: string) => Promise<Record<string, string>>;
 }
 
-export function useWorkspace(ready = true): UseWorkspaceReturn {
+export function useWorkspace(ready = true, initialWorkspacePath?: string, shellMode = false): UseWorkspaceReturn {
   const [workspaces, setWorkspaces] = useState<WorkspaceRef[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceRef | null>(null);
   const [config, setConfig] = useState<WorkspaceConfig | null>(null);
   const [worktrees, setWorktrees] = useState<WorktreeListItem[]>([]);
   const [mainWorkspace, setMainWorkspace] = useState<MainWorkspaceStatus | null>(null);
   const [configPath, setConfigPath] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!shellMode);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const initialLoadDone = useRef(false);
   const loadVersion = useRef(0);
+  const { isPrimary, cellId } = useCellContext();
+  const explicitPath = !isPrimary ? initialWorkspacePath : undefined;
 
   // 初始化时注册窗口 workspace 绑定（从 URL 参数获取）
   useEffect(() => {
     if (!ready) return;
+    if (!isPrimary) return; // Secondary cells don't bind to window
     const params = new URLSearchParams(window.location.search);
     const workspacePath = params.get('workspace');
     if (workspacePath) {
@@ -83,14 +87,15 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
 
     // 窗口关闭时的清理由 Rust 层 on_window_event 处理，
     // 不在前端注册 onCloseRequested 以避免阻塞窗口关闭
-  }, [ready]);
+  }, [ready, isPrimary]);
 
   const loadWorkspaces = useCallback(async () => {
     const t0 = performance.now();
     try {
+      const extra = explicitPath ? { workspacePath: explicitPath } : {};
       const [wsList, current] = await Promise.all([
         callBackend<WorkspaceRef[]>("list_workspaces"),
-        callBackend<WorkspaceRef | null>("get_current_workspace"),
+        callBackend<WorkspaceRef | null>("get_current_workspace", extra),
       ]);
       setWorkspaces(wsList);
       setCurrentWorkspace(current);
@@ -98,28 +103,27 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     } catch (e) {
       setError(String(e));
     }
-  }, []);
+  }, [explicitPath]);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (options?: { silent?: boolean }) => {
     const version = ++loadVersion.current;
     const t0 = performance.now();
-    // Only show full-page loading on initial load, use refreshing for subsequent
-    if (!initialLoadDone.current) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
+    if (!options?.silent) {
+      if (!initialLoadDone.current) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
     }
     setError(null);
     try {
+      const extra = explicitPath ? { workspacePath: explicitPath } : {};
       const [cfg, wts, main, path] = await Promise.all([
-        callBackend<WorkspaceConfig>("get_workspace_config"),
-        callBackend<WorktreeListItem[]>("list_worktrees", { includeArchived: true }),
-        callBackend<MainWorkspaceStatus>("get_main_workspace_status"),
-        // get_config_path_info is localhost-only; in browser sharing mode it returns 403.
-        // Catch individually so it doesn't break the entire loadData.
-        callBackend<string>("get_config_path_info").catch(() => ''),
+        callBackend<WorkspaceConfig>("get_workspace_config", extra),
+        callBackend<WorktreeListItem[]>("list_worktrees", { includeArchived: true, ...extra }),
+        callBackend<MainWorkspaceStatus>("get_main_workspace_status", extra),
+        callBackend<string>("get_config_path_info", extra).catch(() => ''),
       ]);
-      // Discard stale results if a newer load has started
       if (version !== loadVersion.current) {
         console.log(`[ws] loadData: discarded (stale v${version}, current v${loadVersion.current})`);
         return;
@@ -134,19 +138,24 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
       if (version !== loadVersion.current) return;
       setError(String(e));
     } finally {
-      if (version === loadVersion.current) {
+      if (version === loadVersion.current && !options?.silent) {
         setLoading(false);
         setRefreshing(false);
       }
     }
-  }, []);
+  }, [explicitPath]);
 
   useEffect(() => {
     if (!ready) return;
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
-    loadWorkspaces().then(() => loadData());
-  }, [ready, loadWorkspaces, loadData]);
+    if (shellMode) {
+      // Shell mode: only load workspace list (cells handle their own worktree data)
+      loadWorkspaces();
+    } else {
+      loadWorkspaces().then(() => loadData());
+    }
+  }, [ready, shellMode, loadWorkspaces, loadData]);
 
   const switchWorkspace = useCallback(async (path: string) => {
     const t0 = performance.now();
@@ -160,8 +169,9 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
     setMainWorkspace(null);
     setError(null);
     try {
+      const extra = explicitPath ? { workspacePath: explicitPath } : {};
       const t1 = performance.now();
-      await callBackend("switch_workspace", { path });
+      await callBackend("switch_workspace", { path, ...extra });
       console.log(`[ws]   backend switch: ${(performance.now() - t1).toFixed(1)}ms`);
       // loadWorkspaces and loadData are independent after switch — run in parallel
       await Promise.all([loadWorkspaces(), loadData()]);
@@ -170,7 +180,7 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
       setError(String(e));
       setLoading(false);
     }
-  }, [loadWorkspaces, loadData]);
+  }, [explicitPath, loadWorkspaces, loadData]);
 
   const addWorkspace = useCallback(async (name: string, path: string) => {
     try {
@@ -291,10 +301,11 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
   }, [loadData]);
 
   const saveConfig = useCallback(async (newConfig: WorkspaceConfig) => {
-    await callBackend("save_workspace_config", { config: newConfig });
+    const extra = explicitPath ? { workspacePath: explicitPath } : {};
+    await callBackend("save_workspace_config", { config: newConfig, ...extra });
     setConfig(newConfig);
     await loadData();
-  }, [loadData]);
+  }, [explicitPath, loadData]);
 
   const scanLinkedFolders = useCallback(async (projectPath: string): Promise<ScannedFolder[]> => {
     return callBackend<ScannedFolder[]>("scan_linked_folders", { projectPath });
@@ -313,12 +324,12 @@ export function useWorkspace(ready = true): UseWorkspaceReturn {
   }, []);
 
   const lockWorktree = useCallback(async (workspacePath: string, worktreeName: string): Promise<void> => {
-    await callBackend("lock_worktree", { workspacePath, worktreeName });
-  }, []);
+    await callBackend("lock_worktree", { workspacePath, worktreeName, cellId });
+  }, [cellId]);
 
   const unlockWorktree = useCallback(async (workspacePath: string, worktreeName: string): Promise<void> => {
-    await callBackend("unlock_worktree", { workspacePath, worktreeName });
-  }, []);
+    await callBackend("unlock_worktree", { workspacePath, worktreeName, cellId });
+  }, [cellId]);
 
   const getLockedWorktrees = useCallback(async (workspacePath: string): Promise<Record<string, string>> => {
     return callBackend<Record<string, string>>("get_locked_worktrees", { workspacePath });

@@ -28,8 +28,16 @@ pub fn get_current_workspace_impl(window_label: &str) -> Option<WorkspaceRef> {
 }
 
 #[tauri::command]
-pub(crate) fn get_current_workspace(window: tauri::Window) -> Option<WorkspaceRef> {
-    get_current_workspace_impl(window.label())
+pub(crate) fn get_current_workspace(
+    window: tauri::Window,
+    workspace_path: Option<String>,
+) -> Option<WorkspaceRef> {
+    if let Some(path) = workspace_path {
+        let global = load_global_config();
+        global.workspaces.iter().find(|w| w.path == path).cloned()
+    } else {
+        get_current_workspace_impl(window.label())
+    }
 }
 
 pub fn switch_workspace_impl(window_label: &str, path: String) -> Result<(), String> {
@@ -72,8 +80,24 @@ pub fn switch_workspace_impl(window_label: &str, path: String) -> Result<(), Str
 }
 
 #[tauri::command]
-pub(crate) fn switch_workspace(window: tauri::Window, path: String) -> Result<(), String> {
-    switch_workspace_impl(window.label(), path)
+pub(crate) fn switch_workspace(
+    window: tauri::Window,
+    path: String,
+    workspace_path: Option<String>,
+) -> Result<(), String> {
+    if workspace_path.is_some() {
+        // Non-primary cell: verify workspace exists but don't bind to window
+        let global = load_global_config();
+        if !global.workspaces.iter().any(|w| w.path == path) {
+            return Err("Workspace not found".to_string());
+        }
+        // Clear config cache so fresh data is loaded
+        let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+        *cache = None;
+        Ok(())
+    } else {
+        switch_workspace_impl(window.label(), path)
+    }
 }
 
 #[tauri::command]
@@ -210,8 +234,15 @@ pub fn get_workspace_config_impl(window_label: &str) -> Result<WorkspaceConfig, 
 }
 
 #[tauri::command]
-pub(crate) fn get_workspace_config(window: tauri::Window) -> Result<WorkspaceConfig, String> {
-    get_workspace_config_impl(window.label())
+pub(crate) fn get_workspace_config(
+    window: tauri::Window,
+    workspace_path: Option<String>,
+) -> Result<WorkspaceConfig, String> {
+    if let Some(path) = workspace_path {
+        Ok(crate::config::load_workspace_config(&path))
+    } else {
+        get_workspace_config_impl(window.label())
+    }
 }
 
 pub fn save_workspace_config_impl(
@@ -226,8 +257,13 @@ pub fn save_workspace_config_impl(
 pub(crate) fn save_workspace_config(
     window: tauri::Window,
     config: WorkspaceConfig,
+    workspace_path: Option<String>,
 ) -> Result<(), String> {
-    save_workspace_config_impl(window.label(), config)
+    if let Some(path) = workspace_path {
+        save_workspace_config_internal(&path, &config)
+    } else {
+        save_workspace_config_impl(window.label(), config)
+    }
 }
 
 #[tauri::command]
@@ -252,8 +288,15 @@ pub fn get_config_path_info_impl(window_label: &str) -> String {
 }
 
 #[tauri::command]
-pub(crate) fn get_config_path_info(window: tauri::Window) -> String {
-    get_config_path_info_impl(window.label())
+pub(crate) fn get_config_path_info(
+    window: tauri::Window,
+    workspace_path: Option<String>,
+) -> String {
+    if let Some(path) = workspace_path {
+        normalize_path(&get_workspace_config_path(&path).to_string_lossy())
+    } else {
+        get_config_path_info_impl(window.label())
+    }
 }
 
 // ==================== HTTP Server 共享接口 ====================

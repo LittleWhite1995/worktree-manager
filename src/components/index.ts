@@ -22,4 +22,5 @@ export { ToastProvider, useToast } from './Toast';
 export { GlobalDialogs } from './GlobalDialogs';
 export { MobileWorktreeList } from './MobileWorktreeList';
 export { MobileWorktreeDetail } from './MobileWorktreeDetail';
-
+export { WorkspaceCell } from './WorkspaceCell';
+export { WorkspaceGrid } from './WorkspaceGrid';

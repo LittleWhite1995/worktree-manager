@@ -18,6 +18,8 @@ function readSavedOrder(key: string): string[] {
 }
 
 export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
+  cellId = '0-0',
+  isPrimary = true,
   workspaces,
   currentWorkspace,
   showWorkspaceMenu,
@@ -69,7 +71,7 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
   }), [worktrees, _isTauri, lockedWorktrees]);
   const archivedWorktrees = useMemo(() => worktrees.filter((worktree) => worktree.is_archived), [worktrees]);
   const { longPressFiredRef, handleTouchStart, handleTouchEnd, handleTouchMove } = useLongPressContextMenu(onContextMenu);
-  const [currentWindowLabel, setCurrentWindowLabel] = useState('main');
+  const [currentWindowLabel, setCurrentWindowLabel] = useState('main:0');
 
   // Sort order persistence
   const workspacePath = currentWorkspace?.path ?? '';
@@ -132,8 +134,8 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
   }, [sidebarWidth]);
 
   useEffect(() => {
-    getWindowLabel().then(setCurrentWindowLabel);
-  }, []);
+    getWindowLabel().then(label => setCurrentWindowLabel(`${label}:${cellId}`));
+  }, [cellId]);
   if (collapsed) {
     return (
       <CollapsedSidebar
@@ -155,6 +157,7 @@ export const WorktreeSidebar: FC<WorktreeSidebarProps> = ({
 
   return (
     <ExpandedSidebar
+      isPrimary={isPrimary}
       activeWorktrees={sortedActiveWorktrees}
       onSortOrderChange={updateSortOrder}
       archivedWorktrees={archivedWorktrees}

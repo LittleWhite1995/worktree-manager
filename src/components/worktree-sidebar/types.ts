@@ -9,6 +9,8 @@ import type {
 } from '../../types';
 
 export interface WorktreeSidebarProps {
+  cellId?: string;
+  isPrimary?: boolean;
   workspaces: WorkspaceRef[];
   currentWorkspace: WorkspaceRef | null;
   showWorkspaceMenu: boolean;

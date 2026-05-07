@@ -7,6 +7,7 @@ import type { TerminalHandle } from './Terminal';
 import type { SearchOptions } from '../terminal';
 import {
   FolderIcon,
+  FolderOpenIcon,
   TerminalIcon,
   ChevronIcon,
   ChevronDownIcon,
@@ -14,6 +15,7 @@ import {
   MaximizeIcon,
   RestoreIcon,
   MicIcon,
+  EditorIcon,
 } from './Icons';
 import type { VoiceStatus, StagingState } from '../hooks/useVoiceInput';
 import type { TerminalTab } from '../types';
@@ -262,6 +264,10 @@ interface TerminalPanelProps {
   hasShellIntegration?: boolean;
   onShellIntegrationDetected?: (path: string) => void;
   onCwdChanged?: (path: string, cwd: string) => void;
+  selectedWorktreeName?: string | null;
+  onOpenInEditor?: (path: string, editor?: string) => void;
+  onRevealInFinder?: (path: string) => void;
+  selectedEditor?: string;
 }
 
 export const TerminalPanel: FC<TerminalPanelProps> = ({
@@ -293,10 +299,15 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   hasShellIntegration,
   onShellIntegrationDetected,
   onCwdChanged,
+  selectedWorktreeName,
+  onOpenInEditor,
+  onRevealInFinder,
+  selectedEditor,
 }) => {
   const { t } = useTranslation();
   const [showError, setShowError] = useState<string | null>(null);
   const [showWarning, setShowWarning] = useState<string | null>(null);
+  const [badgeCopied, setBadgeCopied] = useState(false);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAltVHint, setShowAltVHint] = useState(false);
@@ -409,7 +420,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
   return (
     <div
-      className={`border-t border-slate-700 flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-slate-900' : 'shrink-0'} ${isFullscreen ? 'fixed inset-0 z-50 border-t-0 bg-slate-900' : ''}`}
+      className={`border-t border-slate-700 flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-slate-900' : 'shrink-0'} ${isFullscreen ? 'absolute inset-0 z-50 border-t-0 bg-slate-900' : ''}`}
       style={isFullscreen || fillContainer ? undefined : { height: visible ? height : 32 }}
     >
       {/* Resize handle - hidden in fullscreen */}
@@ -501,6 +512,58 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             })}
           </div>
         </div>
+        {/* Quick action badges + Worktree name badge (fullscreen only) */}
+        {isFullscreen && selectedWorktreeName && (() => {
+          const activeTab = terminalTabs.find(tab => tab.path === activeTerminalTab);
+          const activePath = activeTerminalTab || '';
+          // Resolve project-specific IDE or fall back to global selectedEditor
+          let editorId = selectedEditor || '';
+          if (activeTab && !activeTab.isRoot) {
+            try {
+              const prefs: Record<string, string> = JSON.parse(localStorage.getItem('project_preferred_editors') || '{}');
+              if (prefs[activeTab.name]) editorId = prefs[activeTab.name];
+            } catch { /* ignore */ }
+          }
+          return (
+            <div className="flex items-center gap-1 shrink-0 mr-1">
+              {onOpenInEditor && activePath && (
+                <button
+                  onClick={() => onOpenInEditor(activePath, editorId)}
+                  className="p-1 rounded text-slate-400 hover:text-blue-300 hover:bg-slate-700/60 transition-colors"
+                  title={t('detail.openInEditor')}
+                >
+                  <EditorIcon editorId={editorId} className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {onRevealInFinder && activePath && (
+                <button
+                  onClick={() => onRevealInFinder(activePath)}
+                  className="p-1 rounded text-slate-400 hover:text-blue-300 hover:bg-slate-700/60 transition-colors"
+                  title={t('detail.revealInFinder')}
+                >
+                  <FolderOpenIcon className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                className={`terminal-badge-marquee text-xs px-2.5 py-0.5 rounded-md max-w-[160px] overflow-hidden cursor-pointer transition-colors ${
+                  badgeCopied
+                    ? 'text-green-200 bg-green-500/20 border border-green-400/40'
+                    : 'text-blue-200 bg-blue-500/20 border border-blue-400/30 hover:bg-blue-400/30 hover:text-blue-100 hover:border-blue-300/50 active:bg-blue-400/40'
+                }`}
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedWorktreeName);
+                  setBadgeCopied(true);
+                  setTimeout(() => setBadgeCopied(false), 1500);
+                }}
+                title={selectedWorktreeName}
+              >
+                <span className="inline-block whitespace-nowrap">
+                  {badgeCopied ? `✓ ${t('common.copied')}` : selectedWorktreeName}
+                </span>
+              </button>
+            </div>
+          );
+        })()}
         {/* Close All, Voice, Fullscreen & Collapse buttons */}
         {visible && (
           <div className="flex items-center mx-1">

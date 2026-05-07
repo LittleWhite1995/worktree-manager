@@ -124,6 +124,7 @@ interface ExpandedSidebarProps extends Omit<WorktreeSidebarProps, 'worktrees'> {
   activeWorktrees: WorktreeListItem[];
   archivedWorktrees: WorktreeListItem[];
   currentWindowLabel: string;
+  isPrimary?: boolean;
   isTauri: boolean;
   longPressFiredRef: MutableRefObject<boolean>;
   onSortOrderChange: (newOrder: string[]) => void;
@@ -145,6 +146,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
   currentWorkspace,
   hasLastConfig = false,
   hasNgrokToken = false,
+  isPrimary = true,
   isTauri,
   lockedWorktrees = {},
   longPressFiredRef,
@@ -274,24 +276,31 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
       >
         <div className="p-3 border-b border-slate-700/50">
           <div className="flex items-center gap-1.5">
-            {isTauri ? (
-              <WorkspaceSwitcher
-                currentWorkspacePath={currentWorkspace?.path ?? null}
-                currentWorkspaceName={currentWorkspace?.name || t('sidebar.selectWorkspace')}
-                onAddWorkspace={() => { onAddWorkspace(); onShowWorkspaceMenu(false); }}
-                onOpenInNewWindow={onOpenInNewWindow}
-                onShowWorkspaceMenu={onShowWorkspaceMenu}
-                onSwitchClick={handleSwitchClick}
-                showWorkspaceMenu={showWorkspaceMenu}
-                workspaces={workspaces}
-              />
+            {isPrimary ? (
+              isTauri ? (
+                <WorkspaceSwitcher
+                  currentWorkspacePath={currentWorkspace?.path ?? null}
+                  currentWorkspaceName={currentWorkspace?.name || t('sidebar.selectWorkspace')}
+                  onAddWorkspace={() => { onAddWorkspace(); onShowWorkspaceMenu(false); }}
+                  onOpenInNewWindow={onOpenInNewWindow}
+                  onShowWorkspaceMenu={onShowWorkspaceMenu}
+                  onSwitchClick={handleSwitchClick}
+                  showWorkspaceMenu={showWorkspaceMenu}
+                  workspaces={workspaces}
+                />
+              ) : (
+                <div className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 bg-slate-700/30 rounded-md">
+                  <WorkspaceIcon className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span className="font-medium text-sm truncate">{currentWorkspace?.name || 'Workspace'}</span>
+                </div>
+              )
             ) : (
               <div className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 bg-slate-700/30 rounded-md">
-                <WorkspaceIcon className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="font-medium text-sm truncate">{currentWorkspace?.name || 'Workspace'}</span>
+                <WorkspaceIcon className="w-4 h-4 text-slate-500 shrink-0" />
+                <span className="font-medium text-sm truncate text-slate-400">{currentWorkspace?.name || 'Workspace'}</span>
               </div>
             )}
-            {isTauri && (
+            {isTauri && isPrimary && (
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -372,7 +381,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
           showArchived={showArchived}
         />
 
-        {isTauri && isMainWin && (
+        {isTauri && isMainWin && isPrimary && (
           <ShareBar
             active={shareActive}
             urls={shareUrls}
@@ -391,15 +400,19 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
           />
         )}
 
-        <SidebarBottomBar
-          appVersion={appVersion}
-          hasUpdate={hasUpdate}
-          isDev={isDev}
-          isMainWin={isMainWin}
-          isTauri={isTauri}
-          onCheckUpdate={onCheckUpdate}
-          onOpenLogDir={handleOpenLogDir}
-        />
+        {isPrimary ? (
+          <SidebarBottomBar
+            appVersion={appVersion}
+            hasUpdate={hasUpdate}
+            isDev={isDev}
+            isMainWin={isMainWin}
+            isTauri={isTauri}
+            onCheckUpdate={onCheckUpdate}
+            onOpenLogDir={handleOpenLogDir}
+          />
+        ) : (
+          <div className="h-8 border-t border-slate-700/50 shrink-0" />
+        )}
 
         {/* Drag handle for resizing - hidden on mobile */}
         <div
@@ -713,6 +726,7 @@ const WorktreeList: FC<{
             {worktreesWithMatch.map(({ wt: worktree, matchResult }) => {
               const lockedBy = lockedWorktrees[worktree.name];
               const isLockedByOther = lockedBy && lockedBy !== currentWindowLabel;
+              const isLockedBySameWindow = isLockedByOther && lockedBy.split(':')[0] === currentWindowLabel.split(':')[0];
               const isDeployed = worktree.name === occupation?.worktree_name;
               const canSelect = (!isLockedByOther || !isTauri) && !isDeployed;
 
@@ -750,7 +764,11 @@ const WorktreeList: FC<{
                         <StatusBadge label={t('deploy.deployed')} tooltip={t('deploy.deployedTooltip')} tone="blue" />
                       )}
                       {isLockedByOther && !isDeployed && (
-                        <StatusBadge label={t('sidebar.occupied')} tooltip={t('sidebar.occupiedTooltip')} tone="amber" />
+                        <StatusBadge
+                          label={t(isLockedBySameWindow ? 'sidebar.occupiedByCell' : 'sidebar.occupied')}
+                          tooltip={t(isLockedBySameWindow ? 'sidebar.occupiedByCellTooltip' : 'sidebar.occupiedTooltip')}
+                          tone="amber"
+                        />
                       )}
                       {worktree.projects.some(project => project.has_uncommitted) && !isLockedByOther && !isDeployed && (() => {
                         const tip = worktree.projects

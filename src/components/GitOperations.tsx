@@ -71,6 +71,7 @@ interface GitOperationsProps {
   worktreeDisplayName?: string;
   workspaceConfig?: WorkspaceConfig;
   onRefresh?: () => void;
+  onSilentRefresh?: () => void;
   onOpenTerminal?: (path: string) => void;
   autoRefreshSlot?: number;
 }
@@ -84,6 +85,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
   worktreeDisplayName,
   workspaceConfig,
   onRefresh,
+  onSilentRefresh,
   onOpenTerminal,
   autoRefreshSlot,
 }) => {
@@ -157,16 +159,22 @@ export const GitOperations: FC<GitOperationsProps> = ({
     setErrorPersistent(false);
   }, []);
 
-  const loadStats = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setErrorPersistent(false);
+  const loadStats = useCallback(async (silent?: boolean) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+      setErrorPersistent(false);
+    }
     try {
       setStats(await getBranchDiffStats(projectPath, baseBranch));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!silent) {
+        setError(err instanceof Error ? err.message : String(err));
+      } else {
+        console.warn('[auto-refresh] loadStats failed silently:', err);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [projectPath, baseBranch]);
 
@@ -222,7 +230,10 @@ export const GitOperations: FC<GitOperationsProps> = ({
 
       autoRefreshInFlightRef.current = true;
       try {
-        await syncRemoteState();
+        await Promise.all([
+          onSilentRefresh?.(),
+          loadStats(true),
+        ]);
       } finally {
         autoRefreshInFlightRef.current = false;
       }
@@ -239,7 +250,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
       clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [autoRefreshSlot, syncRemoteState]);
+  }, [autoRefreshSlot, onSilentRefresh, loadStats]);
 
   const runGitAction = async (
     action: typeof activeAction,

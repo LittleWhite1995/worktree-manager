@@ -945,35 +945,6 @@
           </div>
         </div>
 
-        <!-- Memory Hook Plugin -->
-        <div class="feature-card" style="border-color: rgba(59, 130, 246, 0.3); background: linear-gradient(135deg, #1e293b 0%, #172554 100%);">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="text-3xl">&#x1F9E0;</div>
-            <h3 class="text-xl font-semibold">Memory Hook</h3>
-          </div>
-          <p class="text-slate-400 text-sm leading-relaxed mb-4">Claude Code 插件，自动注入需求上下文并归档对话知识。每次进入 worktree 时注入 requirement-docs，会话结束时自动提炼对话并归档到 Memory Wiki。</p>
-          <div class="space-y-2 text-sm">
-            <div class="flex items-start gap-2">
-              <span class="text-blue-400 mt-0.5">&#x2713;</span>
-              <span class="text-slate-300">自动注入 requirement-docs/{branch}/README.md</span>
-            </div>
-            <div class="flex items-start gap-2">
-              <span class="text-blue-400 mt-0.5">&#x2713;</span>
-              <span class="text-slate-300">SessionEnd 自动归档对话到 .memory-staging</span>
-            </div>
-            <div class="flex items-start gap-2">
-              <span class="text-blue-400 mt-0.5">&#x2713;</span>
-              <span class="text-slate-300">两阶段 LLM 提炼（accumulate + finalize）</span>
-            </div>
-            <div class="flex items-start gap-2">
-              <span class="text-blue-400 mt-0.5">&#x2713;</span>
-              <span class="text-slate-300">归档到 Memory Wiki（requirements, projects, log）</span>
-            </div>
-          </div>
-          <div class="mt-4 pt-4 border-t border-slate-700/50">
-            <code class="text-xs font-mono text-blue-300 bg-slate-950 px-2 py-1 rounded">claude plugin install worktree-manager-memory-hook</code>
-          </div>
-        </div>
       </div>
 
       <!-- Vault Integration -->
@@ -982,7 +953,7 @@
           <div class="text-3xl">&#x1F3DB;&#xFE0F;</div>
           <div>
             <h3 class="text-xl font-semibold">Vault 知识库集成</h3>
-            <p class="text-slate-500 text-sm">连接 Vault 和 Memory Hook 的桥梁</p>
+            <p class="text-slate-500 text-sm">连接 Obsidian Vault 知识库</p>
           </div>
         </div>
         <div class="grid md:grid-cols-3 gap-4 text-sm">

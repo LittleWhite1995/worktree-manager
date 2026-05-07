@@ -15,9 +15,11 @@ import {
 import { useVoiceInput } from "./useVoiceInput";
 import { callBackend, isTauri, setWindowTitle, getShareInfo, clearSessionId } from "../lib/backend";
 import { getWebSocketManager } from "../lib/websocket";
+import { useCellContext } from '../contexts/CellContext';
 import type { ViewMode, TerminalTabMenuState, WorkspaceConfig, WorktreeListItem } from "../types";
 
 export interface UseAppShellStateReturn {
+  cellId: string;
   browserAuth: ReturnType<typeof useBrowserAuth>;
   workspace: ReturnType<typeof useWorkspace>;
   shareWorkspaceName: string | null;
@@ -52,9 +54,10 @@ export interface UseAppShellStateReturn {
   handleTerminalTabContextMenu: (e: React.MouseEvent, path: string, name: string) => void;
 }
 
-export function useAppShellState(t: TFunction): UseAppShellStateReturn {
+export function useAppShellState(t: TFunction, initialWorkspacePath?: string, shellMode = false): UseAppShellStateReturn {
   const browserAuth = useBrowserAuth();
-  const workspace = useWorkspace(browserAuth.browserAuthenticated);
+  const { isPrimary, cellId } = useCellContext();
+  const workspace = useWorkspace(browserAuth.browserAuthenticated, initialWorkspacePath, shellMode);
 
   const [shareWorkspaceName, setShareWorkspaceName] = useState<string | null>(null);
   const [pendingAutoSelectWorktree, setPendingAutoSelectWorktree] = useState<string | null>(null);
@@ -165,20 +168,26 @@ export function useAppShellState(t: TFunction): UseAppShellStateReturn {
   }, []);
 
   useEffect(() => {
+    if (shellMode) return;
+    if (!isPrimary) return;
+
+    // Browser/mobile auto-select: navigate to the worktree the server indicates
     if (
+      !isTauri() &&
       !actions.hasUserSelected &&
       !actions.selectedWorktree &&
-      workspace.worktrees.length > 0 &&
-      workspace.currentWorkspace
+      pendingAutoSelectWorktree &&
+      workspace.worktrees.length > 0
     ) {
-      actions.tryAutoSelect(
-        workspace.worktrees,
-        workspace.currentWorkspace.path,
-        pendingAutoSelectWorktree,
-        setPendingAutoSelectWorktree,
-        isMobileWeb,
-      );
+      const target = workspace.worktrees.find(w => w.name === pendingAutoSelectWorktree);
+      if (target) {
+        actions.setSelectedWorktree(target);
+        actions.setHasUserSelected(true);
+        setPendingAutoSelectWorktree(null);
+      }
     }
+
+    // Keep selected worktree data in sync with refreshed worktree list
     if (actions.selectedWorktree) {
       const updated = workspace.worktrees.find((w) => w.name === actions.selectedWorktree!.name);
       if (updated && JSON.stringify(updated) !== JSON.stringify(actions.selectedWorktree)) {
@@ -187,19 +196,20 @@ export function useAppShellState(t: TFunction): UseAppShellStateReturn {
     }
   }, [
     actions,
-    isMobileWeb,
+    isPrimary,
+    shellMode,
     pendingAutoSelectWorktree,
-    workspace.currentWorkspace,
     workspace.worktrees,
   ]);
 
   useEffect(() => {
+    if (!isPrimary || shellMode) return; // Only primary cell sets window title; shell skips
     const wsName = workspace.currentWorkspace?.name;
     const title = !wsName
       ? "Worktree Manager"
       : `${wsName} - ${actions.selectedWorktree ? actions.selectedWorktree.name : t("app.mainWorkspace")}`;
     setWindowTitle(title);
-  }, [actions.selectedWorktree, t, workspace.currentWorkspace?.name]);
+  }, [isPrimary, shellMode, actions.selectedWorktree, t, workspace.currentWorkspace?.name]);
 
   const handleTerminalTabContextMenu = useCallback(
     (e: React.MouseEvent, path: string, name: string) => {
@@ -228,6 +238,8 @@ export function useAppShellState(t: TFunction): UseAppShellStateReturn {
   );
 
   useEffect(() => {
+    if (!isPrimary || shellMode) return; // Only primary cell registers global shortcuts; shell skips
+
     function handleKeyDown(e: KeyboardEvent): void {
       const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"]');
       if (e.key === "Escape") {
@@ -278,9 +290,10 @@ export function useAppShellState(t: TFunction): UseAppShellStateReturn {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("click", handleClick);
     };
-  }, [actions, modals, openSettings, terminalFullscreen, viewMode, workspace.config]);
+  }, [isPrimary, shellMode, actions, modals, openSettings, terminalFullscreen, viewMode, workspace.config]);
 
   return {
+    cellId,
     browserAuth,
     workspace,
     shareWorkspaceName,
