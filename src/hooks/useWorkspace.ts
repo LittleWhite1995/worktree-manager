@@ -58,7 +58,7 @@ export interface UseWorkspaceReturn {
   getLockedWorktrees: (workspacePath: string) => Promise<Record<string, string>>;
 }
 
-export function useWorkspace(ready = true, initialWorkspacePath?: string): UseWorkspaceReturn {
+export function useWorkspace(ready = true, initialWorkspacePath?: string, shellMode = false): UseWorkspaceReturn {
   const [workspaces, setWorkspaces] = useState<WorkspaceRef[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceRef | null>(null);
   const [config, setConfig] = useState<WorkspaceConfig | null>(null);
@@ -149,8 +149,13 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string): UseWo
     if (!ready) return;
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
-    loadWorkspaces().then(() => loadData());
-  }, [ready, loadWorkspaces, loadData]);
+    if (shellMode) {
+      // Shell mode: only load workspace list (cells handle their own worktree data)
+      loadWorkspaces();
+    } else {
+      loadWorkspaces().then(() => loadData());
+    }
+  }, [ready, shellMode, loadWorkspaces, loadData]);
 
   const switchWorkspace = useCallback(async (path: string) => {
     const t0 = performance.now();

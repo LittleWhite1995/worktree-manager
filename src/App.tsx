@@ -48,6 +48,9 @@ if (typeof window !== 'undefined' && isTauri()) {
 
 function App() {
   const { t } = useTranslation();
+  // In Tauri desktop or web non-mobile, cells handle their own state.
+  // App shell only needs workspace list for routing. Mobile needs full state.
+  const shellMode = isTauri() || !window.matchMedia("(max-width: 639px)").matches;
   const {
     browserAuth,
     workspace,
@@ -72,7 +75,7 @@ function App() {
     voice,
     openSettings,
     handleTerminalTabContextMenu,
-  } = useAppShellState(t);
+  } = useAppShellState(t, undefined, shellMode);
 
   // Browser mode: kicked screen
   if (!isTauri() && wasKicked) {

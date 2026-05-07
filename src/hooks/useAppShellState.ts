@@ -53,10 +53,10 @@ export interface UseAppShellStateReturn {
   handleTerminalTabContextMenu: (e: React.MouseEvent, path: string, name: string) => void;
 }
 
-export function useAppShellState(t: TFunction, initialWorkspacePath?: string): UseAppShellStateReturn {
+export function useAppShellState(t: TFunction, initialWorkspacePath?: string, shellMode = false): UseAppShellStateReturn {
   const browserAuth = useBrowserAuth();
   const { isPrimary } = useCellContext();
-  const workspace = useWorkspace(browserAuth.browserAuthenticated, initialWorkspacePath);
+  const workspace = useWorkspace(browserAuth.browserAuthenticated, initialWorkspacePath, shellMode);
 
   const [shareWorkspaceName, setShareWorkspaceName] = useState<string | null>(null);
   const [pendingAutoSelectWorktree, setPendingAutoSelectWorktree] = useState<string | null>(null);
@@ -196,13 +196,13 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string): U
   ]);
 
   useEffect(() => {
-    if (!isPrimary) return; // Only primary cell sets window title
+    if (!isPrimary || shellMode) return; // Only primary cell sets window title; shell skips
     const wsName = workspace.currentWorkspace?.name;
     const title = !wsName
       ? "Worktree Manager"
       : `${wsName} - ${actions.selectedWorktree ? actions.selectedWorktree.name : t("app.mainWorkspace")}`;
     setWindowTitle(title);
-  }, [isPrimary, actions.selectedWorktree, t, workspace.currentWorkspace?.name]);
+  }, [isPrimary, shellMode, actions.selectedWorktree, t, workspace.currentWorkspace?.name]);
 
   const handleTerminalTabContextMenu = useCallback(
     (e: React.MouseEvent, path: string, name: string) => {
@@ -231,7 +231,7 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string): U
   );
 
   useEffect(() => {
-    if (!isPrimary) return; // Only primary cell registers global shortcuts
+    if (!isPrimary || shellMode) return; // Only primary cell registers global shortcuts; shell skips
 
     function handleKeyDown(e: KeyboardEvent): void {
       const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"]');
@@ -283,7 +283,7 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string): U
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("click", handleClick);
     };
-  }, [isPrimary, actions, modals, openSettings, terminalFullscreen, viewMode, workspace.config]);
+  }, [isPrimary, shellMode, actions, modals, openSettings, terminalFullscreen, viewMode, workspace.config]);
 
   return {
     browserAuth,

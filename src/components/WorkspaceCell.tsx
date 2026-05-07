@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   WorktreeSidebar,
@@ -51,6 +52,19 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
     handleSaveConfig,
     handleTerminalTabContextMenu,
   } = useAppShellState(t, initialWorkspacePath);
+
+  // Cleanup all terminals when cell is unmounted (closed)
+  const cleanupRef = useRef(terminalHook.cleanupTerminalsForPath);
+  cleanupRef.current = terminalHook.cleanupTerminalsForPath;
+  const wsPathRef = useRef(workspace.currentWorkspace?.path);
+  wsPathRef.current = workspace.currentWorkspace?.path;
+  useEffect(() => {
+    return () => {
+      if (wsPathRef.current) {
+        cleanupRef.current(wsPathRef.current);
+      }
+    };
+  }, []);
 
   return (
     <ToastProvider>

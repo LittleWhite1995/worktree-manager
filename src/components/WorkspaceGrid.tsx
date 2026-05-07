@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CellContext } from '../contexts/CellContext';
 import { WorkspaceCell } from './WorkspaceCell';
@@ -6,6 +6,7 @@ import { PlusIcon } from './Icons';
 
 interface GridCellState {
   id: string;
+  key: number; // Stable React key (never changes after creation)
   initialWorkspacePath: string;
 }
 
@@ -24,8 +25,9 @@ interface WorkspaceGridProps {
 
 export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
   const { t } = useTranslation();
+  const nextKey = useRef(1); // Counter for stable React keys
   const [grid, setGrid] = useState<GridState>(() => [[
-    { id: '0-0', initialWorkspacePath: currentWorkspacePath },
+    { id: '0-0', key: 0, initialWorkspacePath: currentWorkspacePath },
   ]]);
 
   const totalCells = grid.reduce((sum, row) => sum + row.length, 0);
@@ -38,6 +40,7 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
       const colIndex = row.length;
       const newCell: GridCellState = {
         id: `${rowIndex}-${colIndex}`,
+        key: nextKey.current++,
         initialWorkspacePath: lastCell.initialWorkspacePath,
       };
       return prev.map((r, i) => i === rowIndex ? [...r, newCell] : r);
@@ -51,6 +54,7 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
       const rowIndex = prev.length;
       const newCell: GridCellState = {
         id: `${rowIndex}-0`,
+        key: nextKey.current++,
         initialWorkspacePath: lastRow[0].initialWorkspacePath,
       };
       return [...prev, [newCell]];
@@ -83,7 +87,7 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
               const closable = isCellClosable(grid, rowIndex, colIndex);
               return (
                 <CellContext.Provider
-                  key={cell.id}
+                  key={cell.key}
                   value={{ cellId: cell.id, isPrimary: cell.id === '0-0' }}
                 >
                   <div
