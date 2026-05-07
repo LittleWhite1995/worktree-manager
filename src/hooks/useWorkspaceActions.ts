@@ -633,8 +633,8 @@ export function useWorkspaceActions(
       workspace.getLockedWorktrees(wsPath).catch(() => ({} as Record<string, string>)),
       getWindowLabel(),
     ]);
-    // Primary cell lock label is "windowLabel:0-0"; also accept legacy bare windowLabel
-    const myLockLabel = `${windowLabel}:0-0`;
+    // Primary cell lock label is "windowLabel:0"; also accept legacy bare windowLabel
+    const myLockLabel = `${windowLabel}:0`;
     const activeWorktree = worktrees.find(w => {
       if (w.is_archived) return false;
       const lockedBy = lockedMap[w.name];

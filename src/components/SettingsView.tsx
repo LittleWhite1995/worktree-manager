@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Brain, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Copy, Check } from 'lucide-react';
+import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star } from 'lucide-react';
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { BranchCombobox } from './BranchCombobox';
 import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild } from '../types';
@@ -133,75 +133,6 @@ const VaultItemTree: FC<VaultItemTreeProps> = ({
   );
 };
 
-// ==================== CopyableCommand ====================
-const CopyableCommand: FC<{ command: string; step: number }> = ({ command, step }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(command);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="flex items-center gap-1.5 group">
-      <span className="text-[10px] text-amber-400/60 font-medium shrink-0">{step}.</span>
-      <code className="text-[11px] text-slate-300 bg-slate-800 px-2 py-0.5 rounded font-mono select-all break-all flex-1">
-        {command}
-      </code>
-      <button
-        type="button"
-        className="shrink-0 p-0.5 text-slate-500 hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
-        onClick={handleCopy}
-        title="Copy"
-      >
-        {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-      </button>
-    </div>
-  );
-};
-
-// ==================== MemoryHookGuide ====================
-const MemoryHookGuide: FC = () => {
-  const { t } = useTranslation();
-
-  return (
-    <div className="mt-4 bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
-      <div className="flex items-start gap-3">
-        <Brain className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-        <div className="min-w-0">
-          <h3 className="text-sm font-medium text-amber-300">
-            {t('settings.memoryHookTitle', 'Memory Hook 插件')}
-          </h3>
-          <p className="text-xs text-slate-400 mt-1 space-y-0.5">
-            <span className="block">{t('settings.memoryHookDesc', '安装 Claude Code 插件以增强知识库集成：')}</span>
-            <span className="block text-amber-400/70">
-              <strong>MemoryInject</strong> — {t('settings.memoryInjectDesc', '会话开始时自动注入知识库上下文')}
-            </span>
-            <span className="block text-amber-400/70">
-              <strong>/memory-sync</strong> — {t('settings.memorySyncDesc', '压缩时临时归档会话记录')}
-            </span>
-            <span className="block text-amber-400/70">
-              <strong>/memory-archive</strong> — {t('settings.memoryArchiveDesc', '需求结束时全局归档到知识库')}
-            </span>
-          </p>
-          <div className="mt-2.5 space-y-1.5">
-            <CopyableCommand step={1} command="claude plugin marketplace add guoyongchang/worktree-manager-obsidian-bridge" />
-            <CopyableCommand step={2} command="claude plugin install worktree-manager-memory-hook@worktree-manager-obsidian-bridge" />
-          </div>
-          <button
-            type="button"
-            className="mt-2.5 text-[11px] text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
-            onClick={() => openLink('https://github.com/guoyongchang/worktree-manager-obsidian-bridge')}
-          >
-            GitHub
-            <ChevronRight className="w-3 h-3" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // ==================== VaultSettingsSection ====================
 const VaultSettingsSection: FC = () => {
@@ -438,8 +369,6 @@ const VaultSettingsSection: FC = () => {
         )}
       </div>
 
-      {/* Memory Hook Plugin Guide */}
-      <MemoryHookGuide />
     </div>
   );
 };
@@ -597,6 +526,9 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const [skipGitHooksLoaded, setSkipGitHooksLoaded] = useState(false);
   const [shellIntegrationEnabled, setShellIntegrationEnabled] = useState(true);
   const [shellIntegrationLoaded, setShellIntegrationLoaded] = useState(false);
+  const [showSplitButton, setShowSplitButton] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('show_split_button') ?? 'true'); } catch { return true; }
+  });
 
   const handleSavePrefixConfig = useCallback(async () => {
     setPrefixSaving(true);
@@ -1004,7 +936,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   // ==================== Menu items ====================
   const menuItems = [
     { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" /> },
-    { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <Brain className="w-3.5 h-3.5 text-amber-400" /> },
+    { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <FolderOpen className="w-3.5 h-3.5 text-amber-400" /> },
     { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
     ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" /> }] : []),
     { id: 'commit' as SettingsSection, label: t('settings.commitNav', '提交设置'), icon: <FileText className="w-3.5 h-3.5" /> },
@@ -1653,6 +1585,28 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       }}
                     >
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* UI Preferences */}
+                <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-slate-300">{t('settings.uiPreferences', '界面')}</h3>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm text-slate-400">{t('settings.showSplitButton', '显示分屏按钮')}</label>
+                      <p className="text-xs text-slate-500">{t('settings.showSplitButtonDesc', '在右下角显示分屏快捷按钮，用于添加多工作区面板')}</p>
+                    </div>
+                    <button type="button"
+                      onClick={() => {
+                        const next = !showSplitButton;
+                        setShowSplitButton(next);
+                        localStorage.setItem('show_split_button', JSON.stringify(next));
+                        window.dispatchEvent(new Event('split-button-changed'));
+                      }}
+                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${showSplitButton ? 'bg-blue-500' : 'bg-slate-600'}`}
+                    >
+                      <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${showSplitButton ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                     </button>
                   </div>
                 </div>

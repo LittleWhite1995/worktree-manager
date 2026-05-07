@@ -97,6 +97,7 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
           {activeWorktrees.map((worktree) => {
             const lockedBy = lockedWorktrees[worktree.name];
             const isLockedByOther = lockedBy && lockedBy !== currentWindowLabel;
+            const isLockedBySameWindow = isLockedByOther && lockedBy.split(':')[0] === currentWindowLabel.split(':')[0];
             const canSelect = !isLockedByOther || !isTauri;
             return (
               <Tooltip key={worktree.name}>
@@ -114,7 +115,7 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  {worktree.display_name || worktree.name}{isLockedByOther ? ` (${t('sidebar.occupied')})` : ''}
+                  {worktree.display_name || worktree.name}{isLockedByOther ? ` (${t(isLockedBySameWindow ? 'sidebar.occupiedByCell' : 'sidebar.occupied')})` : ''}
                 </TooltipContent>
               </Tooltip>
             );

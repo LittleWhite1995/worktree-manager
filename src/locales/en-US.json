@@ -362,6 +362,9 @@
   "settings.shareLinkCopied": "Share link copied (with password)",
   "settings.version": "Version",
   "settings.checkUpdate": "Check for updates",
+  "settings.uiPreferences": "UI Preferences",
+  "settings.showSplitButton": "Show split view button",
+  "settings.showSplitButtonDesc": "Show the split view shortcut button in the bottom-right corner for adding multi-workspace panels",
   "settings.checking": "Checking...",
   "settings.voiceInput": "Voice Input",
   "settings.dashscopeApiKey": "Dashscope API Key",
@@ -740,6 +743,8 @@
   "sidebar.openInNewWindow": "Open in new window",
   "sidebar.occupied": "Occupied",
   "sidebar.occupiedTooltip": "This Worktree is being used by another window",
+  "sidebar.occupiedByCell": "In Use",
+  "sidebar.occupiedByCellTooltip": "This Worktree is being used by another panel in this window",
   "sidebar.uncommittedTip": "{{name}}: {{count}} uncommitted",
   "sidebar.active": "Active",
   "sidebar.searchWorktrees": "Search worktrees",
@@ -783,6 +788,7 @@
   "grid": {
     "addColumn": "Add Column",
     "addRow": "Add Row",
-    "closeCell": "Close Panel"
+    "closeCell": "Close Panel",
+    "splitView": "Split View"
   }
 }

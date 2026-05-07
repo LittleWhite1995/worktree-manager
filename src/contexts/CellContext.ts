@@ -6,7 +6,7 @@ export interface CellContextValue {
 }
 
 export const CellContext = createContext<CellContextValue>({
-  cellId: '0-0',
+  cellId: '0',
   isPrimary: true,
 });
 

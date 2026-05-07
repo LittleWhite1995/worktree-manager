@@ -19,6 +19,7 @@ import { useCellContext } from '../contexts/CellContext';
 import type { ViewMode, TerminalTabMenuState, WorkspaceConfig, WorktreeListItem } from "../types";
 
 export interface UseAppShellStateReturn {
+  cellId: string;
   browserAuth: ReturnType<typeof useBrowserAuth>;
   workspace: ReturnType<typeof useWorkspace>;
   shareWorkspaceName: string | null;
@@ -55,7 +56,7 @@ export interface UseAppShellStateReturn {
 
 export function useAppShellState(t: TFunction, initialWorkspacePath?: string, shellMode = false): UseAppShellStateReturn {
   const browserAuth = useBrowserAuth();
-  const { isPrimary } = useCellContext();
+  const { isPrimary, cellId } = useCellContext();
   const workspace = useWorkspace(browserAuth.browserAuthenticated, initialWorkspacePath, shellMode);
 
   const [shareWorkspaceName, setShareWorkspaceName] = useState<string | null>(null);
@@ -167,22 +168,26 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string, sh
   }, []);
 
   useEffect(() => {
-    if (shellMode) return; // App shell doesn't auto-select
-    if (!isPrimary) return; // Only primary cell auto-selects
+    if (shellMode) return;
+    if (!isPrimary) return;
+
+    // Browser/mobile auto-select: navigate to the worktree the server indicates
     if (
+      !isTauri() &&
       !actions.hasUserSelected &&
       !actions.selectedWorktree &&
-      workspace.worktrees.length > 0 &&
-      workspace.currentWorkspace
+      pendingAutoSelectWorktree &&
+      workspace.worktrees.length > 0
     ) {
-      actions.tryAutoSelect(
-        workspace.worktrees,
-        workspace.currentWorkspace.path,
-        pendingAutoSelectWorktree,
-        setPendingAutoSelectWorktree,
-        isMobileWeb,
-      );
+      const target = workspace.worktrees.find(w => w.name === pendingAutoSelectWorktree);
+      if (target) {
+        actions.setSelectedWorktree(target);
+        actions.setHasUserSelected(true);
+        setPendingAutoSelectWorktree(null);
+      }
     }
+
+    // Keep selected worktree data in sync with refreshed worktree list
     if (actions.selectedWorktree) {
       const updated = workspace.worktrees.find((w) => w.name === actions.selectedWorktree!.name);
       if (updated && JSON.stringify(updated) !== JSON.stringify(actions.selectedWorktree)) {
@@ -193,9 +198,7 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string, sh
     actions,
     isPrimary,
     shellMode,
-    isMobileWeb,
     pendingAutoSelectWorktree,
-    workspace.currentWorkspace,
     workspace.worktrees,
   ]);
 
@@ -290,6 +293,7 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string, sh
   }, [isPrimary, shellMode, actions, modals, openSettings, terminalFullscreen, viewMode, workspace.config]);
 
   return {
+    cellId,
     browserAuth,
     workspace,
     shareWorkspaceName,

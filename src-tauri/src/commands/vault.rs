@@ -722,17 +722,11 @@ pub fn vault_link_impl(
                 log::warn!("[vault] Sync errors: {:?}", sync_errors);
             }
 
-            let warning = if !vault_dir.join("memory").exists() {
-                Some("Vault directory does not contain a 'memory/' subdirectory. Memory Wiki features may not work.".to_string())
-            } else {
-                None
-            };
-
             Ok(VaultLinkResponse {
                 connected: true,
                 synced_items,
                 error: None,
-                warning,
+                warning: None,
             })
         }
         None => {

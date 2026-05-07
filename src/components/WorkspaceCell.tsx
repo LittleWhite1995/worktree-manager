@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useCellContext } from "../contexts/CellContext";
 import {
   WorktreeSidebar,
   WorktreeDetail,
@@ -26,8 +27,10 @@ export interface WorkspaceCellProps {
 
 export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: WorkspaceCellProps) {
   const { t } = useTranslation();
+  const { isPrimary } = useCellContext();
 
   const {
+    cellId,
     workspace,
     viewMode,
     setViewMode,
@@ -53,15 +56,23 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
     handleTerminalTabContextMenu,
   } = useAppShellState(t, initialWorkspacePath);
 
-  // Cleanup all terminals when cell is unmounted (closed)
+  // Cleanup terminals and release worktree lock when cell is unmounted (closed)
   const cleanupRef = useRef(terminalHook.cleanupTerminalsForPath);
   cleanupRef.current = terminalHook.cleanupTerminalsForPath;
+  const unlockRef = useRef(workspace.unlockWorktree);
+  unlockRef.current = workspace.unlockWorktree;
   const wsPathRef = useRef(workspace.currentWorkspace?.path);
   wsPathRef.current = workspace.currentWorkspace?.path;
+  const selectedWtRef = useRef(actions.selectedWorktree);
+  selectedWtRef.current = actions.selectedWorktree;
   useEffect(() => {
     return () => {
       if (wsPathRef.current) {
         cleanupRef.current(wsPathRef.current);
+      }
+      // Release worktree lock held by this cell
+      if (wsPathRef.current && selectedWtRef.current) {
+        unlockRef.current(wsPathRef.current, selectedWtRef.current.name).catch(() => {});
       }
     };
   }, []);
@@ -113,6 +124,8 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
         >
           {!terminalFullscreen && (
             <WorktreeSidebar
+              cellId={cellId}
+              isPrimary={isPrimary}
               workspaces={workspace.workspaces}
               currentWorkspace={workspace.currentWorkspace}
               showWorkspaceMenu={modals.showWorkspaceMenu}
@@ -231,6 +244,9 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
               onShellIntegrationDetected={(path) => terminalHook.markShellIntegrationActive(path)}
               onCwdChanged={(path, cwd) => terminalHook.updateTerminalCwd(path, cwd)}
               selectedWorktreeName={actions.selectedWorktree?.display_name || actions.selectedWorktree?.name}
+              onOpenInEditor={actions.handleOpenInEditor}
+              onRevealInFinder={workspace.revealInFinder}
+              selectedEditor={actions.selectedEditor}
             />
 
           </div>
