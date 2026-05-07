@@ -70,7 +70,7 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
   const [error, setError] = useState<string | null>(null);
   const initialLoadDone = useRef(false);
   const loadVersion = useRef(0);
-  const { isPrimary } = useCellContext();
+  const { isPrimary, cellId } = useCellContext();
   const explicitPath = !isPrimary ? initialWorkspacePath : undefined;
 
   // 初始化时注册窗口 workspace 绑定（从 URL 参数获取）
@@ -324,12 +324,12 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
   }, []);
 
   const lockWorktree = useCallback(async (workspacePath: string, worktreeName: string): Promise<void> => {
-    await callBackend("lock_worktree", { workspacePath, worktreeName });
-  }, []);
+    await callBackend("lock_worktree", { workspacePath, worktreeName, cellId });
+  }, [cellId]);
 
   const unlockWorktree = useCallback(async (workspacePath: string, worktreeName: string): Promise<void> => {
-    await callBackend("unlock_worktree", { workspacePath, worktreeName });
-  }, []);
+    await callBackend("unlock_worktree", { workspacePath, worktreeName, cellId });
+  }, [cellId]);
 
   const getLockedWorktrees = useCallback(async (workspacePath: string): Promise<Record<string, string>> => {
     return callBackend<Record<string, string>>("get_locked_worktrees", { workspacePath });

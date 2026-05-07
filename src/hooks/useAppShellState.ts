@@ -167,6 +167,8 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string, sh
   }, []);
 
   useEffect(() => {
+    if (shellMode) return; // App shell doesn't auto-select
+    if (!isPrimary) return; // Only primary cell auto-selects
     if (
       !actions.hasUserSelected &&
       !actions.selectedWorktree &&
@@ -189,6 +191,8 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string, sh
     }
   }, [
     actions,
+    isPrimary,
+    shellMode,
     isMobileWeb,
     pendingAutoSelectWorktree,
     workspace.currentWorkspace,

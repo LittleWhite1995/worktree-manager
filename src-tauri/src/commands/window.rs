@@ -52,16 +52,20 @@ pub fn unregister_window_impl(window_label: &str) {
         let mut map = WINDOW_WORKSPACES.lock().unwrap();
         map.remove(&label);
     }
-    // 同时释放该窗口持有的所有 worktree 锁
+    // 同时释放该窗口持有的所有 worktree 锁（包括带 cell_id 的格式 "label:cell_id"）
+    let prefix = format!("{}:", window_label);
     let affected_workspaces: Vec<String> = {
         let mut locks = WORKTREE_LOCKS.lock().unwrap();
-        let lock_count = locks.iter().filter(|(_, v)| **v == label).count();
+        let lock_count = locks
+            .iter()
+            .filter(|(_, v)| **v == label || v.starts_with(&prefix))
+            .count();
         let affected: Vec<String> = locks
             .iter()
-            .filter(|(_, v)| **v == label)
+            .filter(|(_, v)| **v == label || v.starts_with(&prefix))
             .map(|((ws_path, _), _)| ws_path.clone())
             .collect();
-        locks.retain(|_, v| *v != label);
+        locks.retain(|_, v| *v != label && !v.starts_with(&prefix));
         log::info!(
             "[window] Window '{}' unregistered, released {} locks",
             window_label,
@@ -118,8 +122,13 @@ pub(crate) fn lock_worktree(
     window: tauri::Window,
     workspace_path: String,
     worktree_name: String,
+    cell_id: Option<String>,
 ) -> Result<(), String> {
-    lock_worktree_impl(window.label(), workspace_path, worktree_name)
+    let label = match cell_id {
+        Some(id) => format!("{}:{}", window.label(), id),
+        None => window.label().to_string(),
+    };
+    lock_worktree_impl(&label, workspace_path, worktree_name)
 }
 
 /// 解锁当前窗口持有的指定 worktree
@@ -148,8 +157,13 @@ pub(crate) fn unlock_worktree(
     window: tauri::Window,
     workspace_path: String,
     worktree_name: String,
+    cell_id: Option<String>,
 ) {
-    unlock_worktree_impl(window.label(), workspace_path, worktree_name)
+    let label = match cell_id {
+        Some(id) => format!("{}:{}", window.label(), id),
+        None => window.label().to_string(),
+    };
+    unlock_worktree_impl(&label, workspace_path, worktree_name)
 }
 
 /// 获取指定 workspace 中所有被锁定的 worktree 列表 (worktree_name -> window_label)
