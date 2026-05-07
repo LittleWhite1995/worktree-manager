@@ -230,7 +230,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
               hasShellIntegration={terminalHook.shellIntegrationMap.get(terminalHook.activeTerminalTab ?? '') ?? false}
               onShellIntegrationDetected={(path) => terminalHook.markShellIntegrationActive(path)}
               onCwdChanged={(path, cwd) => terminalHook.updateTerminalCwd(path, cwd)}
-              selectedWorktreeName={actions.selectedWorktree?.name}
+              selectedWorktreeName={actions.selectedWorktree?.display_name || actions.selectedWorktree?.name}
             />
 
           </div>

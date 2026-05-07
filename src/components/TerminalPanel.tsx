@@ -505,8 +505,10 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
         </div>
         {/* Worktree name badge (fullscreen only) */}
         {isFullscreen && selectedWorktreeName && (
-          <span className="text-xs text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded shrink-0">
-            {selectedWorktreeName}
+          <span className="terminal-badge-marquee text-xs text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded shrink-0 max-w-[160px] overflow-hidden">
+            <span className="inline-block whitespace-nowrap">
+              {selectedWorktreeName}
+            </span>
           </span>
         )}
         {/* Close All, Voice, Fullscreen & Collapse buttons */}

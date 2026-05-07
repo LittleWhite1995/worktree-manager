@@ -156,6 +156,25 @@
   animation: slide-out-to-right 0.2s ease-in forwards;
 }
 
+/* Marquee scroll for overflowing terminal badge text on hover */
+@keyframes badge-marquee {
+  0%, 15% {
+    transform: translateX(0);
+  }
+
+  85%, 100% {
+    transform: translateX(var(--marquee-distance));
+  }
+}
+
+.terminal-badge-marquee:hover > span {
+  animation: badge-marquee 3s linear infinite alternate;
+}
+
+.terminal-badge-marquee > span {
+  --marquee-distance: calc(-100% + 144px);
+}
+
 /* Indeterminate progress bar animation */
 @keyframes progress-indeterminate {
   0% {
