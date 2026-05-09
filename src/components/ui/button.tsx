@@ -4,22 +4,24 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366F1]/40 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-blue-600 text-white shadow hover:bg-blue-500",
+          "bg-[#6366F1] text-white shadow-sm hover:bg-[#818CF8] active:scale-[0.98]",
         destructive:
-          "bg-red-600 text-white shadow-sm hover:bg-red-500",
+          "bg-[#EF4444] text-white shadow-sm hover:bg-[#F87171] active:scale-[0.98]",
         warning:
-          "bg-amber-600 text-white shadow-sm hover:bg-amber-500",
+          "bg-[#F59E0B] text-white shadow-sm hover:bg-[#FBBF24] active:scale-[0.98]",
         outline:
-          "border border-slate-600 bg-transparent text-slate-100 shadow-sm hover:bg-slate-700",
+          "border border-[#1E1E26] bg-transparent text-[#E8E8ED] shadow-sm hover:bg-[#1A1A22] hover:text-[#E8E8ED]",
         secondary:
-          "bg-slate-700 text-slate-100 shadow-sm hover:bg-slate-600",
-        ghost: "text-slate-100 hover:bg-slate-700",
-        link: "text-blue-400 underline-offset-4 hover:underline",
+          "bg-[#141419] text-[#E8E8ED] shadow-sm hover:bg-[#1A1A22] border border-[#1E1E26]",
+        ghost:
+          "text-[#E8E8ED] hover:bg-[#141419]",
+        link:
+          "text-[#6366F1] underline-offset-4 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-2",
