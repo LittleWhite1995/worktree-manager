@@ -32,11 +32,31 @@ const TYPE_DURATION: Record<ToastType, number> = {
   warning: 5000,
 };
 
-const typeConfig: Record<ToastType, { bg: string; icon: FC<{ className?: string }>; countdownColor: string }> = {
-  success: { bg: 'bg-green-900/30 text-green-300 border-green-800/50', icon: CheckCircle, countdownColor: 'bg-green-500/50' },
-  error: { bg: 'bg-red-900/30 text-red-300 border-red-800/50', icon: XCircle, countdownColor: 'bg-red-500/50' },
-  info: { bg: 'bg-blue-500/10 text-blue-400 border-blue-800/50', icon: Info, countdownColor: 'bg-blue-500/50' },
-  warning: { bg: 'bg-amber-900/30 text-amber-300 border-amber-800/50', icon: AlertTriangle, countdownColor: 'bg-amber-500/50' },
+const typeConfig: Record<ToastType, { bg: string; icon: FC<{ className?: string }>; barColor: string; iconColor: string }> = {
+  success: {
+    bg: 'bg-[#141419] border-[#1E1E26]',
+    icon: CheckCircle,
+    barColor: 'bg-[#10B981]',
+    iconColor: 'text-[#10B981]',
+  },
+  error: {
+    bg: 'bg-[#141419] border-[#1E1E26]',
+    icon: XCircle,
+    barColor: 'bg-[#EF4444]',
+    iconColor: 'text-[#EF4444]',
+  },
+  info: {
+    bg: 'bg-[#141419] border-[#1E1E26]',
+    icon: Info,
+    barColor: 'bg-[#6366F1]',
+    iconColor: 'text-[#6366F1]',
+  },
+  warning: {
+    bg: 'bg-[#141419] border-[#1E1E26]',
+    icon: AlertTriangle,
+    barColor: 'bg-[#F59E0B]',
+    iconColor: 'text-[#F59E0B]',
+  },
 };
 
 export const ToastProvider: FC<{ children: ReactNode }> = ({ children }) => {
@@ -79,23 +99,27 @@ export const ToastProvider: FC<{ children: ReactNode }> = ({ children }) => {
           return (
             <div
               key={t.id}
-              className={`relative flex items-start gap-3 border rounded-lg p-3 shadow-lg shadow-black/20 max-w-sm overflow-hidden ${config.bg} ${
+              className={`relative flex items-stretch border rounded-lg overflow-hidden shadow-lg max-w-sm ${config.bg} ${
                 t.exiting ? 'slide-out-to-right' : 'slide-in-from-bottom-4'
               }`}
             >
-              <Icon className="w-4 h-4 mt-0.5 shrink-0" />
-              <p className="text-sm flex-1 break-words">{t.message}</p>
-              <button
-                onClick={() => dismiss(t.id)}
-                className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {/* Left color bar */}
+              <div className={`w-0.5 shrink-0 ${config.barColor}`} />
+              <div className="flex items-start gap-2.5 p-3 flex-1">
+                <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${config.iconColor}`} />
+                <p className="text-sm text-[#E8E8ED] flex-1 break-words">{t.message}</p>
+                <button
+                  onClick={() => dismiss(t.id)}
+                  className="shrink-0 text-[#55556A] hover:text-[#E8E8ED] transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
               {/* Countdown bar (only for auto-dismissing toasts) */}
               {!t.exiting && TYPE_DURATION[t.type] > 0 && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5">
                   <div
-                    className={`h-full ${config.countdownColor}`}
+                    className={`h-full ${config.barColor} opacity-40`}
                     style={{ animation: `toast-countdown ${TYPE_DURATION[t.type]}ms linear forwards` }}
                   />
                 </div>
