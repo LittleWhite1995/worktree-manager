@@ -272,9 +272,9 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
       />
       <div
         style={{ width: `${sidebarWidth}px` }}
-        className="bg-slate-800/50 border-r border-slate-700/50 flex flex-col shrink-0 relative max-sm:fixed max-sm:inset-y-0 max-sm:left-0 max-sm:z-50 max-sm:w-[85vw] max-sm:max-w-[320px] max-sm:bg-slate-800"
+        className="bg-[#141419] border-r border-[#1E1E26] flex flex-col shrink-0 relative max-sm:fixed max-sm:inset-y-0 max-sm:left-0 max-sm:z-50 max-sm:w-[85vw] max-sm:max-w-[320px] max-sm:bg-[#141419]"
       >
-        <div className="p-3 border-b border-slate-700/50">
+        <div className="p-3 border-b border-[#1E1E26]">
           <div className="flex items-center gap-1.5">
             {isPrimary ? (
               isTauri ? (
@@ -289,15 +289,15 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
                   workspaces={workspaces}
                 />
               ) : (
-                <div className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 bg-slate-700/30 rounded-md">
-                  <WorkspaceIcon className="w-4 h-4 text-blue-400 shrink-0" />
+                <div className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 bg-[#1A1A22] rounded-md">
+                  <WorkspaceIcon className="w-4 h-4 text-[#6366F1] shrink-0" />
                   <span className="font-medium text-sm truncate">{currentWorkspace?.name || 'Workspace'}</span>
                 </div>
               )
             ) : (
-              <div className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 bg-slate-700/30 rounded-md">
-                <WorkspaceIcon className="w-4 h-4 text-slate-500 shrink-0" />
-                <span className="font-medium text-sm truncate text-slate-400">{currentWorkspace?.name || 'Workspace'}</span>
+              <div className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 bg-[#1A1A22] rounded-md">
+                <WorkspaceIcon className="w-4 h-4 text-[#55556A] shrink-0" />
+                <span className="font-medium text-sm truncate text-[#8B8B9E]">{currentWorkspace?.name || 'Workspace'}</span>
               </div>
             )}
             {isTauri && isPrimary && (
@@ -320,9 +320,9 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
           </div>
         </div>
 
-        <div className="px-4 py-3 border-b border-slate-700/50">
+        <div className="px-4 py-3 border-b border-[#1E1E26]">
           <div className="flex items-center justify-between">
-            <h1 className="text-base font-semibold text-slate-100">Worktrees</h1>
+            <h1 className="text-base font-semibold text-[#E8E8ED]">Worktrees</h1>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -411,7 +411,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
             onOpenLogDir={handleOpenLogDir}
           />
         ) : (
-          <div className="h-8 border-t border-slate-700/50 shrink-0" />
+          <div className="h-8 border-t border-[#1E1E26] shrink-0" />
         )}
 
         {/* Drag handle for resizing - hidden on mobile */}
@@ -420,11 +420,11 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
             e.preventDefault();
             setIsDragging(true);
           }}
-          className={`absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors max-sm:hidden ${isDragging ? 'bg-blue-500/50' : ''}`}
+          className={`absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[#6366F1]/50 transition-colors max-sm:hidden ${isDragging ? 'bg-[#6366F1]/50' : ''}`}
           aria-label={t('sidebar.resizeWidth', 'Resize sidebar width')}
         >
           <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-12 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
-            <svg className="w-3 h-3 text-slate-400" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-3 h-3 text-[#8B8B9E]" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="9" cy="6" r="1.5" />
               <circle cx="9" cy="12" r="1.5" />
               <circle cx="9" cy="18" r="1.5" />
@@ -495,10 +495,10 @@ const WorkspaceSwitcher: FC<{
           className="flex-1 justify-between min-w-0"
         >
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <WorkspaceIcon className="w-4 h-4 text-blue-400 shrink-0" />
+            <WorkspaceIcon className="w-4 h-4 text-[#6366F1] shrink-0" />
             <span className="font-medium text-sm truncate">{currentWorkspaceName}</span>
           </div>
-          <ChevronDownIcon className="w-4 h-4 text-slate-400 shrink-0" />
+          <ChevronDownIcon className="w-4 h-4 text-[#8B8B9E] shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]" align="start">
@@ -507,16 +507,16 @@ const WorkspaceSwitcher: FC<{
           return (
             <div
               key={workspace.path}
-              className={`flex items-stretch rounded-sm text-sm ${isCurrent ? 'bg-slate-700/50' : 'hover:bg-slate-700/40'}`}
+              className={`flex items-stretch rounded-sm text-sm ${isCurrent ? 'bg-[#1A1A22]' : 'hover:bg-[#1A1A22]'}`}
             >
               <button
-                className={`flex-1 min-w-0 text-left px-2.5 py-2 rounded-l-sm transition-colors ${isCurrent ? 'cursor-default' : 'cursor-pointer hover:bg-slate-700/60'}`}
+                className={`flex-1 min-w-0 text-left px-2.5 py-2 rounded-l-sm transition-colors ${isCurrent ? 'cursor-default' : 'cursor-pointer hover:bg-[#1A1A22]'}`}
                 onClick={() => onSwitchClick(workspace.path)}
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="truncate font-medium">{workspace.name}</span>
                   {isCurrent && (
-                    <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1 py-px rounded shrink-0">{t('sidebar.current')}</span>
+                    <span className="text-[10px] text-[#6366F1] bg-[#6366F1]/10 px-1 py-px rounded shrink-0">{t('sidebar.current')}</span>
                   )}
                 </div>
               </button>
@@ -527,7 +527,7 @@ const WorkspaceSwitcher: FC<{
                     onOpenInNewWindow(workspace.path);
                     onShowWorkspaceMenu(false);
                   }}
-                  className="px-2 flex items-center text-slate-500 hover:text-blue-400 hover:bg-slate-600/40 rounded-r-sm transition-colors shrink-0 border-l border-slate-700/50"
+                  className="px-2 flex items-center text-[#55556A] hover:text-[#6366F1] hover:bg-[#1A1A22] rounded-r-sm transition-colors shrink-0 border-l border-[#1E1E26]"
                   title={t('sidebar.openInNewWindow')}
                   aria-label={`${t('sidebar.openInNewWindow')} ${workspace.name}`}
                 >
@@ -539,7 +539,7 @@ const WorkspaceSwitcher: FC<{
         })}
         <DropdownMenuSeparator />
         <button
-          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-slate-700/40 transition-colors text-slate-300"
+          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-[#1A1A22] transition-colors text-[#8B8B9E]"
           onClick={onAddWorkspace}
         >
           <PlusIcon className="w-4 h-4" />
@@ -562,16 +562,16 @@ const MainWorkspaceCard: FC<{
 
   return (
     <div
-      className={`px-4 py-3 border-b border-slate-700/50 cursor-pointer transition-all duration-150 border-l-2 ${selected ? 'bg-slate-700/30 border-l-blue-500' : 'border-l-transparent hover:bg-slate-700/20'}`}
+      className={`px-4 py-3 border-b border-[#1E1E26] cursor-pointer transition-all duration-150 border-l-2 ${selected ? 'bg-[#1A1A22] border-l-[#6366F1]' : 'border-l-transparent hover:bg-[#1A1A22]'}`}
       onClick={onSelectMain}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <FolderIcon className="w-4 h-4 text-slate-400 shrink-0" />
+          <FolderIcon className="w-4 h-4 text-[#8B8B9E] shrink-0" />
           <span className="font-medium text-sm shrink-0">{t('sidebar.main')}</span>
           {occupation && (
             <div className="sidebar-marquee-container min-w-0 flex-1">
-              <span className="sidebar-marquee-text text-xs text-blue-400">({occupation.worktree_name})</span>
+              <span className="sidebar-marquee-text text-xs text-[#6366F1]">({occupation.worktree_name})</span>
             </div>
           )}
         </div>
@@ -591,7 +591,7 @@ const MainWorkspaceCard: FC<{
           </Button>
         )}
       </div>
-      <div className="text-slate-500 text-xs mt-1 truncate pl-6 select-text">{path}</div>
+      <div className="text-[#55556A] text-xs mt-1 truncate pl-6 select-text">{path}</div>
     </div>
   );
 };
@@ -692,7 +692,7 @@ const WorktreeList: FC<{
     <div className="flex-1 overflow-y-auto">
       <div className="px-4 py-2">
         <div className="flex items-center justify-between">
-          <span className="shrink-0 text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+          <span className="shrink-0 text-[11px] font-medium text-[#55556A] uppercase tracking-wider">
             {t('sidebar.active')} ({activeWorktrees.length})
           </span>
           <Input
@@ -707,10 +707,10 @@ const WorktreeList: FC<{
       {activeWorktrees.length === 0 ? (
         <div className="px-4 py-8 text-center">
           <div className="flex justify-center mb-3">
-            <FolderIcon className="w-10 h-10 text-slate-600" />
+            <FolderIcon className="w-10 h-10 text-[#55556A]" />
           </div>
-          <p className="text-slate-500 text-sm">{t('sidebar.noWorktrees')}</p>
-          <p className="text-slate-600 text-xs mt-1">{t('sidebar.noWorktreesHint')}</p>
+          <p className="text-[#55556A] text-sm">{t('sidebar.noWorktrees')}</p>
+          <p className="text-[#55556A] text-xs mt-1">{t('sidebar.noWorktreesHint')}</p>
         </div>
       ) : (
         <DndContext
@@ -738,8 +738,8 @@ const WorktreeList: FC<{
                       : isLockedByOther && isTauri
                         ? 'border-transparent opacity-50 cursor-not-allowed'
                         : selectedWorktree?.name === worktree.name
-                          ? 'bg-slate-700/30 border-blue-500 cursor-pointer'
-                          : 'border-transparent hover:bg-slate-700/20 cursor-pointer'
+                          ? 'bg-[#1A1A22] border-[#6366F1] cursor-pointer'
+                          : 'border-transparent hover:bg-[#1A1A22] cursor-pointer'
                       }`}
                     onClick={() => {
                       if (longPressFiredRef.current) return;
@@ -751,7 +751,7 @@ const WorktreeList: FC<{
                     onTouchMove={() => !activeId && onTouchMove()}
                   >
                     <div className="flex items-center gap-2.5">
-                      <FolderIcon className={`w-4 h-4 ${isLockedByOther || isDeployed ? 'text-slate-500' : 'text-blue-400'}`} />
+                      <FolderIcon className={`w-4 h-4 ${isLockedByOther || isDeployed ? 'text-[#55556A]' : 'text-[#6366F1]'}`} />
                       <TooltipProvider delayDuration={300}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -787,7 +787,7 @@ const WorktreeList: FC<{
                         );
                       })()}
                     </div>
-                    <div className="text-slate-500 text-xs mt-0.5 pl-6">{t('sidebar.projects', { count: worktree.projects.length })}</div>
+                    <div className="text-[#55556A] text-xs mt-0.5 pl-6">{t('sidebar.projects', { count: worktree.projects.length })}</div>
                   </div>
                 </SortableWorktreeItem>
               );
@@ -795,9 +795,9 @@ const WorktreeList: FC<{
           </SortableContext>
           <DragOverlay>
             {activeWorktree ? (
-              <div className="bg-slate-800 border border-slate-600 rounded-md px-4 py-2.5 shadow-xl opacity-70">
+              <div className="bg-[#141419] border border-[#1E1E26] rounded-md px-4 py-2.5 shadow-xl opacity-70">
                 <div className="flex items-center gap-2.5">
-                  <FolderIcon className="w-4 h-4 text-blue-400" />
+                  <FolderIcon className="w-4 h-4 text-[#6366F1]" />
                   <span className="font-medium text-sm">{activeWorktree.display_name || activeWorktree.name}</span>
                 </div>
               </div>
@@ -807,10 +807,10 @@ const WorktreeList: FC<{
       )}
 
       <div
-        className="px-4 py-2 cursor-pointer hover:bg-slate-700/30 flex items-center justify-between transition-colors group"
+        className="px-4 py-2 cursor-pointer hover:bg-[#1A1A22] flex items-center justify-between transition-colors group"
         onClick={onToggleArchived}
       >
-        <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider group-hover:text-slate-400 transition-colors">
+        <span className="text-[11px] font-medium text-[#55556A] uppercase tracking-wider group-hover:text-[#8B8B9E] transition-colors">
           {t('sidebar.archive')} ({archivedWorktrees.length})
         </span>
         <div className="flex items-center gap-1">
@@ -820,23 +820,23 @@ const WorktreeList: FC<{
                 e.stopPropagation();
                 onToggleBatchArchiveModal();
               }}
-              className="text-[10px] px-2 py-0.5 rounded bg-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
+              className="text-[10px] px-2 py-0.5 rounded bg-[#1A1A22] text-[#8B8B9E] hover:text-[#E8E8ED] hover:bg-[#1A1A22] transition-colors"
             >
               {t('sidebar.manageArchive')}
             </button>
           )}
-          <ChevronIcon expanded={showArchived} className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-400 transition-colors" />
+          <ChevronIcon expanded={showArchived} className="w-3.5 h-3.5 text-[#55556A] group-hover:text-[#8B8B9E] transition-colors" />
         </div>
       </div>
 
       {showArchived && sortedArchivedWorktrees.map((worktree) => (
         <div
           key={worktree.name}
-          className={`px-4 py-2.5 cursor-pointer transition-colors opacity-60 ${selectedWorktree?.name === worktree.name ? 'bg-slate-700/30' : 'hover:bg-slate-700/20'}`}
+          className={`px-4 py-2.5 cursor-pointer transition-colors opacity-60 ${selectedWorktree?.name === worktree.name ? 'bg-[#1A1A22]' : 'hover:bg-[#1A1A22]'}`}
           onClick={() => onSelectWorktree(worktree)}
         >
           <div className="flex items-center gap-2.5">
-            <ArchiveIcon className="w-4 h-4 text-slate-500" />
+            <ArchiveIcon className="w-4 h-4 text-[#55556A]" />
             <TooltipProvider delayDuration={300}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -858,7 +858,7 @@ const StatusBadge: FC<{
   tone: 'amber' | 'blue';
 }> = ({ label, tooltip, tone }) => {
   const toneClass = tone === 'blue'
-    ? 'text-blue-400/80 bg-blue-900/20 border border-blue-800/30'
+    ? 'text-[#6366F1]/80 bg-[#6366F1]/10 border border-[#6366F1]/20'
     : 'text-amber-400/80 bg-amber-900/20 border border-amber-800/30';
 
   return (
@@ -898,7 +898,7 @@ const SidebarBottomBar: FC<{
   }, []);
 
   return (
-    <div className="px-3 h-8 border-t border-slate-700/50 flex items-center justify-between shrink-0">
+    <div className="px-3 h-8 border-t border-[#1E1E26] flex items-center justify-between shrink-0">
       {isMainWin ? (
         isDev ? (
           <button
@@ -915,7 +915,7 @@ const SidebarBottomBar: FC<{
                 <TooltipTrigger asChild>
                   <button
                     onClick={onCheckUpdate}
-                    className="relative text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                    className="relative text-xs text-[#55556A] hover:text-[#8B8B9E] transition-colors cursor-pointer"
                   >
                     v{appVersion}
                     {hasUpdate && (
