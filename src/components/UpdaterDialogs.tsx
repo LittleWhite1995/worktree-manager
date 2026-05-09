@@ -42,8 +42,8 @@ const SimpleMarkdown: FC<{ content: string }> = ({ content }) => {
       elements.push(
         <ul key={key++} className="space-y-1 mb-3">
           {listItems.map((item, i) => (
-            <li key={i} className="text-sm text-slate-400 flex items-start gap-2">
-              <span className="text-blue-400 mt-0.5 shrink-0">•</span>
+            <li key={i} className="text-sm text-[#8B8B9E] flex items-start gap-2">
+              <span className="text-[#6366F1] mt-0.5 shrink-0">•</span>
               <span>{renderInline(item)}</span>
             </li>
           ))}
@@ -73,11 +73,11 @@ const SimpleMarkdown: FC<{ content: string }> = ({ content }) => {
 
       if (boldIdx <= codeIdx && boldMatch) {
         parts.push(remaining.slice(0, boldIdx));
-        parts.push(<strong key={partKey++} className="text-slate-200 font-medium">{boldMatch[1]}</strong>);
+        parts.push(<strong key={partKey++} className="text-[#E8E8ED] font-medium">{boldMatch[1]}</strong>);
         remaining = remaining.slice(boldIdx + boldMatch[0].length);
       } else if (codeMatch) {
         parts.push(remaining.slice(0, codeIdx));
-        parts.push(<code key={partKey++} className="px-1 py-0.5 bg-slate-700 rounded text-xs text-blue-300">{codeMatch[1]}</code>);
+        parts.push(<code key={partKey++} className="px-1 py-0.5 bg-[#1A1A22] rounded text-xs text-[#6366F1]">{codeMatch[1]}</code>);
         remaining = remaining.slice(codeIdx + codeMatch[0].length);
       }
     }
@@ -99,13 +99,13 @@ const SimpleMarkdown: FC<{ content: string }> = ({ content }) => {
       const text = headingMatch[2];
       if (level <= 2) {
         elements.push(
-          <h3 key={key++} className="text-sm font-semibold text-slate-200 mb-2 mt-3 first:mt-0">
+          <h3 key={key++} className="text-sm font-semibold text-[#E8E8ED] mb-2 mt-3 first:mt-0">
             {renderInline(text)}
           </h3>
         );
       } else {
         elements.push(
-          <h4 key={key++} className="text-sm font-medium text-slate-300 mb-1.5 mt-2.5 first:mt-0">
+          <h4 key={key++} className="text-sm font-medium text-[#8B8B9E] mb-1.5 mt-2.5 first:mt-0">
             {renderInline(text)}
           </h4>
         );
@@ -123,7 +123,7 @@ const SimpleMarkdown: FC<{ content: string }> = ({ content }) => {
     // Regular paragraph
     flushList();
     elements.push(
-      <p key={key++} className="text-sm text-slate-400 mb-2">
+      <p key={key++} className="text-sm text-[#8B8B9E] mb-2">
         {renderInline(trimmed)}
       </p>
     );
@@ -158,8 +158,8 @@ export const UpdateNotificationDialog: FC<UpdateNotificationDialogProps> = ({
       <DialogContent className="max-w-[500px] p-0">
         <DialogHeader className="p-5 pb-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <Rocket className="w-5 h-5 text-blue-400" />
+            <div className="w-10 h-10 rounded-lg bg-[#6366F1]/10 flex items-center justify-center">
+              <Rocket className="w-5 h-5 text-[#6366F1]" />
             </div>
             <DialogTitle className="text-xl">
               {t('updater.newVersionAvailable')}
@@ -170,20 +170,20 @@ export const UpdateNotificationDialog: FC<UpdateNotificationDialogProps> = ({
         <div className="px-5 py-4">
           <DialogDescription asChild>
             <div>
-              <p className="text-lg font-medium text-slate-100 mb-3">
+              <p className="text-lg font-medium text-[#E8E8ED] mb-3">
                 {t('updater.versionReleased', { version: updateInfo.version })}
               </p>
 
               {updateInfo.notes.length > 0 && (
                 <div className="mb-4 max-h-[300px] overflow-y-auto pr-1">
-                  <p className="text-sm font-medium text-slate-300 mb-2">{t('updater.releaseNotes')}</p>
+                  <p className="text-sm font-medium text-[#8B8B9E] mb-2">{t('updater.releaseNotes')}</p>
                   <div className="pl-1">
                     <SimpleMarkdown content={updateInfo.notes.join('\n')} />
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-4 text-xs text-slate-500">
+              <div className="flex gap-4 text-xs text-[#55556A]">
                 <span>{t('updater.currentVersion', { version: updateInfo.currentVersion })}</span>
                 <span>-</span>
                 <span>{t('updater.releaseDate', { date: updateInfo.date })}</span>
@@ -211,7 +211,7 @@ export const UpdateNotificationDialog: FC<UpdateNotificationDialogProps> = ({
           </div>
           <Button
             variant="outline"
-            className="w-full text-slate-400 hover:text-slate-200"
+            className="w-full text-[#8B8B9E] hover:text-[#E8E8ED]"
             onClick={onMirrorDownload}
           >
             <Globe className="w-4 h-4" />
@@ -244,8 +244,8 @@ export const DownloadProgressDialog: FC<DownloadProgressDialogProps> = ({
       <DialogContent className="max-w-[450px] p-0" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader className="p-5 pb-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <Download className="w-5 h-5 text-blue-400 animate-pulse" />
+            <div className="w-10 h-10 rounded-lg bg-[#6366F1]/10 flex items-center justify-center">
+              <Download className="w-5 h-5 text-[#6366F1] animate-pulse" />
             </div>
             <DialogTitle className="text-xl">
               {t('updater.downloading')}
@@ -256,20 +256,20 @@ export const DownloadProgressDialog: FC<DownloadProgressDialogProps> = ({
         <div className="px-5 py-4">
           <DialogDescription asChild>
             <div>
-              <p className="text-slate-300 mb-4">
+              <p className="text-[#8B8B9E] mb-4">
                 {t('updater.downloadingVersion', { version: progress.version })}
               </p>
 
               {/* Progress Bar */}
               <div className="mb-4">
-                <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-700">
+                <div className="relative h-3 w-full overflow-hidden rounded-full bg-[#1A1A22]">
                   <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300 ease-in-out rounded-full"
+                    className="h-full bg-gradient-to-r from-[#6366F1] to-[#6366F1] transition-all duration-300 ease-in-out rounded-full"
                     style={{ width: `${progress.percentage}%` }}
                   />
                 </div>
                 <div className="flex justify-end mt-2">
-                  <span className="text-lg font-semibold text-blue-400">
+                  <span className="text-lg font-semibold text-[#6366F1]">
                     {progress.percentage}%
                   </span>
                 </div>
@@ -277,7 +277,7 @@ export const DownloadProgressDialog: FC<DownloadProgressDialogProps> = ({
 
               {/* Stats */}
               {progress.totalBytes > 0 && (
-                <div className="text-sm text-slate-400">
+                <div className="text-sm text-[#8B8B9E]">
                   <span>{formatBytes(progress.downloadedBytes)}</span>
                   <span> / </span>
                   <span>{formatBytes(progress.totalBytes)}</span>
@@ -325,7 +325,7 @@ export const UpdateSuccessDialog: FC<UpdateSuccessDialogProps> = ({
         <DialogHeader className="p-5 pb-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-green-400" />
+              <CheckCircle className="w-5 h-5 text-[#10B981]" />
             </div>
             <DialogTitle className="text-xl">
               {t('updater.updateSuccess')}
@@ -336,10 +336,10 @@ export const UpdateSuccessDialog: FC<UpdateSuccessDialogProps> = ({
         <div className="px-5 py-4">
           <DialogDescription asChild>
             <div className="text-center">
-              <p className="text-lg text-slate-100 mb-2">
+              <p className="text-lg text-[#E8E8ED] mb-2">
                 {t('updater.updatedToVersion', { version })}
               </p>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-[#8B8B9E]">
                 {t('updater.restartToApply')}
               </p>
             </div>
@@ -402,27 +402,27 @@ export const UpdateErrorDialog: FC<UpdateErrorDialogProps> = ({
         <div className="px-5 py-4">
           <DialogDescription asChild>
             <div>
-              <p className="text-slate-300 mb-3">{t('updater.errorOccurred')}</p>
+              <p className="text-[#8B8B9E] mb-3">{t('updater.errorOccurred')}</p>
 
-              <div className="p-3 bg-slate-950 border border-slate-700 rounded-lg mb-4">
+              <div className="p-3 bg-[#0A0A0F] border border-[#1E1E26] rounded-lg mb-4">
                 <p className="text-sm text-orange-300 font-mono break-words">
                   {error}
                 </p>
               </div>
 
               <div className="space-y-1.5">
-                <p className="text-sm font-medium text-slate-300">{t('updater.youCan')}</p>
-                <ul className="space-y-1 text-sm text-slate-400">
+                <p className="text-sm font-medium text-[#8B8B9E]">{t('updater.youCan')}</p>
+                <ul className="space-y-1 text-sm text-[#8B8B9E]">
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-400 mt-0.5">-</span>
+                    <span className="text-[#6366F1] mt-0.5">-</span>
                     <span>{t('updater.checkNetwork')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-400 mt-0.5">-</span>
+                    <span className="text-[#6366F1] mt-0.5">-</span>
                     <span>{t('updater.autoCheckLater')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-400 mt-0.5">-</span>
+                    <span className="text-[#6366F1] mt-0.5">-</span>
                     <span>{t('updater.manualDownload')}</span>
                   </li>
                 </ul>
@@ -464,13 +464,13 @@ export const UpToDateToast: FC<UpToDateToastProps> = ({ show }) => {
 
   return (
     <div className="fixed bottom-6 right-6 z-[9999] animate-in slide-in-from-bottom-4 fade-in duration-300">
-      <div className="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-lg">
+      <div className="flex items-center gap-3 bg-[#141419] border border-[#1E1E26] rounded-lg p-4 shadow-lg">
         <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-          <CheckCircle className="w-4 h-4 text-green-400" />
+          <CheckCircle className="w-4 h-4 text-[#10B981]" />
         </div>
         <div>
-          <p className="text-sm font-medium text-slate-100">{t('updater.upToDate')}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-sm font-medium text-[#E8E8ED]">{t('updater.upToDate')}</p>
+          <p className="text-xs text-[#8B8B9E] mt-0.5">
             {t('updater.usingLatest')}
           </p>
         </div>

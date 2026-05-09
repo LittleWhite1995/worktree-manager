@@ -78,7 +78,7 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
 
   return (
     <div
-      className="absolute top-2 right-2 z-30 flex items-center gap-1 px-2 py-1.5 bg-slate-800 border border-slate-600 rounded-lg shadow-lg"
+      className="absolute top-2 right-2 z-30 flex items-center gap-1 px-2 py-1.5 bg-[#141419] border border-[#1E1E26] rounded-lg shadow-lg"
       onKeyDown={handleKeyDown}
     >
       <input
@@ -87,18 +87,18 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t('terminal.searchPlaceholder')}
-        className={`w-48 px-2 py-1 text-xs bg-slate-900 border rounded text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500 transition-colors ${
-          query && !hasResults ? 'border-red-500' : 'border-slate-600'
+        className={`w-48 px-2 py-1 text-xs bg-[#0A0A0F] border rounded text-[#E8E8ED] placeholder-[#55556A] outline-none focus:border-[#6366F1] transition-colors ${
+          query && !hasResults ? 'border-[#EF4444]' : 'border-[#1E1E26]'
         }`}
         aria-label={t('terminal.search')}
       />
       {query && !hasResults && (
-        <span className="text-[10px] text-red-400 whitespace-nowrap">{t('terminal.noResults')}</span>
+        <span className="text-[10px] text-[#EF4444] whitespace-nowrap">{t('terminal.noResults')}</span>
       )}
       <button
         onClick={() => setCaseSensitive(!caseSensitive)}
         className={`p-1 rounded transition-colors ${
-          caseSensitive ? 'text-blue-400 bg-blue-900/30' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700'
+          caseSensitive ? 'text-[#6366F1] bg-[#6366F1]/20' : 'text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22]'
         }`}
         title={t('terminal.caseSensitive')}
         aria-label={t('terminal.caseSensitive')}
@@ -109,7 +109,7 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
       <button
         onClick={() => setUseRegex(!useRegex)}
         className={`p-1 rounded transition-colors ${
-          useRegex ? 'text-blue-400 bg-blue-900/30' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700'
+          useRegex ? 'text-[#6366F1] bg-[#6366F1]/20' : 'text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22]'
         }`}
         title={t('terminal.useRegex')}
         aria-label={t('terminal.useRegex')}
@@ -117,10 +117,10 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
       >
         <Regex className="w-3.5 h-3.5" />
       </button>
-      <div className="w-px h-4 bg-slate-600 mx-0.5" />
+      <div className="w-px h-4 bg-[#1A1A22] mx-0.5" />
       <button
         onClick={() => doFindPrevious(query, options)}
-        className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors"
+        className="p-1 rounded text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
         title={t('terminal.prevResult')}
         aria-label={t('terminal.prevResult')}
       >
@@ -128,16 +128,16 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
       </button>
       <button
         onClick={() => doFindNext(query, options)}
-        className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors"
+        className="p-1 rounded text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
         title={t('terminal.nextResult')}
         aria-label={t('terminal.nextResult')}
       >
         <ChevronDown className="w-3.5 h-3.5" />
       </button>
-      <div className="w-px h-4 bg-slate-600 mx-0.5" />
+      <div className="w-px h-4 bg-[#1A1A22] mx-0.5" />
       <button
         onClick={onClose}
-        className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors"
+        className="p-1 rounded text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
         title={t('terminal.closeSearch')}
         aria-label={t('terminal.closeSearch')}
       >

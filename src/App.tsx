@@ -80,13 +80,13 @@ function App() {
   // Browser mode: kicked screen
   if (!isTauri() && wasKicked) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-[#0A0A0F] text-[#E8E8ED] flex items-center justify-center">
         <div className="w-80 space-y-4 text-center">
           <div className="w-12 h-12 mx-auto bg-red-900/30 rounded-full flex items-center justify-center">
-            <span className="text-red-400 text-xl">!</span>
+            <span className="text-[#EF4444] text-xl">!</span>
           </div>
           <h1 className="text-xl font-semibold">{t('app.kickedTitle')}</h1>
-          <p className="text-sm text-slate-400">{t('app.kickedDesc')}</p>
+          <p className="text-sm text-[#8B8B9E]">{t('app.kickedDesc')}</p>
           <Button
             className="w-full"
             onClick={() => { setWasKicked(false); window.location.reload(); }}
@@ -101,17 +101,17 @@ function App() {
   // Browser mode: login screen
   if (!isTauri() && !browserAuth.browserAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-[#0A0A0F] text-[#E8E8ED] flex items-center justify-center">
         <div className="w-80 space-y-4">
           <div className="text-center space-y-2">
-            <div className="w-10 h-10 mx-auto bg-blue-900/30 rounded-lg flex items-center justify-center mb-3">
-              <RefreshIcon className="w-5 h-5 text-blue-400" />
+            <div className="w-10 h-10 mx-auto bg-[#6366F1]/20 rounded-lg flex items-center justify-center mb-3">
+              <RefreshIcon className="w-5 h-5 text-[#6366F1]" />
             </div>
             <h1 className="text-xl font-semibold">Worktree Manager</h1>
             {shareWorkspaceName && (
-              <p className="text-sm text-blue-400">{t('app.loginWorkspaceName', { name: shareWorkspaceName })}</p>
+              <p className="text-sm text-[#6366F1]">{t('app.loginWorkspaceName', { name: shareWorkspaceName })}</p>
             )}
-            <p className="text-sm text-slate-400">{t('app.loginPasswordLabel')}</p>
+            <p className="text-sm text-[#8B8B9E]">{t('app.loginPasswordLabel')}</p>
           </div>
           <form onSubmit={(e) => { e.preventDefault(); browserAuth.handleBrowserLogin(); }} className="space-y-3">
             <Input
@@ -120,10 +120,10 @@ function App() {
               value={browserAuth.browserLoginPassword}
               onChange={(e) => browserAuth.setBrowserLoginPassword(e.target.value)}
               autoFocus
-              className="bg-slate-800 border-slate-700"
+              className="bg-[#141419] border-[#1E1E26]"
             />
             {browserAuth.browserLoginError && (
-              <p className="text-sm text-red-400">{browserAuth.browserLoginError}</p>
+              <p className="text-sm text-[#EF4444]">{browserAuth.browserLoginError}</p>
             )}
             <Button
               type="submit"
@@ -175,18 +175,18 @@ function App() {
       <>
         {/* Loading overlay */}
         {workspace.loading && (
-          <div className="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center">
+          <div className="fixed inset-0 z-50 bg-[#0A0A0F] flex items-center justify-center">
             <div className="flex items-center gap-3">
-              <RefreshIcon className="w-5 h-5 animate-spin text-slate-400" />
-              <span className="text-slate-400">{t('common.loading')}</span>
+              <RefreshIcon className="w-5 h-5 animate-spin text-[#8B8B9E]" />
+              <span className="text-[#8B8B9E]">{t('common.loading')}</span>
             </div>
           </div>
         )}
 
         {/* Browser mode: WebSocket disconnected overlay */}
         {!isTauri() && browserAuth.browserAuthenticated && !wsConnected && (
-          <div className="fixed top-0 left-0 right-0 z-40 bg-yellow-900/90 text-yellow-200 text-xs py-1.5 px-4 text-center flex items-center justify-center gap-2">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+          <div className="fixed top-0 left-0 right-0 z-40 bg-[#F59E0B]/10 text-[#F59E0B] text-xs py-1.5 px-4 text-center flex items-center justify-center gap-2">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
             {t('app.wsDisconnected')}
           </div>
         )}
@@ -208,7 +208,7 @@ function App() {
 
         {/* ==================== Mobile Layout ==================== */}
         {isMobileWeb && (
-          <div className="bg-slate-900 text-slate-100 flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
+          <div className="bg-[#0A0A0F] text-[#E8E8ED] flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
             {/* Mobile content area */}
             <div className="flex-1 min-h-0 overflow-hidden">
               {/* List view */}

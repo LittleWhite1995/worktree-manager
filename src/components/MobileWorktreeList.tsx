@@ -71,7 +71,7 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
     const statusColors: Record<string, string> = {
         clean: 'bg-emerald-500',
         modified: 'bg-amber-500',
-        archived: 'bg-slate-600',
+        archived: 'bg-[#1A1A22]',
     };
 
     return (
@@ -85,7 +85,7 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
             {/* Pull-to-refresh indicator */}
             {(pullDistance > 0 || refreshing) && (
                 <div
-                    className="flex items-center justify-center text-slate-500 transition-all"
+                    className="flex items-center justify-center text-[#55556A] transition-all"
                     style={{ height: refreshing ? 40 : pullDistance }}
                 >
                     <RefreshCw className={`w-4 h-4 ${refreshing ? 'ptr-spinner' : ''}`} />
@@ -96,11 +96,11 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
             <div className="px-4 pt-4 pb-2">
                 <div className="flex items-center justify-between">
                     <div className="pl-10">
-                        <h1 className="text-lg font-semibold text-slate-100">
+                        <h1 className="text-lg font-semibold text-[#E8E8ED]">
                             {currentWorkspace?.name || 'Worktree Manager'}
                         </h1>
                         {shareActive && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-green-400 mt-0.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-[#10B981] mt-0.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                                 {t('mobile.sharing', '分享中')}
                             </span>
@@ -109,16 +109,16 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
                     {onOpenCreateModal && (
                         <button
                             onClick={onOpenCreateModal}
-                            className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-sm font-light active:bg-blue-500/30 transition-colors"
+                            className="w-8 h-8 rounded-full bg-[#6366F1]/20 text-[#6366F1] flex items-center justify-center text-sm font-light active:bg-[#6366F1]/30 transition-colors"
                         >
                             +
                         </button>
                     )}
                 </div>
                 {mainWorkspace && mainWorkspace.projects.length > 0 && (
-                    <div className="mt-2 px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg">
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">{t('mobile.mainWorkspace', '主工作区')}</div>
-                        <div className="text-xs text-slate-300">{mainWorkspace.projects.map(p => p.name).join(', ')}</div>
+                    <div className="mt-2 px-3 py-2 bg-[#141419]/60 border border-[#1E1E26]/50 rounded-lg">
+                        <div className="text-[10px] text-[#55556A] uppercase tracking-wider mb-0.5">{t('mobile.mainWorkspace', '主工作区')}</div>
+                        <div className="text-xs text-[#8B8B9E]">{mainWorkspace.projects.map(p => p.name).join(', ')}</div>
                     </div>
                 )}
             </div>
@@ -143,31 +143,31 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
                                 ? 'opacity-40 cursor-not-allowed'
                                 : 'active:scale-[0.98]'
                                 } ${isSelected
-                                    ? 'bg-blue-500/15 border border-blue-500/30'
-                                    : 'bg-slate-800/50 border border-slate-700/30 active:bg-slate-700/50'
+                                    ? 'bg-[#6366F1]/15 border border-[#6366F1]/30'
+                                    : 'bg-[#141419] border border-[#1E1E26]/30 active:bg-[#1A1A22]/50'
                                 }`}
                         >
                             <div className="flex items-center gap-3">
                                 <span className={`w-2 h-2 rounded-full shrink-0 ${statusColors[status]}`} />
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-slate-200 truncate">{wt.display_name || wt.name}</span>
-                                        {isLocked && <Lock className="w-3 h-3 text-amber-400/70" />}
+                                        <span className="text-sm font-medium text-[#E8E8ED] truncate">{wt.display_name || wt.name}</span>
+                                        {isLocked && <Lock className="w-3 h-3 text-[#F59E0B]/70" />}
                                     </div>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         {wt.projects.map(p => (
-                                            <span key={p.name} className="text-[10px] text-slate-500 truncate">
+                                            <span key={p.name} className="text-[10px] text-[#55556A] truncate">
                                                 {p.name}:{p.current_branch}
                                             </span>
                                         ))}
                                     </div>
                                 </div>
                                 {totalUncommitted > 0 && (
-                                    <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full font-medium shrink-0">
+                                    <span className="text-[10px] text-[#F59E0B] bg-amber-500/10 px-1.5 py-0.5 rounded-full font-medium shrink-0">
                                         {totalUncommitted}
                                     </span>
                                 )}
-                                {!isDisabled && <span className="text-slate-600 text-sm">›</span>}
+                                {!isDisabled && <span className="text-[#55556A] text-sm">›</span>}
                             </div>
                         </button>
                     );
@@ -177,9 +177,9 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
             {/* Empty state */}
             {activeWorktrees.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                    <p className="text-slate-500 text-sm">{t('sidebar.noWorktrees')}</p>
+                    <p className="text-[#55556A] text-sm">{t('sidebar.noWorktrees')}</p>
                     {onOpenCreateModal && (
-                        <button onClick={onOpenCreateModal} className="mt-3 px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium active:bg-blue-500/30 transition-colors">
+                        <button onClick={onOpenCreateModal} className="mt-3 px-4 py-2 bg-[#6366F1]/20 text-[#6366F1] rounded-lg text-sm font-medium active:bg-[#6366F1]/30 transition-colors">
                             {t('sidebar.createWorktree')}
                         </button>
                     )}
