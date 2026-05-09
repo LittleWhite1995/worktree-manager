@@ -97,7 +97,7 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
                       key={proj.name}
                       className={`p-3 rounded-lg border cursor-pointer transition-all ${
                         selectedProject === proj.name
-                          ? "bg-blue-900/20 border-blue-500/50"
+                          ? "bg-[#6366F1]/10 border-[#6366F1]/50"
                           : "bg-[#0A0A0F]/50 border-[#1E1E26] hover:border-[#1E1E26]"
                       }`}
                       onClick={() => handleProjectSelect(proj.name)}
@@ -106,8 +106,8 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
                         <div className="flex items-center gap-3">
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
                             selectedProject === proj.name
-                              ? "border-blue-500 bg-blue-500"
-                              : "border-slate-500"
+                              ? "border-[#6366F1] bg-[#6366F1]"
+                              : "border-[#55556A]"
                           }`}>
                             {selectedProject === proj.name && (
                               <div className="w-2 h-2 rounded-full bg-white" />

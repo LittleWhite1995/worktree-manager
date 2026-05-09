@@ -355,7 +355,7 @@ export const UpdateSuccessDialog: FC<UpdateSuccessDialogProps> = ({
             {t('updater.restartLater')}
           </Button>
           <Button
-            className="flex-1 bg-green-600 hover:bg-green-500 group"
+            className="flex-1 bg-[#10B981] hover:bg-[#10B981]/80 group"
             onClick={onRestart}
           >
             {t('updater.restartNow')}

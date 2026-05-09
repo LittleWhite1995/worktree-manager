@@ -47,7 +47,7 @@ export const StatusDot: FC<{ status: 'success' | 'warning' | 'info' | 'sync' }> 
   const colors = {
     success: 'bg-emerald-500',
     warning: 'bg-amber-500',
-    info: 'bg-blue-500',
+    info: 'bg-[#6366F1]',
     sync: 'bg-purple-500',
   };
   return <span className={`inline-block w-2.5 h-2.5 rounded-full ${colors[status]}`} />;

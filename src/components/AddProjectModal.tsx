@@ -536,7 +536,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                   <button
                     onClick={handleBrowseProject}
                     disabled={importingExternal}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-[#1E1E26] text-[#8B8B9E] hover:text-[#E8E8ED] hover:border-slate-500 hover:bg-[#141419]/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-[#1E1E26] text-[#8B8B9E] hover:text-[#E8E8ED] hover:border-[#55556A] hover:bg-[#141419]/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {importingExternal ? (
                       <>
@@ -554,7 +554,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                   </button>
 
                   {existingError && (
-                    <div className="p-3 bg-red-900/30 border border-red-800/50 rounded-lg">
+                    <div className="p-3 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg">
                       <div className="text-[#EF4444] text-sm">{existingError}</div>
                     </div>
                   )}
@@ -581,7 +581,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                               proj.is_registered
                                 ? 'border-[#1E1E26]/30 bg-[#141419]/20 opacity-50 cursor-not-allowed'
                                 : selectedExisting === proj.name
-                                  ? 'border-blue-500/50 bg-blue-500/10'
+                                  ? 'border-[#6366F1]/50 bg-[#6366F1]/10'
                                   : 'border-[#1E1E26]/50 bg-[#141419]/30 hover:bg-[#141419]/60 hover:border-[#1E1E26]'
                             }`}
                           >
@@ -596,7 +596,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <div className={`flex items-center gap-1.5 text-sm shrink-0 ${proj.is_registered ? 'text-slate-600' : 'text-[#8B8B9E]'}`}>
+                              <div className={`flex items-center gap-1.5 text-sm shrink-0 ${proj.is_registered ? 'text-[#55556A]' : 'text-[#8B8B9E]'}`}>
                                 <GitBranchIcon className="w-3.5 h-3.5" />
                                 <span>{proj.current_branch}</span>
                               </div>
@@ -671,7 +671,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
         {/* Phase 2: Scanning */}
         {phase === 'scanning' && (
           <div className="p-8 flex flex-col items-center justify-center gap-3">
-            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#6366F1] border-t-transparent rounded-full animate-spin" />
             <p className="text-sm text-[#8B8B9E]">{t('addProject.scanning')}</p>
           </div>
         )}
@@ -681,7 +681,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
           <>
             <div className="p-5 space-y-4 overflow-y-auto">
               {scanError && (
-                <div className="p-3 bg-red-900/30 border border-red-800/50 rounded-lg">
+                <div className="p-3 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg">
                   <p className="text-sm text-[#EF4444]">{t('addProject.scanError', { error: scanError })}</p>
                 </div>
               )}
@@ -713,7 +713,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                             {result.relative_path}
                           </span>
                           {result.is_recommended && (
-                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-[#6366F1] rounded">
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-[#6366F1]/20 text-[#6366F1] rounded">
                               {t('addProject.recommended')}
                             </span>
                           )}

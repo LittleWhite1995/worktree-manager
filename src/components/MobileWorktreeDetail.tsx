@@ -223,8 +223,8 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
                     <div className="h-full overflow-y-auto mobile-content animate-slide-in">
                         {/* Error */}
                         {error && (
-                            <div className="mx-3 mt-2 p-3 bg-red-900/30 border border-red-800/50 rounded-lg">
-                                <div className="text-red-300 text-xs">{error}</div>
+                            <div className="mx-3 mt-2 p-3 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg">
+                                <div className="text-[#EF4444] text-xs">{error}</div>
                                 {onClearError && (
                                     <button onClick={onClearError} className="text-[#EF4444] text-[10px] mt-1 underline">{t('common.close')}</button>
                                 )}
@@ -374,7 +374,7 @@ export const MobileWorktreeDetail: FC<MobileWorktreeDetailProps> = ({
                             <div className="px-3 pt-3 pb-6">
                                 <button
                                     onClick={onArchive}
-                                    className="w-full py-2.5 rounded-lg text-[#EF4444]/70 text-xs font-medium active:bg-red-900/20 transition-colors border border-red-800/20"
+                                    className="w-full py-2.5 rounded-lg text-[#EF4444]/70 text-xs font-medium active:bg-[#EF4444]/10 transition-colors border border-[#EF4444]/20"
                                 >
                                     {t('detail.archive')}
                                 </button>

@@ -320,7 +320,7 @@ const VaultSettingsSection: FC = () => {
               <Button
                 variant="ghost" size="sm" disabled={linking}
                 onClick={() => handleDisconnect(false)}
-                className="text-[#EF4444] hover:text-red-300"
+                className="text-[#EF4444] hover:text-[#EF4444]"
               >
                 {t('settings.vaultDisconnect', '断开')}
               </Button>
@@ -337,7 +337,7 @@ const VaultSettingsSection: FC = () => {
           <>
             {/* Not connected state */}
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-slate-500" />
+              <div className="w-2 h-2 rounded-full bg-[#55556A]" />
               <span className="text-sm text-[#8B8B9E]">
                 {t('settings.vaultNotConnected', '未挂载')}
               </span>
@@ -936,7 +936,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   // ==================== Menu items ====================
   const menuItems = [
     { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" /> },
-    { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <FolderOpen className="w-3.5 h-3.5 text-amber-400" /> },
+    { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <FolderOpen className="w-3.5 h-3.5 text-[#F59E0B]" /> },
     { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
     ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" /> }] : []),
     { id: 'commit' as SettingsSection, label: t('settings.commitNav', '提交设置'), icon: <FileText className="w-3.5 h-3.5" /> },
@@ -965,9 +965,9 @@ export const SettingsView: FC<SettingsViewProps> = ({
 
       {/* Error banner */}
       {error && (
-        <div className="mx-4 mt-2 p-3 bg-red-900/30 border border-red-800/50 rounded-lg shrink-0">
-          <div className="text-red-300 text-sm select-text">{error}</div>
-          <Button variant="link" size="sm" onClick={onClearError} className="text-[#EF4444] hover:text-red-200 mt-1 p-0 h-auto">{t('common.close')}</Button>
+        <div className="mx-4 mt-2 p-3 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg shrink-0">
+          <div className="text-[#EF4444] text-sm select-text">{error}</div>
+          <Button variant="link" size="sm" onClick={onClearError} className="text-[#EF4444] hover:text-[#EF4444] mt-1 p-0 h-auto">{t('common.close')}</Button>
         </div>
       )}
 
@@ -1124,7 +1124,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   {projectViewMode === 'json' && (
                     <div>
                       {projectJsonError && (
-                        <div className="mb-2 p-2 bg-red-900/30 border border-red-800/50 rounded text-xs text-red-300">{projectJsonError}</div>
+                        <div className="mb-2 p-2 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded text-xs text-[#EF4444]">{projectJsonError}</div>
                       )}
                       <textarea
                         value={projectJsonText}
@@ -1240,7 +1240,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                               </div>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => removeProject(index)}
-                              className="h-6 w-6 text-[#EF4444]/60 hover:text-red-300 hover:bg-red-900/30 shrink-0"
+                              className="h-6 w-6 text-[#EF4444]/60 hover:text-[#EF4444] hover:bg-[#EF4444]/10 shrink-0"
                               title={t('settings.deleteProject')}
                             ><TrashIcon className="w-3.5 h-3.5" /></Button>
                           </div>
@@ -1261,11 +1261,11 @@ export const SettingsView: FC<SettingsViewProps> = ({
                               const filteredResults = projScanResults.filter(r => !existingFolders.has(r.relative_path));
                               if (filteredResults.length === 0) return null;
                               return (
-                                <div className="mb-1.5 p-1.5 bg-blue-900/20 border border-blue-800/30 rounded">
+                                <div className="mb-1.5 p-1.5 bg-[#6366F1]/10 border border-[#6366F1]/20 rounded">
                                   <div className="text-[9px] font-medium text-[#6366F1] mb-1">{t('settings.scanResult')}</div>
                                   <div className="space-y-0.5">
                                     {filteredResults.map(result => (
-                                      <button key={result.relative_path} type="button" className="w-full flex items-center justify-between px-1.5 py-0.5 text-left rounded hover:bg-blue-900/30 transition-colors"
+                                      <button key={result.relative_path} type="button" className="w-full flex items-center justify-between px-1.5 py-0.5 text-left rounded hover:bg-[#6366F1]/10 transition-colors"
                                         onClick={() => { const newFolders = [...(proj.linked_folders || []), result.relative_path]; updateProject(index, 'linked_folders', newFolders); }}
                                       >
                                         <span className="text-[10px] text-[#8B8B9E] font-mono">{result.relative_path}</span>
@@ -1316,7 +1316,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-[#EF4444]/70 hover:text-red-300 hover:bg-red-900/20 text-xs gap-1.5"
+                      className="text-[#EF4444]/70 hover:text-[#EF4444] hover:bg-[#EF4444]/10 text-xs gap-1.5"
                       disabled={isCurrentWs}
                       onClick={() => {
                         const ws = workspaces.find(w => w.path === selectedWsPath);
@@ -1798,7 +1798,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                             variant="ghost"
                             size="sm"
                             onClick={() => setDefaultPrefixIndex(i)}
-                            className={`px-1.5 ${defaultPrefixIndex === i ? 'text-amber-400' : 'text-[#55556A] hover:text-[#8B8B9E]'}`}
+                            className={`px-1.5 ${defaultPrefixIndex === i ? 'text-[#F59E0B]' : 'text-[#55556A] hover:text-[#8B8B9E]'}`}
                             title={t('settings.setDefault', '设为默认')}
                           >
                             <Star className={`w-4 h-4 ${defaultPrefixIndex === i ? 'fill-amber-400' : ''}`} />
@@ -1823,7 +1823,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                                   setDefaultPrefixIndex(defaultPrefixIndex - 1);
                                 }
                               }}
-                              className="text-[#EF4444]/60 hover:text-red-300"
+                              className="text-[#EF4444]/60 hover:text-[#EF4444]"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -1910,7 +1910,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       <p className="text-sm text-muted-foreground">{t('settings.cloudPairingHint', '请在 WMS 管理后台输入以下配对码：')}</p>
                       <p className="text-3xl font-mono font-bold text-center tracking-wider">{pairingCode}</p>
                       {pairingStatus?.status === 'claimed' && (
-                        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded">
+                        <div className="p-3 bg-yellow-50 dark:bg-[#F59E0B]/10 rounded">
                           <p className="text-sm">{t('settings.cloudPairingRequest', '用户')} <strong>{pairingStatus.user_email || pairingStatus.username}</strong> {t('settings.cloudPairingRequestSuffix', '请求连接此设备')}</p>
                           <div className="flex gap-2 mt-2">
                             <Button size="sm" onClick={handleCloudApprove}>{t('settings.cloudApprove', '同意')}</Button>

@@ -53,7 +53,7 @@ export const WelcomeView: FC<WelcomeViewProps> = ({ onAddWorkspace, onCreateWork
         <div className="space-y-4">
           <div className="p-4 rounded-lg bg-[#141419] border border-[#1E1E26] text-left hover:border-[#6366F1]/30 hover:bg-[#1A1A22] transition-all duration-150">
             <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-              <FolderIcon className="w-4 h-4 text-blue-400" />
+              <FolderIcon className="w-4 h-4 text-[#6366F1]" />
               {t('welcome.whatIsWorkspace')}
             </h3>
             <p className="text-xs text-[#8B8B9E] leading-relaxed">

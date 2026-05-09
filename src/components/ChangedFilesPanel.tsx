@@ -29,7 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_BG: Record<string, string> = {
     M: 'bg-amber-500/10 border-amber-500/30',
     A: 'bg-emerald-500/10 border-emerald-500/30',
-    D: 'bg-red-500/10 border-red-500/30',
+    D: 'bg-[#EF4444]/10 border-[#EF4444]/30',
     R: 'bg-[#6366F1]/10 border-[#6366F1]/30',
     C: 'bg-sky-500/10 border-sky-500/30',
     '?': 'bg-[#55556A]/10 border-[#55556A]/30',
@@ -556,7 +556,7 @@ const DiffView: FC<{
                     <span className="text-[10px] text-[#10B981] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30">New</span>
                 )}
                 {diff.is_deleted && (
-                    <span className="text-[10px] text-[#EF4444] px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/30">Deleted</span>
+                    <span className="text-[10px] text-[#EF4444] px-1.5 py-0.5 rounded bg-[#EF4444]/10 border border-[#EF4444]/30">Deleted</span>
                 )}
                 {canUseChangedOnly && (
                     <div className="ml-auto flex items-center gap-1">

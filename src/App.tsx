@@ -82,7 +82,7 @@ function App() {
     return (
       <div className="min-h-screen bg-[#0A0A0F] text-[#E8E8ED] flex items-center justify-center">
         <div className="w-80 space-y-4 text-center">
-          <div className="w-12 h-12 mx-auto bg-red-900/30 rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 mx-auto bg-[#EF4444]/10 rounded-full flex items-center justify-center">
             <span className="text-[#EF4444] text-xl">!</span>
           </div>
           <h1 className="text-xl font-semibold">{t('app.kickedTitle')}</h1>

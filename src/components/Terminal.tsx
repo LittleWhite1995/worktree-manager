@@ -113,7 +113,7 @@ function MobileTerminalToolbar({
   };
 
   return (
-    <div ref={toolbarRef} className="flex items-center gap-1.5 px-2 py-1.5 bg-slate-800/95 border-t border-slate-700/50 overflow-x-auto shrink-0 scrollbar-none"
+    <div ref={toolbarRef} className="flex items-center gap-1.5 px-2 py-1.5 bg-[#141419]/95 border-t border-[#1E1E26]/50 overflow-x-auto shrink-0 scrollbar-none"
       style={{ touchAction: 'pan-x' }}
     >
       {TOOLBAR_BUTTONS.map((btn) => (
@@ -123,7 +123,7 @@ function MobileTerminalToolbar({
           className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium select-none touch-manipulation transition-colors ${
             pendingBtn === btn.label
               ? 'bg-yellow-600/90 text-yellow-100 ring-1 ring-yellow-400'
-              : 'bg-slate-700/80 text-slate-300 active:bg-slate-600'
+              : 'bg-[#1A1A22]/80 text-[#8B8B9E] active:bg-[#1E1E26]'
           }`}
         >
           {btn.label}
@@ -135,7 +135,7 @@ function MobileTerminalToolbar({
             (document.activeElement as HTMLElement)?.blur();
             onResize();
           }}
-          className="shrink-0 px-2.5 py-1 rounded-full bg-blue-700/80 text-blue-200 text-xs font-medium active:bg-blue-600 select-none touch-manipulation"
+          className="shrink-0 px-2.5 py-1 rounded-full bg-[#6366F1]/80 text-[#6366F1] text-xs font-medium active:bg-[#6366F1] select-none touch-manipulation"
         >
           Resize
         </button>
@@ -152,7 +152,7 @@ function MobileTerminalToolbar({
         </button>
       )}
       {sentToast && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] px-4 py-2 rounded-lg bg-green-600/95 text-green-100 text-sm font-medium shadow-lg pointer-events-none animate-pulse">
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] px-4 py-2 rounded-lg bg-[#10B981]/95 text-[#E8E8ED] text-sm font-medium shadow-lg pointer-events-none animate-pulse">
           {sentToast} sent
         </div>
       )}
@@ -1039,25 +1039,25 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
         {/* Initializing overlay */}
         {(initStatus || initError) && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm z-20">
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0A0A0F]/80 backdrop-blur-sm z-20">
             <div className="flex flex-col items-center gap-3">
               {initStatus ? (
                 <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-[#6366F1] animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span className="text-slate-300 text-sm font-medium">{initStatus}</span>
+                  <span className="text-[#8B8B9E] text-sm font-medium">{initStatus}</span>
                 </div>
               ) : initError ? (
                 <>
-                  <div className="flex items-center gap-2 text-red-400">
+                  <div className="flex items-center gap-2 text-[#EF4444]">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span className="text-sm font-medium">Connection failed</span>
                   </div>
-                  <p className="text-slate-400 text-xs max-w-xs text-center">{initError}</p>
+                  <p className="text-[#8B8B9E] text-xs max-w-xs text-center">{initError}</p>
                   <button
                     onClick={() => {
                       initializedRef.current = false;
@@ -1076,7 +1076,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         {/* WS connection status overlay (browser mode only) */}
         {!isTauri() && !wsConnected && (
           <div className="absolute inset-0 flex items-end justify-center pointer-events-none z-10 pb-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-900/80 backdrop-blur-sm border border-amber-700/50 text-amber-300 text-xs font-medium shadow-lg pointer-events-auto">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-900/80 backdrop-blur-sm border border-amber-700/50 text-[#F59E0B] text-xs font-medium shadow-lg pointer-events-auto">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
               Reconnecting...
             </div>
@@ -1091,38 +1091,38 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               onClick={handleCloseContextMenu}
             />
             <div
-              className="fixed z-50 bg-slate-800 border border-slate-700 rounded-lg shadow-lg py-1 min-w-[140px]"
+              className="fixed z-50 bg-[#141419] border border-[#1E1E26] rounded-lg shadow-lg py-1 min-w-[140px]"
               style={{ left: contextMenu.x, top: contextMenu.y }}
             >
               <button
-                className="w-full px-3 py-1 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
                 onClick={handleCopy}
               >
                 Copy
               </button>
               <button
-                className="w-full px-3 py-1 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
                 onClick={handlePaste}
               >
                 Paste
               </button>
-              <div className="border-t border-slate-700 my-0.5" />
+              <div className="border-t border-[#1E1E26] my-0.5" />
               <button
-                className="w-full px-3 py-1 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
                 onClick={handleResizeToFit}
               >
                 Resize to Fit
               </button>
-              <div className="border-t border-slate-700 my-0.5" />
+              <div className="border-t border-[#1E1E26] my-0.5" />
               <button
-                className="w-full px-3 py-1 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
                 onClick={handleClear}
               >
                 Clear
               </button>
-              <div className="border-t border-slate-700 my-0.5" />
+              <div className="border-t border-[#1E1E26] my-0.5" />
               <button
-                className="w-full px-3 py-1 text-left text-sm text-amber-300 hover:bg-slate-700 transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[#F59E0B] hover:bg-[#1A1A22] transition-colors"
                 onClick={handleShowDebugInfo}
               >
                 Debug Info
@@ -1138,19 +1138,19 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               className="fixed inset-0 z-50"
               onClick={handleCloseDebugInfo}
             />
-            <div className="absolute z-[60] top-2 left-2 w-[80vw] max-w-[80vw] max-h-[80vh] bg-slate-900/95 border border-amber-600/50 rounded-lg shadow-xl select-text flex flex-col">
-              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-700/80">
-                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Terminal Debug Info</span>
+            <div className="absolute z-[60] top-2 left-2 w-[80vw] max-w-[80vw] max-h-[80vh] bg-[#0A0A0F]/95 border border-amber-600/50 rounded-lg shadow-xl select-text flex flex-col">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[#1E1E26]/80">
+                <span className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider">Terminal Debug Info</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleCopyDebugInfo}
-                    className="text-slate-300 hover:text-white text-xs px-2 py-1 rounded border border-slate-700 hover:bg-slate-800 transition-colors"
+                    className="text-[#8B8B9E] hover:text-white text-xs px-2 py-1 rounded border border-[#1E1E26] hover:bg-[#141419] transition-colors"
                   >
                     {debugInfoCopied ? 'Copied' : 'Copy'}
                   </button>
                   <button
                     onClick={handleCloseDebugInfo}
-                    className="text-slate-400 hover:text-white text-xs px-1.5 py-1 rounded hover:bg-slate-700 transition-colors"
+                    className="text-[#8B8B9E] hover:text-white text-xs px-1.5 py-1 rounded hover:bg-[#1A1A22] transition-colors"
                   >
                     Close
                   </button>
@@ -1167,8 +1167,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
                         key={key}
                         className={`text-xs ${DEBUG_INFO_WIDE_KEYS.has(key) ? 'col-span-full' : ''}`}
                       >
-                        <span className="text-slate-400 font-medium">{key}:</span>
-                        <span className="text-slate-200 ml-1 break-all font-mono">{value}</span>
+                        <span className="text-[#8B8B9E] font-medium">{key}:</span>
+                        <span className="text-[#E8E8ED] ml-1 break-all font-mono">{value}</span>
                       </div>
                     ))}
                   </div>

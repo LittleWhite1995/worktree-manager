@@ -104,7 +104,7 @@ export function highlightWorktreeName(name: string, result: MatchResult): ReactN
   if (!result.matched) return name;
   if (result.type === 'pinyin') {
     return (
-      <span className="text-yellow-200 bg-yellow-500/30 rounded-sm px-px">{name}</span>
+      <span className="text-[#F59E0B] bg-[#F59E0B]/30 rounded-sm px-px">{name}</span>
     );
   }
   // substring
@@ -112,7 +112,7 @@ export function highlightWorktreeName(name: string, result: MatchResult): ReactN
   return (
     <>
       {name.slice(0, index)}
-      <span className="text-yellow-200 bg-yellow-500/30 rounded-sm px-px">
+      <span className="text-[#F59E0B] bg-[#F59E0B]/30 rounded-sm px-px">
         {name.slice(index, index + length)}
       </span>
       {name.slice(index + length)}
@@ -859,7 +859,7 @@ const StatusBadge: FC<{
 }> = ({ label, tooltip, tone }) => {
   const toneClass = tone === 'blue'
     ? 'text-[#6366F1]/80 bg-[#6366F1]/10 border border-[#6366F1]/20'
-    : 'text-amber-400/80 bg-amber-900/20 border border-amber-800/30';
+    : 'text-[#F59E0B]/80 bg-[#F59E0B]/10 border border-[#F59E0B]/20';
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -903,7 +903,7 @@ const SidebarBottomBar: FC<{
         isDev ? (
           <button
             onClick={() => { callBackend('open_devtools').catch(() => { /* ignore */ }); }}
-            className="text-xs text-amber-500/70 hover:text-amber-400 transition-colors cursor-pointer font-mono"
+            className="text-xs text-[#F59E0B]/70 hover:text-[#F59E0B] transition-colors cursor-pointer font-mono"
             title={t('sidebar.openDevTools')}
           >
             DEV
@@ -931,7 +931,7 @@ const SidebarBottomBar: FC<{
             {devConsoleEnabled && (
               <button
                 onClick={() => { callBackend('open_devtools').catch(() => { /* ignore */ }); }}
-                className="text-[10px] text-amber-500/70 hover:text-amber-400 transition-colors cursor-pointer font-mono"
+                className="text-[10px] text-[#F59E0B]/70 hover:text-[#F59E0B] transition-colors cursor-pointer font-mono"
                 title={t('sidebar.openDevTools')}
               >
                 DevTools

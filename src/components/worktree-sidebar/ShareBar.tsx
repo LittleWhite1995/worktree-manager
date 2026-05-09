@@ -271,7 +271,7 @@ export const ShareBar: FC<ShareBarProps> = ({
               await onStop();
             }
           }}
-          className="text-[11px] text-red-400 hover:text-red-300 transition-colors px-1"
+          className="text-[11px] text-[#EF4444] hover:text-[#EF4444] transition-colors px-1"
         >
           {t('share.stopSharing')}
         </button>
@@ -354,7 +354,7 @@ const ShareConfigDialog: FC<{
               </Button>
             </div>
             {portError && (
-              <p className="text-sm text-red-400 mt-1">{portError}</p>
+              <p className="text-sm text-[#EF4444] mt-1">{portError}</p>
             )}
             <p className="text-xs text-[#55556A] mt-1">{t('share.portHint')}</p>
           </div>
@@ -650,7 +650,7 @@ const ConnectedClients: FC<{
               variant="ghost"
               size="icon"
               onClick={() => onKick(client.session_id)}
-              className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-400"
+              className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-100 hover:bg-[#EF4444]/20 hover:text-[#EF4444]"
               title={t('share.kickClient')}
             >
               <span className="text-[10px]">x</span>

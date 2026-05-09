@@ -457,16 +457,16 @@ export const GitOperations: FC<GitOperationsProps> = ({
       {error && (
         <div
           className={`p-2 rounded text-xs transition-opacity duration-200 ${errorPersistent
-            ? 'bg-red-900/50 border border-red-700/60'
-            : 'bg-red-900/40 border border-red-800/50 cursor-pointer'
+            ? 'bg-[#EF4444]/10 border border-[#EF4444]/30'
+            : 'bg-[#EF4444]/10 border border-[#EF4444]/20 cursor-pointer'
             } ${dismissing === 'error' ? 'opacity-0' : 'opacity-100'}`}
           onClick={errorPersistent ? undefined : dismissError}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-red-300 flex-1 whitespace-pre-wrap break-all">{error}</span>
+            <span className="text-[#EF4444] flex-1 whitespace-pre-wrap break-all">{error}</span>
             <button
               onClick={(e) => { e.stopPropagation(); dismissError(); }}
-              className="shrink-0 p-0.5 rounded hover:bg-red-800/50 transition-colors"
+              className="shrink-0 p-0.5 rounded hover:bg-[#EF4444]/30 transition-colors"
             >
               <CloseIcon className="w-3 h-3 text-[#EF4444]" />
             </button>
@@ -477,7 +477,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
                 e.stopPropagation();
                 onOpenTerminal(projectPath);
               }}
-              className="mt-1.5 flex items-center gap-1.5 text-red-300 hover:text-red-200 transition-colors text-xs bg-red-800/30 hover:bg-red-800/50 rounded px-2 py-1"
+              className="mt-1.5 flex items-center gap-1.5 text-[#EF4444] hover:text-[#EF4444] transition-colors text-xs bg-[#EF4444]/20 hover:bg-[#EF4444]/30 rounded px-2 py-1"
             >
               <TerminalIcon className="w-3 h-3" />
               <span>{t('git.openTerminalToResolve')}</span>

@@ -187,7 +187,7 @@ const FloatingMicButton: FC<{
     <button
       ref={btnRef}
       className={`z-20 w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm touch-none ${isRecording
-        ? 'bg-red-900/70 border-2 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.5)] animate-pulse'
+        ? 'bg-[#EF4444]/70 border-2 border-[#EF4444] shadow-[0_0_12px_rgba(239,68,68,0.5)] animate-pulse'
         : 'bg-[#141419]/70 border-2 border-green-500/60'
         }`}
       style={style}
@@ -226,7 +226,7 @@ function getVoiceButtonTitle(
 
 function getVoiceButtonClass(voiceStatus: VoiceStatus, voiceWarning?: string | null): string {
   switch (voiceStatus) {
-    case 'recording': return 'text-[#EF4444] hover:bg-red-900/30';
+    case 'recording': return 'text-[#EF4444] hover:bg-[#EF4444]/10';
     case 'ready': return 'text-green-400 hover:bg-green-900/30';
     case 'error': return voiceWarning ? 'text-yellow-400 hover:bg-[#1A1A22]' : 'text-[#EF4444] hover:bg-[#1A1A22]';
     default: return 'text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22]';
@@ -548,7 +548,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 className={`terminal-badge-marquee text-xs px-2.5 py-0.5 rounded-md max-w-[160px] overflow-hidden cursor-pointer transition-colors ${
                   badgeCopied
                     ? 'text-green-200 bg-green-500/20 border border-green-400/40'
-                    : 'text-blue-200 bg-[#6366F1]/20 border border-blue-400/30 hover:bg-blue-400/30 hover:text-blue-100 hover:border-blue-300/50 active:bg-blue-400/40'
+                    : 'text-[#6366F1] bg-[#6366F1]/20 border border-[#6366F1]/30 hover:bg-[#6366F1]/30 hover:text-[#6366F1] hover:border-[#6366F1]/50 active:bg-[#6366F1]/40'
                 }`}
                 onClick={() => {
                   navigator.clipboard.writeText(selectedWorktreeName);
@@ -600,7 +600,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             <button
               onClick={(e) => { e.stopPropagation(); handleSearchToggle(); }}
               className={`p-1.5 rounded transition-colors ${
-                searchOpen ? 'text-[#6366F1] bg-blue-900/30' : 'text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22]'
+                searchOpen ? 'text-[#6366F1] bg-[#6366F1]/10' : 'text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22]'
               }`}
               title={t('terminal.search')}
               aria-label={t('terminal.search')}
@@ -715,21 +715,21 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
         {/* 语音错误提示（红色） */}
         {showError && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-red-900/90 border border-red-700/50 rounded-lg text-sm text-red-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-lg text-sm text-[#EF4444] shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
             {showError}
           </div>
         )}
 
         {/* 语音警告提示（黄色，用于无麦克风等非严重问题） */}
         {showWarning && !showError && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-yellow-900/90 border border-yellow-700/50 rounded-lg text-sm text-yellow-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-lg text-sm text-[#F59E0B] shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
             {showWarning}
           </div>
         )}
 
         {/* GPU renderer fallback toast */}
         {showGpuFallback && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-yellow-900/90 border border-yellow-700/50 rounded-lg text-sm text-yellow-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-lg text-sm text-[#F59E0B] shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
             {t('terminal.gpuFallback')}
           </div>
         )}
@@ -772,7 +772,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 {/* AI 整理 */}
                 {(staging.refinedText || staging.isRefining || staging.refineFailed) && (
                   <div className={`rounded-lg p-3 ${staging.refineFailed
-                    ? 'bg-red-900/30 border border-red-700/50'
+                    ? 'bg-[#EF4444]/10 border border-[#EF4444]/30'
                     : 'bg-[#141419]/80 border border-[#6366F1]/40'
                     }`}>
                     <div className="text-[10px] mb-1 font-medium uppercase tracking-wider flex items-center gap-1">
@@ -785,9 +785,9 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                     </div>
                     <div className="text-sm leading-relaxed break-all">
                       {staging.refineFailed ? (
-                        <span className="text-red-300/80">{t('voice.refineFailed')}</span>
+                        <span className="text-[#EF4444]/80">{t('voice.refineFailed')}</span>
                       ) : (
-                        <span className="text-blue-200">{staging.refinedText}</span>
+                        <span className="text-[#6366F1]">{staging.refinedText}</span>
                       )}
                     </div>
                   </div>
@@ -835,9 +835,9 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                     </div>
                     <div className="text-sm leading-relaxed break-all">
                       {staging.refineFailed ? (
-                        <span className="text-red-300/80">{t('voice.refineFailed')}</span>
+                        <span className="text-[#EF4444]/80">{t('voice.refineFailed')}</span>
                       ) : (
-                        <span className="text-blue-200">{staging.refinedText}</span>
+                        <span className="text-[#6366F1]">{staging.refinedText}</span>
                       )}
                     </div>
                   </>

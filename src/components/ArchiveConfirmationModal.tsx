@@ -49,15 +49,15 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
                   <h4 className="text-sm font-medium text-[#8B8B9E] mb-2">{t('archive.fileUsage')}</h4>
                   <div className="space-y-2">
                     {archiveModal.status.locked_processes.map((process) => (
-                      <div key={process.pid} className="bg-red-950/30 border border-red-900/50 rounded-lg p-3">
+                      <div key={process.pid} className="bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2 text-red-200">
+                            <div className="flex items-center gap-2 text-[#EF4444]">
                               <WarningIcon className="w-4 h-4 text-[#EF4444] shrink-0" />
                               <span className="font-medium truncate">{process.name}</span>
                               <span className="text-xs text-[#EF4444]/70 shrink-0">PID {process.pid}</span>
                             </div>
-                            <div className="mt-1 text-xs text-red-200/70">
+                            <div className="mt-1 text-xs text-[#EF4444]/70">
                               {t('archive.lockedProcessDesc')}
                             </div>
                           </div>
@@ -78,7 +78,7 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
               )}
 
               {archiveModal.status.lock_check_error && archiveModal.status.locked_processes.length === 0 && (
-                <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 text-sm text-red-200">
+                <div className="bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg p-3 text-sm text-[#EF4444]">
                   <div className="flex items-start gap-2">
                     <WarningIcon className="w-4 h-4 text-[#EF4444] shrink-0 mt-0.5" />
                     <span>{archiveModal.status.lock_check_error}</span>
@@ -128,7 +128,7 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => onConfirmIssue(uncommittedKey)}
-                                    className="h-6 px-2 text-xs bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border-amber-600/50"
+                                    className="h-6 px-2 text-xs bg-[#F59E0B]/30 hover:bg-[#F59E0B]/50 text-[#F59E0B] border-[#F59E0B]/50"
                                   >
                                     {t('archive.confirmNoIssue')}
                                   </Button>
@@ -150,7 +150,7 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => onConfirmIssue(unpushedKey)}
-                                    className="h-6 px-2 text-xs bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border-amber-600/50"
+                                    className="h-6 px-2 text-xs bg-[#F59E0B]/30 hover:bg-[#F59E0B]/50 text-[#F59E0B] border-[#F59E0B]/50"
                                   >
                                     {t('archive.confirmNoIssue')}
                                   </Button>
@@ -184,7 +184,7 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
 
         {archiveModal.archiveError && (
           <div className="px-5 pb-4">
-            <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 text-sm text-red-200">
+            <div className="bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg p-3 text-sm text-[#EF4444]">
               <div className="flex items-start gap-2">
                 <WarningIcon className="w-4 h-4 text-[#EF4444] shrink-0 mt-0.5" />
                 <span>{archiveModal.archiveError}</span>

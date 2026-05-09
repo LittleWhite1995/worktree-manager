@@ -155,7 +155,7 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
               placeholder="feature-login-page"
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) onSubmit(); }}
-              className={nameValidation.error ? 'border-red-500 focus:border-red-500' : ''}
+              className={nameValidation.error ? 'border-[#EF4444] focus:border-[#EF4444]' : ''}
             />
             {nameValidation.error && (
               <p className="text-[#EF4444] text-xs mt-1">{nameValidation.error}</p>
@@ -169,7 +169,7 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
                 <svg className="w-4 h-4 text-[#F59E0B] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-xs text-amber-300/90">{t('createWorktree.nonAsciiWarning')}</p>
+                <p className="text-xs text-[#F59E0B]/90">{t('createWorktree.nonAsciiWarning')}</p>
               </div>
               <label className="flex items-center gap-2 cursor-pointer mb-2">
                 <Checkbox
@@ -186,7 +186,7 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
                       value={folderAlias}
                       onChange={(e) => onFolderAliasChange(e.target.value)}
                       placeholder="apple-brave-crane"
-                      className={`flex-1 text-sm h-8 ${aliasValidation.error ? 'border-red-500 focus:border-red-500' : ''}`}
+                      className={`flex-1 text-sm h-8 ${aliasValidation.error ? 'border-[#EF4444] focus:border-[#EF4444]' : ''}`}
                     />
                     <Button
                       variant="secondary"
@@ -219,7 +219,7 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
                   key={proj.name}
                   className={`p-3 rounded-lg border cursor-pointer transition-all ${
                     selectedProjects.has(proj.name)
-                      ? "bg-blue-900/20 border-blue-500/50"
+                      ? "bg-[#6366F1]/10 border-[#6366F1]/50"
                       : "bg-[#0A0A0F]/50 border-[#1E1E26] hover:border-[#1E1E26]"
                   }`}
                   onClick={() => onToggleProject(proj.name, proj.base_branch)}
