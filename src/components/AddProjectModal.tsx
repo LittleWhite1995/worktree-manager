@@ -352,7 +352,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-[560px] p-0 max-h-[90vh] flex flex-col">
-        <DialogHeader className="p-5 border-b border-slate-700">
+        <DialogHeader className="p-5 border-b border-[#1E1E26]">
           <DialogTitle>
             {phase === 'form' ? t('addProject.title') : t('addProject.selectLinkedFolders')}
           </DialogTitle>
@@ -367,13 +367,13 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
         {phase === 'form' && (
           <>
             {/* Tab switching */}
-            <div className="px-5 py-3 flex gap-1 justify-center items-center bg-slate-900/50">
+            <div className="px-5 py-3 flex gap-1 justify-center items-center bg-[#0A0A0F]/50">
               <button
                 onClick={() => setMode('clone')}
                 className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                   mode === 'clone'
-                    ? 'bg-slate-700 text-slate-100'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    ? 'bg-[#1A1A22] text-[#E8E8ED]'
+                    : 'text-[#8B8B9E] hover:text-[#E8E8ED] hover:bg-[#141419]'
                 }`}
               >
                 {t('addProject.cloneTab', 'Clone')}
@@ -382,8 +382,8 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                 onClick={() => { setMode('existing'); loadExistingProjects(); }}
                 className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                   mode === 'existing'
-                    ? 'bg-slate-700 text-slate-100'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    ? 'bg-[#1A1A22] text-[#E8E8ED]'
+                    : 'text-[#8B8B9E] hover:text-[#E8E8ED] hover:bg-[#141419]'
                 }`}
               >
                 {t('addProject.existingTab', 'Add Existing')}
@@ -396,7 +396,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                 <div className="p-5 space-y-4 overflow-y-auto">
                   {/* Project Name */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-[#8B8B9E] mb-2">
                       {t('addProject.projectName')}
                     </label>
                     <Input
@@ -409,7 +409,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
 
                   {/* URL Format Selector */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-[#8B8B9E] mb-2">
                       {t('addProject.cloneMethod')}
                     </label>
                     <div className="flex gap-2">
@@ -442,7 +442,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
 
                   {/* Repository URL */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-[#8B8B9E] mb-2">
                       {t('addProject.repoUrl')}
                     </label>
                     <Input
@@ -453,7 +453,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                       autoFocus
                       onKeyDown={(e) => { if (e.key === 'Enter' && name.trim() && repoUrl.trim() && !loading) handleSubmit(); }}
                     />
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-[#55556A] mt-1">
                       {urlFormat === 'gh' && t('addProject.ghShortFormat')}
                       {urlFormat === 'ssh' && t('addProject.sshFormat')}
                       {urlFormat === 'https' && t('addProject.httpsFormat')}
@@ -463,7 +463,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                   {/* Base Branch */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-[#8B8B9E] mb-2">
                         {t('addProject.baseBranch')}
                       </label>
                       <BranchCombobox
@@ -475,7 +475,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
 
                     {/* Test Branch */}
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <label className="block text-sm font-medium text-[#8B8B9E] mb-2">
                         {t('addProject.testBranch')}
                       </label>
                       <BranchCombobox
@@ -488,7 +488,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
 
                   {/* Merge Strategy */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-[#8B8B9E] mb-2">
                       {t('addProject.mergeStrategy')}
                     </label>
                     <Select value={mergeStrategy} onValueChange={setMergeStrategy}>
@@ -506,15 +506,15 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
 
                 {loading && (
                   <div className="px-5 pb-1">
-                    <div className="flex items-center gap-2 text-xs text-blue-400/80">
-                      <div className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="flex items-center gap-2 text-xs text-[#6366F1]/80">
+                      <div className="flex-1 h-1 bg-[#1A1A22] rounded-full overflow-hidden">
                         <div className="h-full rounded-full animate-progress-indeterminate animate-gradient" />
                       </div>
                       <span className="whitespace-nowrap tabular-nums">{t('addProject.cloning')} {formatElapsed(elapsedSeconds)}</span>
                     </div>
                   </div>
                 )}
-                <DialogFooter className="p-5 border-t border-slate-700">
+                <DialogFooter className="p-5 border-t border-[#1E1E26]">
                   <Button variant="secondary" onClick={() => handleClose(false)} disabled={loading}>
                     {t('common.cancel')}
                   </Button>
@@ -536,7 +536,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                   <button
                     onClick={handleBrowseProject}
                     disabled={importingExternal}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500 hover:bg-slate-800/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-[#1E1E26] text-[#8B8B9E] hover:text-[#E8E8ED] hover:border-slate-500 hover:bg-[#141419]/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {importingExternal ? (
                       <>
@@ -555,19 +555,19 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
 
                   {existingError && (
                     <div className="p-3 bg-red-900/30 border border-red-800/50 rounded-lg">
-                      <div className="text-red-300 text-sm">{existingError}</div>
+                      <div className="text-[#EF4444] text-sm">{existingError}</div>
                     </div>
                   )}
 
                   {existingLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <RefreshIcon className="w-5 h-5 text-blue-400 animate-spin" />
-                      <span className="text-slate-400 text-sm ml-2">{t('addExistingProject.scanning')}</span>
+                      <RefreshIcon className="w-5 h-5 text-[#6366F1] animate-spin" />
+                      <span className="text-[#8B8B9E] text-sm ml-2">{t('addExistingProject.scanning')}</span>
                     </div>
                   ) : existingProjects.length === 0 ? (
                     <div className="text-center py-8">
-                      <p className="text-slate-400 text-sm">{t('addExistingProject.noProjects')}</p>
-                      <p className="text-slate-500 text-xs mt-1">{t('addExistingProject.noProjectsHint')}</p>
+                      <p className="text-[#8B8B9E] text-sm">{t('addExistingProject.noProjects')}</p>
+                      <p className="text-[#55556A] text-xs mt-1">{t('addExistingProject.noProjectsHint')}</p>
                     </div>
                   ) : (
                     <>
@@ -579,24 +579,24 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                             disabled={proj.is_registered}
                             className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all ${
                               proj.is_registered
-                                ? 'border-slate-700/30 bg-slate-800/20 opacity-50 cursor-not-allowed'
+                                ? 'border-[#1E1E26]/30 bg-[#141419]/20 opacity-50 cursor-not-allowed'
                                 : selectedExisting === proj.name
                                   ? 'border-blue-500/50 bg-blue-500/10'
-                                  : 'border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/60 hover:border-slate-600'
+                                  : 'border-[#1E1E26]/50 bg-[#141419]/30 hover:bg-[#141419]/60 hover:border-[#1E1E26]'
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className={`font-medium truncate ${proj.is_registered ? 'text-slate-500' : 'text-slate-200'}`}>
+                                <span className={`font-medium truncate ${proj.is_registered ? 'text-[#55556A]' : 'text-[#E8E8ED]'}`}>
                                   {proj.name}
                                 </span>
                                 {proj.is_registered && (
-                                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-green-500/15 text-green-400/70 rounded">
+                                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-green-500/15 text-[#10B981]/70 rounded">
                                     {t('addExistingProject.registered', 'Added')}
                                   </span>
                                 )}
                               </div>
-                              <div className={`flex items-center gap-1.5 text-sm shrink-0 ${proj.is_registered ? 'text-slate-600' : 'text-slate-400'}`}>
+                              <div className={`flex items-center gap-1.5 text-sm shrink-0 ${proj.is_registered ? 'text-slate-600' : 'text-[#8B8B9E]'}`}>
                                 <GitBranchIcon className="w-3.5 h-3.5" />
                                 <span>{proj.current_branch}</span>
                               </div>
@@ -606,10 +606,10 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                       </div>
 
                       {selectedExisting && (
-                        <div className="space-y-3 pt-2 border-t border-slate-700/50">
+                        <div className="space-y-3 pt-2 border-t border-[#1E1E26]/50">
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                              <label className="block text-sm font-medium text-[#8B8B9E] mb-1.5">
                                 {t('addExistingProject.baseBranch')}
                               </label>
                               <Input
@@ -620,7 +620,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                              <label className="block text-sm font-medium text-[#8B8B9E] mb-1.5">
                                 {t('addExistingProject.testBranch')}
                               </label>
                               <Input
@@ -632,7 +632,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                             </div>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                            <label className="block text-sm font-medium text-[#8B8B9E] mb-1.5">
                               {t('addProject.mergeStrategy')}
                             </label>
                             <Select value={existingMergeStrategy} onValueChange={setExistingMergeStrategy}>
@@ -652,7 +652,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                   )}
                 </div>
 
-                <DialogFooter className="p-5 border-t border-slate-700">
+                <DialogFooter className="p-5 border-t border-[#1E1E26]">
                   <Button variant="secondary" onClick={() => handleClose(false)}>
                     {t('common.cancel')}
                   </Button>
@@ -672,7 +672,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
         {phase === 'scanning' && (
           <div className="p-8 flex flex-col items-center justify-center gap-3">
             <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-slate-400">{t('addProject.scanning')}</p>
+            <p className="text-sm text-[#8B8B9E]">{t('addProject.scanning')}</p>
           </div>
         )}
 
@@ -682,13 +682,13 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
             <div className="p-5 space-y-4 overflow-y-auto">
               {scanError && (
                 <div className="p-3 bg-red-900/30 border border-red-800/50 rounded-lg">
-                  <p className="text-sm text-red-300">{t('addProject.scanError', { error: scanError })}</p>
+                  <p className="text-sm text-[#EF4444]">{t('addProject.scanError', { error: scanError })}</p>
                 </div>
               )}
 
               {scanResults.length === 0 && !scanError && (
-                <div className="p-4 bg-slate-800/50 rounded-lg text-center">
-                  <p className="text-sm text-slate-400">{t('addProject.noLinkedFoldersFound')}</p>
+                <div className="p-4 bg-[#141419] rounded-lg text-center">
+                  <p className="text-sm text-[#8B8B9E]">{t('addProject.noLinkedFoldersFound')}</p>
                 </div>
               )}
 
@@ -697,7 +697,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                   {scanResults.map(result => (
                     <div
                       key={result.relative_path}
-                      className="flex items-center gap-3 p-2.5 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:border-slate-600/50 transition-colors"
+                      className="flex items-center gap-3 p-2.5 bg-[#141419] border border-[#1E1E26]/50 rounded-lg hover:border-[#1E1E26]/50 transition-colors"
                     >
                       <Checkbox
                         id={`scan-${result.relative_path}`}
@@ -709,17 +709,17 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
                         className="flex-1 cursor-pointer min-w-0"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-slate-300 font-mono truncate">
+                          <span className="text-sm text-[#8B8B9E] font-mono truncate">
                             {result.relative_path}
                           </span>
                           {result.is_recommended && (
-                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-[#6366F1] rounded">
                               {t('addProject.recommended')}
                             </span>
                           )}
                         </div>
                       </label>
-                      <span className="text-xs text-slate-500 shrink-0">
+                      <span className="text-xs text-[#55556A] shrink-0">
                         {result.size_display}
                       </span>
                     </div>
@@ -730,14 +730,14 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
               {/* Custom selected folders */}
               {customSelectedFolders.length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-xs font-medium text-slate-400">{t('addProject.customFolders')}</div>
+                  <div className="text-xs font-medium text-[#8B8B9E]">{t('addProject.customFolders')}</div>
                   {customSelectedFolders.map(folder => (
-                    <div key={folder} className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded px-3 py-2">
-                      <span className="flex-1 text-sm text-slate-300 font-mono">{folder}</span>
+                    <div key={folder} className="flex items-center gap-2 bg-[#141419] border border-[#1E1E26] rounded px-3 py-2">
+                      <span className="flex-1 text-sm text-[#8B8B9E] font-mono">{folder}</span>
                       <button
                         type="button"
                         onClick={() => toggleFolder(folder)}
-                        className="text-slate-500 hover:text-red-400 text-xs"
+                        className="text-[#55556A] hover:text-[#EF4444] text-xs"
                       >
                         {t('common.delete')}
                       </button>
@@ -748,7 +748,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
 
               {/* Add Custom Folder */}
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-2">
+                <label className="block text-xs font-medium text-[#8B8B9E] mb-2">
                   {t('addProject.addCustomFolder')}
                 </label>
                 <div className="flex gap-2">
@@ -777,7 +777,7 @@ export const AddProjectModal: FC<AddProjectModalProps> = ({
               </div>
             </div>
 
-            <DialogFooter className="p-5 border-t border-slate-700">
+            <DialogFooter className="p-5 border-t border-[#1E1E26]">
               <Button variant="secondary" onClick={handleSkip} disabled={savingFolders}>
                 {t('addProject.skip')}
               </Button>

@@ -28,10 +28,10 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
   const { t } = useTranslation();
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-xl w-[520px] max-h-[80vh] overflow-hidden shadow-2xl">
-        <div className="p-5 border-b border-slate-700">
-          <h3 className="text-lg font-semibold text-slate-100">{t('archive.title')}</h3>
-          <p className="text-sm text-slate-400 mt-1 select-text">
+      <div className="bg-[#141419] border border-[#1E1E26] rounded-xl w-[520px] max-h-[80vh] overflow-hidden shadow-2xl">
+        <div className="p-5 border-b border-[#1E1E26]">
+          <h3 className="text-lg font-semibold text-[#E8E8ED]">{t('archive.title')}</h3>
+          <p className="text-sm text-[#8B8B9E] mt-1 select-text">
             {archiveModal.worktree.display_name || archiveModal.worktree.name} → {archiveModal.worktree.name}.archive
           </p>
         </div>
@@ -39,23 +39,23 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
         <div className="p-5 overflow-y-auto max-h-[50vh]">
           {archiveModal.loading ? (
             <div className="flex items-center justify-center py-8">
-              <RefreshIcon className="w-5 h-5 animate-spin text-slate-400" />
-              <span className="ml-2 text-slate-400">{t('archive.checkingStatus')}</span>
+              <RefreshIcon className="w-5 h-5 animate-spin text-[#8B8B9E]" />
+              <span className="ml-2 text-[#8B8B9E]">{t('archive.checkingStatus')}</span>
             </div>
           ) : archiveModal.status ? (
             <div className="space-y-4">
               {archiveModal.status.locked_processes.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-slate-300 mb-2">{t('archive.fileUsage')}</h4>
+                  <h4 className="text-sm font-medium text-[#8B8B9E] mb-2">{t('archive.fileUsage')}</h4>
                   <div className="space-y-2">
                     {archiveModal.status.locked_processes.map((process) => (
                       <div key={process.pid} className="bg-red-950/30 border border-red-900/50 rounded-lg p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 text-red-200">
-                              <WarningIcon className="w-4 h-4 text-red-400 shrink-0" />
+                              <WarningIcon className="w-4 h-4 text-[#EF4444] shrink-0" />
                               <span className="font-medium truncate">{process.name}</span>
-                              <span className="text-xs text-red-300/70 shrink-0">PID {process.pid}</span>
+                              <span className="text-xs text-[#EF4444]/70 shrink-0">PID {process.pid}</span>
                             </div>
                             <div className="mt-1 text-xs text-red-200/70">
                               {t('archive.lockedProcessDesc')}
@@ -80,14 +80,14 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
               {archiveModal.status.lock_check_error && archiveModal.status.locked_processes.length === 0 && (
                 <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 text-sm text-red-200">
                   <div className="flex items-start gap-2">
-                    <WarningIcon className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <WarningIcon className="w-4 h-4 text-[#EF4444] shrink-0 mt-0.5" />
                     <span>{archiveModal.status.lock_check_error}</span>
                   </div>
                 </div>
               )}
 
               <div>
-                <h4 className="text-sm font-medium text-slate-300 mb-2">{t('archive.projectStatus')}</h4>
+                <h4 className="text-sm font-medium text-[#8B8B9E] mb-2">{t('archive.projectStatus')}</h4>
                 <div className="space-y-2">
                   {archiveModal.status.projects.map((proj) => {
                     const hasUncommitted = proj.has_uncommitted && proj.uncommitted_count > 0;
@@ -99,23 +99,23 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
                     const hasIssues = hasUncommitted || hasUnpushed;
 
                     return (
-                      <div key={proj.project_name} className="bg-slate-900/50 rounded-lg p-3">
+                      <div key={proj.project_name} className="bg-[#0A0A0F]/50 rounded-lg p-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <StatusDot status={hasUncommitted ? 'warning' : hasUnpushed ? 'info' : 'success'} />
-                            <span className="font-medium text-slate-200">{proj.project_name}</span>
+                            <span className="font-medium text-[#E8E8ED]">{proj.project_name}</span>
                           </div>
-                          <div className="text-xs text-slate-500 flex items-center gap-1">
+                          <div className="text-xs text-[#55556A] flex items-center gap-1">
                             <GitBranchIcon className="w-3 h-3" />
                             <span className="select-text">{proj.branch_name}</span>
                           </div>
                         </div>
 
                         {hasIssues ? (
-                          <div className="mt-2 pt-2 border-t border-slate-700/50 space-y-1.5">
+                          <div className="mt-2 pt-2 border-t border-[#1E1E26]/50 space-y-1.5">
                             {hasUncommitted && (
                               <div className="flex items-center justify-between">
-                                <span className={`text-xs ${uncommittedConfirmed ? 'text-amber-400/60 line-through' : 'text-amber-400'}`}>
+                                <span className={`text-xs ${uncommittedConfirmed ? 'text-[#F59E0B]/60 line-through' : 'text-[#F59E0B]'}`}>
                                   {t('archive.uncommittedChanges', { count: proj.uncommitted_count })}
                                 </span>
                                 {uncommittedConfirmed ? (
@@ -137,7 +137,7 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
                             )}
                             {hasUnpushed && (
                               <div className="flex items-center justify-between">
-                                <span className={`text-xs ${unpushedConfirmed ? 'text-amber-400/60 line-through' : 'text-amber-400'}`}>
+                                <span className={`text-xs ${unpushedConfirmed ? 'text-[#F59E0B]/60 line-through' : 'text-[#F59E0B]'}`}>
                                   {t('archive.unpushedCommits', { count: proj.unpushed_commits })}
                                 </span>
                                 {unpushedConfirmed ? (
@@ -186,14 +186,14 @@ export const ArchiveConfirmationModal: FC<ArchiveConfirmationModalProps> = ({
           <div className="px-5 pb-4">
             <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 text-sm text-red-200">
               <div className="flex items-start gap-2">
-                <WarningIcon className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <WarningIcon className="w-4 h-4 text-[#EF4444] shrink-0 mt-0.5" />
                 <span>{archiveModal.archiveError}</span>
               </div>
             </div>
           </div>
         )}
 
-        <div className="p-5 border-t border-slate-700 flex justify-end gap-3">
+        <div className="p-5 border-t border-[#1E1E26] flex justify-end gap-3">
           <Button variant="secondary" onClick={onClose}>
             {t('common.cancel')}
           </Button>
