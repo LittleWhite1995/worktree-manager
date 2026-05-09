@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* Inter font for UI */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Design token CSS custom properties */
+:root {
+  --bg-base: #0A0A0F;
+  --bg-surface: #141419;
+  --bg-elevated: #1A1A22;
+  --border: #1E1E26;
+  --text-primary: #E8E8ED;
+  --text-secondary: #8B8B9E;
+  --text-muted: #55556A;
+  --accent: #6366F1;
+  --accent-hover: #818CF8;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
+}
+
 /* Maple Mono NF CN — bundled terminal font with Nerd Font icons + CJK */
 @font-face {
   font-family: "Maple Mono NF CN";
@@ -245,8 +264,9 @@ body.tauri .select-text * {
   outline: none;
 }
 
-/* Smooth scrolling */
+/* Set Inter as default UI font */
 html {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   scroll-behavior: smooth;
 }
 
@@ -261,12 +281,12 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(71 85 105 / 0.5);
+  background: rgb(30 30 38 / 0.5);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(71 85 105 / 0.8);
+  background: rgb(30 30 38 / 0.8);
 }
 
 /* Hide scrollbar when not hovering */
@@ -275,7 +295,7 @@ html {
 }
 
 .overflow-y-auto:hover::-webkit-scrollbar-thumb {
-  background: rgb(71 85 105 / 0.5);
+  background: rgb(30 30 38 / 0.5);
 }
 
 /* Horizontal scrollbar for terminal tabs */
@@ -284,11 +304,11 @@ html {
 }
 
 .overflow-x-auto::-webkit-scrollbar-thumb {
-  background: rgb(71 85 105 / 0.3);
+  background: rgb(30 30 38 / 0.3);
 }
 
 .overflow-x-auto:hover::-webkit-scrollbar-thumb {
-  background: rgb(71 85 105 / 0.6);
+  background: rgb(30 30 38 / 0.6);
 }
 
 /* Prevent image dragging */
