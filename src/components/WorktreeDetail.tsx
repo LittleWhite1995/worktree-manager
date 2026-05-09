@@ -317,7 +317,7 @@ const LogsDialog: FC<{
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-0 gap-0">
-        <DialogHeader className="px-4 py-3 pr-12 border-b border-slate-700/50">
+        <DialogHeader className="px-4 py-3 pr-12 border-b border-[#1E1E26]">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-sm font-medium">
               {title}
@@ -325,7 +325,7 @@ const LogsDialog: FC<{
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-slate-300 hover:text-red-400 hover:bg-transparent"
+              className="h-7 w-7 text-[#8B8B9E] hover:text-[#EF4444] hover:bg-transparent"
               title={t('logs.clear')}
               onClick={() => {
                 projectPaths.forEach((path) => clearLogs(path));
@@ -364,10 +364,10 @@ function getProjectStatus(project: ProjectStatus): 'success' | 'warning' | 'info
 }
 
 const statusBorderColor: Record<ReturnType<typeof getProjectStatus>, string> = {
-  success: 'border-l-emerald-500',
-  warning: 'border-l-amber-500',
-  info: 'border-l-blue-500',
-  sync: 'border-l-blue-400',
+  success: 'border-l-[#10B981]',
+  warning: 'border-l-[#F59E0B]',
+  info: 'border-l-[#6366F1]',
+  sync: 'border-l-[#6366F1]',
 };
 
 /** Convert a git remote URL (SSH or HTTPS) to a web-browsable URL. */
@@ -405,11 +405,11 @@ const PathDisplay: FC<{ path: string }> = ({ path }) => {
         <TooltipTrigger asChild>
           <button
             onClick={handleCopy}
-            className="text-slate-500 text-sm mt-1 select-text hover:text-slate-400 transition-colors flex items-center gap-1.5 max-w-full group"
+            className="text-[#55556A] text-sm mt-1 select-text hover:text-[#8B8B9E] transition-colors flex items-center gap-1.5 max-w-full group"
           >
             <span className="truncate block">{path}</span>
             {copied ? (
-              <CheckIcon className="w-3 h-3 text-green-400 shrink-0" />
+              <CheckIcon className="w-3 h-3 text-[#10B981] shrink-0" />
             ) : (
               <CopyIcon className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
             )}
@@ -447,9 +447,9 @@ const CopyableTitle: FC<{ text: string; className?: string }> = ({ text, classNa
           >
             <span className="truncate">{text}</span>
             {copied ? (
-              <CheckIcon className="w-3.5 h-3.5 text-green-400 shrink-0" />
+              <CheckIcon className="w-3.5 h-3.5 text-[#10B981] shrink-0" />
             ) : (
-              <CopyIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-slate-400" />
+              <CopyIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-[#8B8B9E]" />
             )}
           </button>
         </TooltipTrigger>
@@ -588,9 +588,9 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   if (!selectedWorktree && !mainWorkspace) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center py-20">
-        <FolderIcon className="w-12 h-12 text-slate-700 mb-4" />
-        <p className="text-slate-500 text-sm">{t('detail.selectWorktree')}</p>
-        <p className="text-slate-600 text-xs mt-1">{t('detail.selectWorktreeHint')}</p>
+        <FolderIcon className="w-12 h-12 text-[#1E1E26] mb-4" />
+        <p className="text-[#55556A] text-sm">{t('detail.selectWorktree')}</p>
+        <p className="text-[#55556A] text-xs mt-1">{t('detail.selectWorktreeHint')}</p>
       </div>
     );
   }
@@ -600,8 +600,8 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     return (
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center gap-3">
-          <RefreshIcon className="w-8 h-8 text-blue-400 animate-spin" />
-          <div className="text-slate-400 text-sm">{t('detail.switching')}</div>
+          <RefreshIcon className="w-8 h-8 text-[#6366F1] animate-spin" />
+          <div className="text-[#8B8B9E] text-sm">{t('detail.switching')}</div>
         </div>
       </div>
     );
@@ -612,14 +612,14 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     return (
       <div>
         {error && (
-          <div className="mb-4 p-4 bg-red-900/30 border border-red-800/50 rounded-lg">
-            <div className="text-red-300 text-sm select-text">{error}</div>
-            <Button variant="link" size="sm" onClick={onClearError} className="text-red-400 hover:text-red-200 mt-1 p-0 h-auto">{t('common.close')}</Button>
+          <div className="mb-4 p-4 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg">
+            <div className="text-[#EF4444] text-sm select-text">{error}</div>
+            <Button variant="link" size="sm" onClick={onClearError} className="text-[#EF4444] hover:text-[#EF4444] mt-1 p-0 h-auto">{t('common.close')}</Button>
           </div>
         )}
         {occupation && (
-          <div className="mb-4 rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 flex items-center justify-between">
-            <span className="text-sm text-blue-300 select-text">
+          <div className="mb-4 rounded-lg bg-[#6366F1]/10 border border-[#6366F1]/20 p-3 flex items-center justify-between">
+            <span className="text-sm text-[#6366F1] select-text">
               {t('deploy.occupiedBanner', { name: occupation.worktree_name })}
             </span>
             <Button
@@ -633,11 +633,11 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
           </div>
         )}
         {showExitConfirm && (
-          <div className="mb-4 rounded-lg bg-slate-800 border border-slate-600 p-4 space-y-3">
-            <div className="text-sm text-slate-200 font-medium">{t('deploy.confirmExit')}</div>
-            <div className="text-xs text-slate-400">{t('deploy.confirmExitDesc')}</div>
+          <div className="mb-4 rounded-lg bg-[#141419] border border-[#1E1E26] p-4 space-y-3">
+            <div className="text-sm text-[#E8E8ED] font-medium">{t('deploy.confirmExit')}</div>
+            <div className="text-xs text-[#8B8B9E]">{t('deploy.confirmExitDesc')}</div>
             {exitError && (
-              <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/30 rounded p-2">{exitError}</div>
+              <div className="text-xs text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20 rounded p-2">{exitError}</div>
             )}
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => setShowExitConfirm(false)}>{t('common.cancel')}</Button>
@@ -654,7 +654,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
         )}
         <div className="flex items-center justify-between mb-6">
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-semibold text-slate-100 truncate">{t('detail.mainWorkspace', { name: mainWorkspace.name })}</h2>
+            <h2 className="text-xl font-semibold text-[#E8E8ED] truncate">{t('detail.mainWorkspace', { name: mainWorkspace.name })}</h2>
             <PathDisplay path={mainWorkspace.path} />
           </div>
           {isTauri() && (
@@ -675,7 +675,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                       {t('logs.button')}
                     </Button>
                     {count > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                      <span className="absolute -top-1 -right-1 bg-[#EF4444] text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center leading-none">
                         {count > 9 ? '9+' : count}
                       </span>
                     )}
@@ -696,7 +696,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
               )}
               <div className="inline-flex rounded-md">
                 <Button
-                  className="rounded-r-none border-r border-blue-700/50 px-2.5"
+                  className="rounded-r-none border-r border-[#6366F1]/50 px-2.5"
                   onClick={() => onOpenInEditor(mainWorkspace.path)}
                   title={selectedEditorName}
                 >
@@ -715,7 +715,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                         className="flex items-stretch rounded-sm text-sm"
                       >
                         <button
-                          className="flex-1 min-w-0 text-left px-2 py-1.5 rounded-l-sm hover:bg-slate-700/60 transition-colors flex items-center gap-1.5"
+                          className="flex-1 min-w-0 text-left px-2 py-1.5 rounded-l-sm hover:bg-[#1A1A22] transition-colors flex items-center gap-1.5"
                           onClick={() => {
                             onSelectEditor(editor.id);
                             onShowEditorMenu(false);
@@ -724,11 +724,11 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           <EditorIcon editorId={editor.id} className="w-4 h-4" />
                           {editor.name}
                           {editor.id === selectedEditor && (
-                            <CheckIcon className="w-3 h-3 text-green-400" />
+                            <CheckIcon className="w-3 h-3 text-[#10B981]" />
                           )}
                         </button>
                         <button
-                          className="px-2 flex items-center text-slate-500 hover:text-blue-400 hover:bg-slate-600/40 rounded-r-sm transition-colors shrink-0 border-l border-slate-700/50"
+                          className="px-2 flex items-center text-[#55556A] hover:text-[#6366F1] hover:bg-[#1A1A22] rounded-r-sm transition-colors shrink-0 border-l border-[#1E1E26]"
                           title={t('detail.openWithEditor', { editor: editor.name })}
                           onClick={() => {
                             onOpenInEditor(mainWorkspace.path, editor.id);
@@ -741,7 +741,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                     ))}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => onRevealInFinder(mainWorkspace.path)}>
-                      <FolderIcon className="w-4 h-4 mr-1.5 text-slate-400" />
+                      <FolderIcon className="w-4 h-4 mr-1.5 text-[#8B8B9E]" />
                       {t('detail.openInFolder')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -754,13 +754,13 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
 
         {/* Vault mounted items */}
         {vaultStatus?.connected && vaultStatus.synced_items.length > 0 && (
-          <div className="mb-4 rounded-lg bg-slate-800/40 border border-slate-700/40 p-3">
+          <div className="mb-4 rounded-lg bg-[#141419] border border-[#1E1E26] p-3">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-xs font-medium text-slate-300">
+              <div className="w-2 h-2 rounded-full bg-[#10B981]" />
+              <span className="text-xs font-medium text-[#8B8B9E]">
                 {t('detail.vaultMounted', 'Vault 已挂载')}
               </span>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-[#55556A]">
                 ({vaultStatus.synced_items.length})
               </span>
             </div>
@@ -768,10 +768,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
               {vaultStatus.synced_items.map((item) => (
                 <span
                   key={item.name}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-700/50 text-xs text-slate-400"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1A1A22] text-xs text-[#8B8B9E]"
                   title={item.item_type === 'directory' ? t('detail.folder', '文件夹') : t('detail.file', '文件')}
                 >
-                  <span className={item.item_type === 'directory' ? 'text-blue-400' : 'text-slate-500'}>
+                  <span className={item.item_type === 'directory' ? 'text-[#6366F1]' : 'text-[#55556A]'}>
                     {item.item_type === 'directory' ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}
                   </span>
                   {item.name}
@@ -807,12 +807,12 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                     };
                     const status = getProjectStatus(projAsStatus);
                     return (
-                      <div key={proj.name} className={`bg-slate-800/50 border border-slate-700/50 border-l-2 ${statusBorderColor[status]} rounded-lg p-4 group hover:border-t-slate-600 hover:border-r-slate-600 hover:border-b-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
+                      <div key={proj.name} className={`bg-[#141419] border border-[#1E1E26] border-l-2 ${statusBorderColor[status]} rounded-lg p-4 group hover:border-t-[#1E1E26] hover:border-r-[#1E1E26] hover:border-b-[#1E1E26] hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div>
-                              <div className="font-medium text-slate-200">{proj.name}</div>
-                              <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-0.5">
+                              <div className="font-medium text-[#E8E8ED]">{proj.name}</div>
+                              <div className="flex items-center gap-1.5 text-[#8B8B9E] text-sm mt-0.5">
                                 <GitBranchIcon className="w-3.5 h-3.5" />
                                 <span className="select-text">{proj.current_branch}</span>
                               </div>
@@ -821,10 +821,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           <div className="flex items-center gap-3">
                             <div className="text-right">
                               <StatusBadges project={projAsStatus} />
-                              <div className="text-xs text-slate-500 mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
+                              <div className="text-xs text-[#55556A] mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
                             </div>
                             {isTauri() && (
-                              <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
+                              <div className="flex items-center gap-1 text-[#55556A] hover:text-[#E8E8ED]">
                                 <IdeIconButton
                                   projectPath={projectPath}
                                   projectName={proj.name}
@@ -842,7 +842,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                             )}
                           </div>
                         </div>
-                        <div className="mt-3 pt-3 border-t border-slate-700/50">
+                        <div className="mt-3 pt-3 border-t border-[#1E1E26]">
                           <GitOperations
                             projectPath={projectPath}
                             projectName={proj.name}
@@ -874,14 +874,14 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                   };
 
                   return (
-                    <div key={proj.name} className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 group hover:border-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150">
+                    <div key={proj.name} className="bg-[#141419] border border-[#1E1E26] rounded-lg p-4 group hover:border-[#1E1E26] hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-slate-200">{proj.name}</span>
-                        <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
+                        <span className="font-medium text-[#E8E8ED]">{proj.name}</span>
+                        <div className="flex items-center gap-1 text-[#55556A] hover:text-[#E8E8ED]">
                           {isTauri() && (
                             <button
                               onClick={() => onRevealInFinder(projectPath)}
-                              className="p-1 hover:bg-slate-600 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                              className="p-1 hover:bg-[#1A1A22] rounded text-[#8B8B9E] hover:text-[#E8E8ED] transition-colors"
                               title={t('detail.openInFinderLabel')}
                               aria-label={t('detail.openInFinderProject', { name: proj.name })}
                             >
@@ -908,18 +908,18 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           {onRemoveProject && (
                             <button
                               onClick={() => setConfirmRemoveProject(proj.name)}
-                              className="p-1 hover:bg-red-600/20 rounded text-slate-500 hover:text-red-400 transition-colors"
+                              className="p-1 hover:bg-[#EF4444]/20 rounded text-[#55556A] hover:text-[#EF4444] transition-colors"
                               title={t('detail.removeProject', 'Remove from workspace')}
                               aria-label={t('detail.removeProjectLabel', { name: proj.name })}
                             >
                               <TrashIcon className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {proj.has_uncommitted && <WarningIcon className="w-4 h-4 text-amber-500" />}
+                          {proj.has_uncommitted && <WarningIcon className="w-4 h-4 text-[#F59E0B]" />}
                         </div>
                       </div>
                       <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-1.5 text-slate-400 text-sm">
+                        <div className="flex items-center gap-1.5 text-[#8B8B9E] text-sm">
                           <GitBranchIcon className="w-3.5 h-3.5" />
                           <span className="select-text">{proj.current_branch}</span>
                           {isSwitching && <RefreshIcon className="w-3 h-3 animate-spin ml-1" />}
@@ -932,7 +932,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                             disabled={isSwitching || proj.current_branch === proj.base_branch}
                             onClick={() => handleSwitchBranch(proj.base_branch)}
                           >
-                            {proj.current_branch === proj.base_branch && <CheckIcon className="w-3 h-3 mr-1 text-green-400" />}
+                            {proj.current_branch === proj.base_branch && <CheckIcon className="w-3 h-3 mr-1 text-[#10B981]" />}
                             BASE
                           </Button>
                           <Button
@@ -942,7 +942,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                             disabled={isSwitching || proj.current_branch === proj.test_branch}
                             onClick={() => handleSwitchBranch(proj.test_branch)}
                           >
-                            {proj.current_branch === proj.test_branch && <CheckIcon className="w-3 h-3 mr-1 text-green-400" />}
+                            {proj.current_branch === proj.test_branch && <CheckIcon className="w-3 h-3 mr-1 text-[#10B981]" />}
                             TEST
                           </Button>
                           <Button
@@ -977,7 +977,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                         }} />
                       </div>
                       {/* Git operations */}
-                      <div className="mt-3 pt-3 border-t border-slate-700/50">
+                      <div className="mt-3 pt-3 border-t border-[#1E1E26]">
                         <GitOperations
                           projectPath={proj.path}
                           projectName={proj.name}
@@ -989,13 +989,13 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                         />
                       </div>
                       {proj.linked_folders && proj.linked_folders.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-slate-700/50">
-                          <div className="text-xs text-slate-500 mb-1">{t('detail.linkedFolders')}</div>
+                        <div className="mt-2 pt-2 border-t border-[#1E1E26]">
+                          <div className="text-xs text-[#55556A] mb-1">{t('detail.linkedFolders')}</div>
                           <div className="flex flex-wrap gap-1">
                             {proj.linked_folders.map((folder, idx) => (
                               <span
                                 key={idx}
-                                className="inline-flex items-center px-1.5 py-0.5 bg-slate-700/50 rounded text-xs text-slate-400 select-text"
+                                className="inline-flex items-center px-1.5 py-0.5 bg-[#1A1A22] rounded text-xs text-[#8B8B9E] select-text"
                               >
                                 {folder}
                               </span>
@@ -1005,8 +1005,8 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                       )}
                       {/* Remove confirmation */}
                       {confirmRemoveProject === proj.name && (
-                        <div className="mt-2 p-2.5 bg-red-900/20 border border-red-800/40 rounded-lg">
-                          <p className="text-sm text-red-300 mb-2">{t('detail.confirmRemoveProject', { name: proj.name })}</p>
+                        <div className="mt-2 p-2.5 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg">
+                          <p className="text-sm text-[#EF4444] mb-2">{t('detail.confirmRemoveProject', { name: proj.name })}</p>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -1049,23 +1049,23 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     return (
       <div>
         {error && (
-          <div className="mb-4 p-4 bg-red-900/30 border border-red-800/50 rounded-lg">
-            <div className="text-red-300 text-sm select-text">{error}</div>
-            <Button variant="link" size="sm" onClick={onClearError} className="text-red-400 hover:text-red-200 mt-1 p-0 h-auto">{t('common.close')}</Button>
+          <div className="mb-4 p-4 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg">
+            <div className="text-[#EF4444] text-sm select-text">{error}</div>
+            <Button variant="link" size="sm" onClick={onClearError} className="text-[#EF4444] hover:text-[#EF4444] mt-1 p-0 h-auto">{t('common.close')}</Button>
           </div>
         )}
         <div className="flex items-center justify-between mb-6">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              {selectedWorktree.is_archived ? <ArchiveIcon className="w-5 h-5 text-slate-500" /> : <FolderIcon className="w-5 h-5 text-blue-400" />}
-              <CopyableTitle text={selectedWorktree.display_name || selectedWorktree.name} className="text-xl font-semibold text-slate-100" />
+              {selectedWorktree.is_archived ? <ArchiveIcon className="w-5 h-5 text-[#55556A]" /> : <FolderIcon className="w-5 h-5 text-[#6366F1]" />}
+              <CopyableTitle text={selectedWorktree.display_name || selectedWorktree.name} className="text-xl font-semibold text-[#E8E8ED]" />
             </div>
             <PathDisplay path={selectedWorktree.path} />
           </div>
           <div className="flex gap-2 items-center shrink-0 ml-3">
             {selectedWorktree.is_archived ? (
               <>
-                <Button variant="default" className="bg-emerald-600 hover:bg-emerald-500" onClick={onRestore} disabled={restoring}>
+                <Button variant="default" className="bg-[#10B981] hover:bg-[#10B981]" onClick={onRestore} disabled={restoring}>
                   {restoring ? t('detail.restoring') : t('detail.restore')}
                 </Button>
                 {onDelete && (
@@ -1092,7 +1092,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                             {t('logs.button')}
                           </Button>
                           {count > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                            <span className="absolute -top-1 -right-1 bg-[#EF4444] text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center leading-none">
                               {count > 9 ? '9+' : count}
                             </span>
                           )}
@@ -1107,7 +1107,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                     />
                     <div className="inline-flex rounded-md">
                       <Button
-                        className="rounded-r-none border-r border-blue-700/50 px-2.5"
+                        className="rounded-r-none border-r border-[#6366F1]/50 px-2.5"
                         onClick={() => onOpenInEditor(selectedWorktree.path)}
                         title={selectedEditorName}
                       >
@@ -1126,7 +1126,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                               className="flex items-stretch rounded-sm text-sm"
                             >
                               <button
-                                className="flex-1 min-w-0 text-left px-2 py-1.5 rounded-l-sm hover:bg-slate-700/60 transition-colors flex items-center gap-1.5"
+                                className="flex-1 min-w-0 text-left px-2 py-1.5 rounded-l-sm hover:bg-[#1A1A22] transition-colors flex items-center gap-1.5"
                                 onClick={() => {
                                   onSelectEditor(editor.id);
                                   onShowEditorMenu(false);
@@ -1135,11 +1135,11 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                                 <EditorIcon editorId={editor.id} className="w-4 h-4" />
                                 {editor.name}
                                 {editor.id === selectedEditor && (
-                                  <CheckIcon className="w-3 h-3 text-green-400" />
+                                  <CheckIcon className="w-3 h-3 text-[#10B981]" />
                                 )}
                               </button>
                               <button
-                                className="px-2 flex items-center text-slate-500 hover:text-blue-400 hover:bg-slate-600/40 rounded-r-sm transition-colors shrink-0 border-l border-slate-700/50"
+                                className="px-2 flex items-center text-[#55556A] hover:text-[#6366F1] hover:bg-[#1A1A22] rounded-r-sm transition-colors shrink-0 border-l border-[#1E1E26]"
                                 title={t('detail.openWithEditor', { editor: editor.name })}
                                 onClick={() => {
                                   onOpenInEditor(selectedWorktree.path, editor.id);
@@ -1152,7 +1152,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           ))}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => onRevealInFinder(selectedWorktree.path)}>
-                            <FolderIcon className="w-4 h-4 mr-1.5 text-slate-400" />
+                            <FolderIcon className="w-4 h-4 mr-1.5 text-[#8B8B9E]" />
                             {t('detail.openInFolder')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -1178,12 +1178,12 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
 
         <div className="space-y-2">
             {selectedWorktree.projects.map((proj, index) => (
-              <div key={proj.name} className={`bg-slate-800/50 border border-slate-700/50 border-l-2 ${statusBorderColor[getProjectStatus(proj)]} rounded-lg p-4 group hover:border-t-slate-600 hover:border-r-slate-600 hover:border-b-slate-600 hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
+              <div key={proj.name} className={`bg-[#141419] border border-[#1E1E26] border-l-2 ${statusBorderColor[getProjectStatus(proj)]} rounded-lg p-4 group hover:border-t-[#1E1E26] hover:border-r-[#1E1E26] hover:border-b-[#1E1E26] hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div>
-                      <div className="font-medium text-slate-200">{proj.name}</div>
-                      <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-0.5">
+                      <div className="font-medium text-[#E8E8ED]">{proj.name}</div>
+                      <div className="flex items-center gap-1.5 text-[#8B8B9E] text-sm mt-0.5">
                         <GitBranchIcon className="w-3.5 h-3.5" />
                         <span className="select-text">{proj.current_branch}</span>
                       </div>
@@ -1192,10 +1192,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <StatusBadges project={proj} />
-                      <div className="text-xs text-slate-500 mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
+                      <div className="text-xs text-[#55556A] mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
                     </div>
                     {isTauri() && (
-                      <div className="flex items-center gap-1 text-slate-500 hover:text-slate-200">
+                      <div className="flex items-center gap-1 text-[#55556A] hover:text-[#E8E8ED]">
                         <IdeIconButton
                           projectPath={proj.path}
                           projectName={proj.name}
@@ -1236,7 +1236,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                     )}
                   </div>
                 </div>
-                <div className="mt-3 pt-3 border-t border-slate-700/50">
+                <div className="mt-3 pt-3 border-t border-[#1E1E26]">
                   <GitOperations
                     projectPath={proj.path}
                     projectName={proj.name}
@@ -1255,7 +1255,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
             {isTauri() && !selectedWorktree.is_archived && onAddProjectToWorktree && (
               <button
                 onClick={onAddProjectToWorktree}
-                className="w-full p-3 rounded-lg border border-dashed border-slate-700 hover:border-slate-500 hover:bg-slate-800/30 transition-colors flex items-center justify-center gap-2 text-slate-500 hover:text-slate-300"
+                className="w-full p-3 rounded-lg border border-dashed border-[#1E1E26] hover:border-[#1E1E26] hover:bg-[#141419] transition-colors flex items-center justify-center gap-2 text-[#55556A] hover:text-[#8B8B9E]"
               >
                 <PlusIcon className="w-4 h-4" />
                 <span className="text-sm">{t('detail.addProject')}</span>
