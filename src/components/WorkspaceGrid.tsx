@@ -204,17 +204,17 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
   }, [colWidths, rowHeights]);
 
   return (
-    <div ref={containerRef} className="h-screen bg-slate-900 text-slate-100 flex flex-col relative overflow-hidden">
+    <div ref={containerRef} className="h-screen bg-[#0A0A0F] text-[#E8E8ED] flex flex-col relative overflow-hidden">
       <div className="flex-1 min-h-0 flex flex-col">
         {grid.map((row, rowIndex) => (
           <div key={`row-wrapper-${row[0].key}`} className="min-h-0 flex flex-col" style={{ height: `${rowHeights[rowIndex] ?? 100}%` }}>
             {/* Row resize handle */}
             {rowIndex > 0 && (
               <div
-                className="shrink-0 h-1 cursor-row-resize group/row-handle flex items-center justify-center hover:bg-blue-500/30 transition-colors z-10"
+                className="shrink-0 h-1 cursor-row-resize group/row-handle flex items-center justify-center hover:bg-[#6366F1]/30 transition-colors z-10"
                 onMouseDown={(e) => handleResizeStart(e, 'row', 0, rowIndex - 1)}
               >
-                <div className="w-8 h-0.5 rounded-full bg-slate-600 group-hover/row-handle:bg-blue-400 transition-colors" />
+                <div className="w-8 h-0.5 rounded-full bg-[#1E1E26] group-hover/row-handle:bg-[#6366F1] transition-colors" />
               </div>
             )}
             <div className="flex-1 min-h-0 flex">
@@ -225,10 +225,10 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
                     {/* Column resize handle */}
                     {colIndex > 0 && (
                       <div
-                        className="shrink-0 w-1 cursor-col-resize group/col-handle flex items-center justify-center hover:bg-blue-500/30 transition-colors z-10"
+                        className="shrink-0 w-1 cursor-col-resize group/col-handle flex items-center justify-center hover:bg-[#6366F1]/30 transition-colors z-10"
                         onMouseDown={(e) => handleResizeStart(e, 'col', rowIndex, colIndex - 1)}
                       >
-                        <div className="h-8 w-0.5 rounded-full bg-slate-600 group-hover/col-handle:bg-blue-400 transition-colors" />
+                        <div className="h-8 w-0.5 rounded-full bg-[#1E1E26] group-hover/col-handle:bg-[#6366F1] transition-colors" />
                       </div>
                     )}
                     <CellContext.Provider
@@ -259,8 +259,8 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
             className={`absolute z-[60] rounded-full flex items-center justify-center
                        shadow-lg transition-all duration-200 cursor-pointer
                        ${showSplitMenu
-                         ? 'bg-blue-400 text-white rotate-45'
-                         : 'bg-blue-600 text-blue-100 hover:bg-blue-500 hover:text-white'
+                         ? 'bg-[#6366F1] text-white rotate-45'
+                         : 'bg-[#6366F1] text-[#E8E8ED] hover:bg-[#6366F1] hover:text-white'
                        }`}
             title={t('grid.splitView')}
           >
@@ -276,14 +276,14 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
                   key={`add-col-${row[0].key}`}
                   onClick={() => { addCellToRow(rowIndex); setShowSplitMenu(false); }}
                   className="absolute right-0 z-50 w-8 flex items-center justify-center
-                             cursor-pointer bg-blue-500/10 border-l-2 border-blue-500/40
-                             hover:bg-blue-500/20 transition-colors animate-in fade-in duration-150"
+                             cursor-pointer bg-[#6366F1]/10 border-l-2 border-[#6366F1]/40
+                             hover:bg-[#6366F1]/20 transition-colors animate-in fade-in duration-150"
                   style={{
                     top: `${rowHeights.slice(0, rowIndex).reduce((a, b) => a + b, 0)}%`,
                     height: `${rowHeights[rowIndex]}%`,
                   }}
                 >
-                  <div className="text-blue-400">
+                  <div className="text-[#6366F1]">
                     <PlusIcon className="w-3.5 h-3.5" />
                   </div>
                 </div>
@@ -293,10 +293,10 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
                 <div
                   onClick={() => { addRow(); setShowSplitMenu(false); }}
                   className="absolute bottom-0 left-0 right-0 z-50 h-8 flex items-center justify-center
-                             cursor-pointer bg-blue-500/10 border-t-2 border-blue-500/40
-                             hover:bg-blue-500/20 transition-colors animate-in fade-in duration-150"
+                             cursor-pointer bg-[#6366F1]/10 border-t-2 border-[#6366F1]/40
+                             hover:bg-[#6366F1]/20 transition-colors animate-in fade-in duration-150"
                 >
-                  <div className="flex items-center gap-1 text-blue-400">
+                  <div className="flex items-center gap-1 text-[#6366F1]">
                     <PlusIcon className="w-3.5 h-3.5" />
                   </div>
                 </div>
