@@ -406,3 +406,95 @@ pub(crate) fn parse_repo_url(url: &str) -> Result<String, String> {
 
     Err(format!("Invalid repository URL format: {}", url))
 }
+
+/// Translate a raw `std::io::Error` into a user-friendly message.
+///
+/// The returned string describes the symptom and suggests a fix when possible.
+/// The original OS error detail is appended in parentheses for support/debugging.
+pub(crate) fn friendly_io_error(e: &std::io::Error) -> String {
+    use std::io::ErrorKind;
+
+    // First try Rust's cross-platform ErrorKind
+    match e.kind() {
+        ErrorKind::NotFound => {
+            return "文件或目录不存在，请检查路径是否正确".to_string();
+        }
+        ErrorKind::PermissionDenied => {
+            return "权限不足，请检查文件/目录的访问权限".to_string();
+        }
+        ErrorKind::AlreadyExists => {
+            return "文件或目录已存在".to_string();
+        }
+        ErrorKind::DirectoryNotEmpty => {
+            return "目录不为空，请先清空目录内容".to_string();
+        }
+        ErrorKind::StorageFull => {
+            return "磁盘空间不足，请清理后重试".to_string();
+        }
+        ErrorKind::InvalidInput => {
+            return "路径包含无效字符".to_string();
+        }
+        _ => {}
+    }
+
+    // Then check platform-specific raw OS error codes
+    if let Some(code) = e.raw_os_error() {
+        #[cfg(unix)]
+        {
+            return match code {
+                // EACCES (macOS/Linux)
+                13 => "权限不足，请检查文件/目录的访问权限".to_string(),
+                // EBUSY
+                16 => "文件正在被其他程序占用，请关闭相关程序后重试".to_string(),
+                // EXDEV — cross-device move
+                18 => "无法跨磁盘移动文件，请改用复制操作".to_string(),
+                // EISDIR
+                21 => "目标是一个目录，而非文件".to_string(),
+                // ENOSPC
+                28 => "磁盘空间不足，请清理后重试".to_string(),
+                // EROFS
+                30 => "文件系统为只读，无法写入".to_string(),
+                // ENAMETOOLONG (macOS=63, Linux=36)
+                36 | 63 => "路径或文件名过长，请将项目移到更短的路径下再试".to_string(),
+                // ENOTEMPTY (macOS=66, Linux=39)
+                39 | 66 => "目录不为空，请先清空目录内容".to_string(),
+                _ => format!("操作失败（错误码 {}），请联系技术支持", code),
+            };
+        }
+        #[cfg(windows)]
+        {
+            return match code {
+                // ERROR_FILE_NOT_FOUND
+                2 => "文件不存在，请检查路径是否正确".to_string(),
+                // ERROR_PATH_NOT_FOUND
+                3 => "路径不存在，请检查目录是否正确".to_string(),
+                // ERROR_ACCESS_DENIED
+                5 => "权限不足，请尝试以管理员身份运行或检查文件是否为只读".to_string(),
+                // ERROR_SHARING_VIOLATION / ERROR_LOCK_VIOLATION
+                32 | 33 => "文件正在被其他程序占用，请关闭相关程序后重试".to_string(),
+                // ERROR_FILE_EXISTS
+                80 => "文件已存在".to_string(),
+                // ERROR_DISK_FULL
+                112 => "磁盘空间不足，请清理后重试".to_string(),
+                // ERROR_INVALID_NAME
+                123 => "文件名包含无效字符，请使用合法的文件名".to_string(),
+                // ERROR_DIR_NOT_EMPTY
+                145 => "目录不为空，请先清空目录内容".to_string(),
+                // ERROR_FILENAME_EXCED_RANGE / ERROR_BUFFER_OVERFLOW
+                111 | 206 => "路径或文件名过长，请将项目移到更短的路径下再试".to_string(),
+                _ => format!("操作失败（错误码 {}），请联系技术支持", code),
+            };
+        }
+    }
+
+    // Fallback: include the original error for debugging
+    format!("操作失败（{}），请联系技术支持", e)
+}
+
+/// Format a user-facing IO error with context prefix.
+///
+/// Example: `friendly_fs_error("复制项目失败", &err)` →
+/// `"复制项目失败：路径或文件名过长，请将项目移到更短的路径下再试"`
+pub(crate) fn friendly_fs_error(context: &str, e: &std::io::Error) -> String {
+    format!("{}：{}", context, friendly_io_error(e))
+}

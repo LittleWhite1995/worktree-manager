@@ -4,7 +4,7 @@ use std::process::Command;
 use serde::Serialize;
 
 use crate::types::OpenEditorRequest;
-use crate::utils::normalize_path;
+use crate::utils::{friendly_io_error, normalize_path};
 
 // ==================== Tauri 命令：工具 ====================
 
@@ -188,7 +188,11 @@ pub(crate) fn open_in_terminal(
             Ok(_) => log::info!("[system] Spawned {} for: {}", app_name, normalized),
             Err(e) => {
                 log::error!("[system] Failed to spawn {}: {}", app_name, e);
-                return Err(format!("Failed to open terminal {}: {}", app_name, e));
+                return Err(format!(
+                    "无法打开终端 {}：{}",
+                    app_name,
+                    friendly_io_error(&e)
+                ));
             }
         }
     }
@@ -214,7 +218,7 @@ pub(crate) fn open_in_terminal(
             Ok(_) => log::info!("[system] Spawned terminal '{}' for: {}", term, normalized),
             Err(e) => {
                 log::error!("[system] Failed to spawn terminal '{}': {}", term, e);
-                return Err(format!("Failed to open terminal: {}", e));
+                return Err(format!("无法打开终端：{}", friendly_io_error(&e)));
             }
         }
     }
@@ -298,7 +302,7 @@ pub(crate) fn open_editor_at_path(
                     }
                     Err(e) => {
                         log::error!("[system] Failed to open editor app '{}': {}", exe, e);
-                        return Err(format!("无法打开编辑器 {}: {}", exe, e));
+                        return Err(format!("无法打开编辑器 {}：{}", exe, friendly_io_error(&e)));
                     }
                 }
             }
@@ -324,7 +328,7 @@ pub(crate) fn open_editor_at_path(
                 }
                 Err(e) => {
                     log::error!("[system] Failed to spawn custom editor '{}': {}", exe, e);
-                    return Err(format!("无法打开编辑器 {}: {}", exe, e));
+                    return Err(format!("无法打开编辑器 {}：{}", exe, friendly_io_error(&e)));
                 }
             }
         }
@@ -353,7 +357,10 @@ pub(crate) fn open_editor_at_path(
                 }
                 Err(e) => {
                     log::error!("[system] Failed to spawn codex: {}", e);
-                    return Err(format!("无法打开 Codex，请确认已安装该编辑器: {}", e));
+                    return Err(format!(
+                        "无法打开 Codex，请确认已安装该编辑器：{}",
+                        friendly_io_error(&e)
+                    ));
                 }
             }
         }
@@ -391,7 +398,7 @@ pub(crate) fn open_editor_at_path(
                 Ok(_) => log::info!("[system] Launched Codex UWP app"),
                 Err(e) => {
                     log::error!("[system] Failed to launch Codex UWP: {}", e);
-                    return Err(format!("无法打开 Codex: {}", e));
+                    return Err(format!("无法打开 Codex：{}", friendly_io_error(&e)));
                 }
             }
         } else {
@@ -401,7 +408,7 @@ pub(crate) fn open_editor_at_path(
                 }
                 Err(e) => {
                     log::error!("[system] Failed to spawn editor process: {}", e);
-                    return Err(format!("无法打开编辑器 {}: {}", cmd, e));
+                    return Err(format!("无法打开编辑器 {}：{}", cmd, friendly_io_error(&e)));
                 }
             }
         }
@@ -430,7 +437,7 @@ pub(crate) fn open_editor_at_path(
             }
             Err(e) => {
                 log::error!("[system] Failed to spawn editor process: {}", e);
-                return Err(format!("无法打开编辑器 {}: {}", cmd, e));
+                return Err(format!("无法打开编辑器 {}：{}", cmd, friendly_io_error(&e)));
             }
         }
     }
@@ -457,7 +464,7 @@ pub(crate) fn reveal_in_finder(path: String) -> Result<(), String> {
             Ok(_) => log::info!("[system] Spawned Finder for: {}", normalized),
             Err(e) => {
                 log::error!("[system] Failed to spawn Finder: {}", e);
-                return Err(format!("无法打开文件夹: {}", e));
+                return Err(format!("无法打开文件夹：{}", friendly_io_error(&e)));
             }
         }
     }
@@ -468,7 +475,7 @@ pub(crate) fn reveal_in_finder(path: String) -> Result<(), String> {
             Ok(_) => log::info!("[system] Spawned Explorer for: {}", normalized),
             Err(e) => {
                 log::error!("[system] Failed to spawn Explorer: {}", e);
-                return Err(format!("无法打开文件夹: {}", e));
+                return Err(format!("无法打开文件夹：{}", friendly_io_error(&e)));
             }
         }
     }
@@ -479,7 +486,7 @@ pub(crate) fn reveal_in_finder(path: String) -> Result<(), String> {
             Ok(_) => log::info!("[system] Spawned xdg-open for: {}", normalized),
             Err(e) => {
                 log::error!("[system] Failed to spawn xdg-open: {}", e);
-                return Err(format!("无法打开文件夹: {}", e));
+                return Err(format!("无法打开文件夹：{}", friendly_io_error(&e)));
             }
         }
     }
@@ -497,7 +504,8 @@ pub(crate) fn open_log_dir() -> Result<(), String> {
             "[system] Log directory does not exist, creating: {:?}",
             log_dir
         );
-        std::fs::create_dir_all(&log_dir).map_err(|e| format!("无法创建日志目录: {}", e))?;
+        std::fs::create_dir_all(&log_dir)
+            .map_err(|e| format!("无法创建日志目录：{}", friendly_io_error(&e)))?;
     }
 
     let dir_str = log_dir.to_str().unwrap_or("");
@@ -508,7 +516,7 @@ pub(crate) fn open_log_dir() -> Result<(), String> {
             Ok(_) => log::info!("[system] Spawned Finder for log directory"),
             Err(e) => {
                 log::error!("[system] Failed to open log directory: {}", e);
-                return Err(format!("无法打开日志目录: {}", e));
+                return Err(format!("无法打开日志目录：{}", friendly_io_error(&e)));
             }
         }
     }
@@ -519,7 +527,7 @@ pub(crate) fn open_log_dir() -> Result<(), String> {
             Ok(_) => log::info!("[system] Spawned Explorer for log directory"),
             Err(e) => {
                 log::error!("[system] Failed to open log directory: {}", e);
-                return Err(format!("无法打开日志目录: {}", e));
+                return Err(format!("无法打开日志目录：{}", friendly_io_error(&e)));
             }
         }
     }
@@ -530,7 +538,7 @@ pub(crate) fn open_log_dir() -> Result<(), String> {
             Ok(_) => log::info!("[system] Spawned xdg-open for log directory"),
             Err(e) => {
                 log::error!("[system] Failed to open log directory: {}", e);
-                return Err(format!("无法打开日志目录: {}", e));
+                return Err(format!("无法打开日志目录：{}", friendly_io_error(&e)));
             }
         }
     }

@@ -440,7 +440,9 @@ pub struct OpenEditorRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MainWorkspaceOccupation {
     pub worktree_name: String,
-    pub original_branches: HashMap<String, String>, // project_name → original_branch
+    pub original_branches: HashMap<String, String>, // project_name → original_branch (main)
+    #[serde(default)]
+    pub worktree_branches: HashMap<String, String>, // project_name → branch (worktree)
     pub deployed_at: String,                        // ISO8601
 }
 
