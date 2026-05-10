@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FC, type MutableRefObject, type TouchEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FC, type MutableRefObject, type TouchEvent } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { pinyin } from 'pinyin-pro';
@@ -199,6 +199,8 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
   const [isMainWin, setIsMainWin] = useState(true);
   const [switchConfirmPath, setSwitchConfirmPath] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef<{ x: number; width: number } | null>(null);
 
   const isDev = import.meta.env.DEV;
 
@@ -217,7 +219,9 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
     if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = e.clientX;
+      if (!dragStartRef.current) return;
+      const delta = e.clientX - dragStartRef.current.x;
+      const newWidth = dragStartRef.current.width + delta;
       const clampedWidth = Math.max(200, Math.min(500, newWidth));
       setSidebarWidth(clampedWidth);
     };
@@ -271,6 +275,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
         onClick={onToggleCollapsed}
       />
       <div
+        ref={sidebarRef}
         style={{ width: `${sidebarWidth}px` }}
         className="bg-slate-800/50 border-r border-slate-700/50 flex flex-col shrink-0 relative max-sm:fixed max-sm:inset-y-0 max-sm:left-0 max-sm:z-50 max-sm:w-[85vw] max-sm:max-w-[320px] max-sm:bg-slate-800"
       >
@@ -418,6 +423,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
         <div
           onMouseDown={(e) => {
             e.preventDefault();
+            dragStartRef.current = { x: e.clientX, width: sidebarWidth };
             setIsDragging(true);
           }}
           className={`absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors max-sm:hidden ${isDragging ? 'bg-blue-500/50' : ''}`}

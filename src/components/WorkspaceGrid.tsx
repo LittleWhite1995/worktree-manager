@@ -211,10 +211,10 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
             {/* Row resize handle */}
             {rowIndex > 0 && (
               <div
-                className="shrink-0 h-1 cursor-row-resize group/row-handle flex items-center justify-center hover:bg-blue-500/30 transition-colors z-10"
+                className="shrink-0 h-1 cursor-row-resize group/row-handle flex items-center justify-center bg-blue-900/80 hover:bg-blue-600/60 transition-colors z-10"
                 onMouseDown={(e) => handleResizeStart(e, 'row', 0, rowIndex - 1)}
               >
-                <div className="w-8 h-0.5 rounded-full bg-slate-600 group-hover/row-handle:bg-blue-400 transition-colors" />
+                <div className="w-8 h-0.5 rounded-full bg-blue-500/60 group-hover/row-handle:bg-blue-400 transition-colors" />
               </div>
             )}
             <div className="flex-1 min-h-0 flex">
@@ -225,10 +225,10 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
                     {/* Column resize handle */}
                     {colIndex > 0 && (
                       <div
-                        className="shrink-0 w-1 cursor-col-resize group/col-handle flex items-center justify-center hover:bg-blue-500/30 transition-colors z-10"
+                        className="shrink-0 w-1 cursor-col-resize group/col-handle flex items-center justify-center bg-blue-900/80 hover:bg-blue-600/60 transition-colors z-10"
                         onMouseDown={(e) => handleResizeStart(e, 'col', rowIndex, colIndex - 1)}
                       >
-                        <div className="h-8 w-0.5 rounded-full bg-slate-600 group-hover/col-handle:bg-blue-400 transition-colors" />
+                        <div className="h-8 w-0.5 rounded-full bg-blue-500/60 group-hover/col-handle:bg-blue-400 transition-colors" />
                       </div>
                     )}
                     <CellContext.Provider

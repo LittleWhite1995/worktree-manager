@@ -10,6 +10,7 @@ export interface UseTerminalReturn {
   terminalVisible: boolean;
   terminalHeight: number;
   isResizing: boolean;
+  startResize: (y: number) => void;
   activatedTerminals: Set<string>;
   mountedTerminals: Set<string>;
   activeTerminalTab: string | null;
@@ -40,7 +41,7 @@ export function useTerminal(
   selectedWorktree: WorktreeListItem | null,
   mainWorkspace: MainWorkspaceStatus | null,
   workspacePathParam?: string,
-  windowId?: string
+  windowId?: string,
 ): UseTerminalReturn {
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [terminalHeight, setTerminalHeightState] = useState<number>(() => {
@@ -48,6 +49,7 @@ export function useTerminal(
     return clampTerminalHeight(TERMINAL.DEFAULT_HEIGHT, viewportHeight);
   });
   const [isResizing, setIsResizing] = useState(false);
+  const resizeDragStartRef = useRef<{ y: number; height: number } | null>(null);
   const [activatedTerminals, setActivatedTerminals] = useState<Set<string>>(new Set());
   const [activeTerminalTab, setActiveTerminalTab] = useState<string | null>(null);
   // Global set of all ever-activated terminals — controls Terminal component mounting.
@@ -347,13 +349,17 @@ export function useTerminal(
     if (!isResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const newHeight = window.innerHeight - e.clientY;
+      if (!resizeDragStartRef.current) return;
+      const delta = resizeDragStartRef.current.y - e.clientY;
+      const newHeight = resizeDragStartRef.current.height + delta;
       setTerminalHeight(newHeight);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       e.preventDefault();
-      const newHeight = window.innerHeight - e.touches[0].clientY;
+      if (!resizeDragStartRef.current) return;
+      const delta = resizeDragStartRef.current.y - e.touches[0].clientY;
+      const newHeight = resizeDragStartRef.current.height + delta;
       setTerminalHeight(newHeight);
     };
 
@@ -379,6 +385,11 @@ export function useTerminal(
       document.body.style.userSelect = '';
     };
   }, [isResizing]);
+
+  const startResize = useCallback((y: number) => {
+    resizeDragStartRef.current = { y, height: terminalHeight };
+    setIsResizing(true);
+  }, [terminalHeight]);
 
   useEffect(() => {
     const handleWindowResize = () => {
@@ -587,6 +598,7 @@ export function useTerminal(
     setTerminalVisible,
     setTerminalHeight,
     setIsResizing,
+    startResize,
     handleTerminalTabClick,
     handleCloseTerminalTab,
     handleCloseOtherTerminalTabs,

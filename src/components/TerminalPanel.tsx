@@ -238,7 +238,7 @@ function getVoiceButtonClass(voiceStatus: VoiceStatus, voiceWarning?: string | n
 interface TerminalPanelProps {
   visible: boolean;
   height: number;
-  onStartResize: () => void;
+  onStartResize: (y: number) => void;
   terminalTabs: TerminalTab[];
   activatedTerminals: Set<string>;
   mountedTerminals: Set<string>;
@@ -420,8 +420,8 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
   return (
     <div
-      className={`border-t border-slate-700 flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-slate-900' : 'shrink-0'} ${isFullscreen ? 'absolute inset-0 z-50 border-t-0 bg-slate-900' : ''}`}
-      style={isFullscreen || fillContainer ? undefined : { height: visible ? height : 32 }}
+      className={`border-t border-slate-700 flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-slate-900' : visible ? 'shrink' : 'shrink-0'} ${isFullscreen ? 'absolute inset-0 z-50 border-t-0 bg-slate-900' : ''}`}
+      style={isFullscreen || fillContainer ? undefined : { height: visible ? height : 32, minHeight: visible ? 100 : undefined }}
     >
       {/* Resize handle - hidden in fullscreen */}
       {visible && !isFullscreen && (
@@ -429,11 +429,11 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
           className="h-3 flex items-center justify-center cursor-ns-resize shrink-0 group touch-none"
           onMouseDown={(e) => {
             e.preventDefault();
-            onStartResize();
+            onStartResize(e.clientY);
           }}
           onTouchStart={(e) => {
             e.preventDefault();
-            onStartResize();
+            onStartResize(e.touches[0].clientY);
           }}
         >
           <div className="w-10 h-1 rounded-full bg-slate-600 group-hover:bg-blue-500 group-hover:h-1.5 transition-all" />

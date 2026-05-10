@@ -16,7 +16,8 @@ use crate::types::{
     WorktreeListItem,
 };
 use crate::utils::{
-    git_command, normalize_path, run_git_command_with_timeout, scan_dir_for_linkable_folders,
+    friendly_fs_error, git_command, normalize_path, run_git_command_with_timeout,
+    scan_dir_for_linkable_folders,
 };
 
 /// Cross-platform symlink creation.
@@ -321,20 +322,17 @@ fn probe_windows_rename(path: &Path) -> Result<(), String> {
         Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => {
-            return Err(format!(
-                "Failed to remove stale archive lock check directory: {}",
-                e
-            ));
+            return Err(friendly_fs_error("无法清理归档检查的临时目录", &e));
         }
     }
 
-    fs::rename(path, &probe_path)
-        .map_err(|e| format!("Worktree is in use and cannot be archived: {}", e))?;
+    fs::rename(path, &probe_path).map_err(|e| {
+        friendly_fs_error("Worktree 正在被占用，无法归档。请关闭相关程序后重试", &e)
+    })?;
     if let Err(e) = fs::rename(&probe_path, path) {
         return Err(format!(
-            "Failed to restore worktree after archive lock check: {}. \
-             To recover, manually rename '{}' back to '{}'.",
-            e,
+            "归档检查后恢复目录失败：{}。\n请手动将 '{}' 重命名为 '{}'",
+            crate::utils::friendly_io_error(&e),
             probe_path.display(),
             path.display()
         ));
@@ -486,10 +484,10 @@ fn scan_worktrees_dir(
     let mapping_path = dir.join("mapping.json");
     let mapping = load_worktree_mapping(&mapping_path);
 
-    let entries = std::fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?;
+    let entries = std::fs::read_dir(dir).map_err(|e| friendly_fs_error("无法读取目录", &e))?;
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let entry = entry.map_err(|e| friendly_fs_error("无法读取目录项", &e))?;
         let path = entry.path();
 
         if !path.is_dir() {
@@ -723,7 +721,7 @@ fn setup_project_worktree(
                 worktree_name,
             ])
             .output()
-            .map_err(|e| format!("Failed to create worktree: {}", e))?
+            .map_err(|e| friendly_fs_error("创建 Worktree 失败", &e))?
     } else if remote_branch_exists {
         log::info!(
             "Remote branch 'origin/{}' already exists, tracking it for project {}",
@@ -743,7 +741,7 @@ fn setup_project_worktree(
                 &format!("origin/{}", worktree_name),
             ])
             .output()
-            .map_err(|e| format!("Failed to create worktree: {}", e))?
+            .map_err(|e| friendly_fs_error("创建 Worktree 失败", &e))?
     } else {
         log::info!(
             "Creating new branch '{}' for project {} from origin/{}",
@@ -763,7 +761,7 @@ fn setup_project_worktree(
                 &format!("origin/{}", proj_req.base_branch),
             ])
             .output()
-            .map_err(|e| format!("Failed to create worktree: {}", e))?
+            .map_err(|e| friendly_fs_error("创建 Worktree 失败", &e))?
     };
 
     if !output.status.success() {
@@ -889,7 +887,7 @@ pub fn create_worktree_impl(
         worktree_path.display()
     );
     std::fs::create_dir_all(worktree_path.join("projects"))
-        .map_err(|e| format!("Failed to create worktree directory: {}", e))?;
+        .map_err(|e| friendly_fs_error("无法创建 Worktree 目录", &e))?;
 
     // Step 2: Create symlinks for workspace-level items (fast, sequential)
     // Merge linked_workspace_items + vault_linked_workspace_items, deduplicated
@@ -1132,11 +1130,11 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
             archive_path
         );
         fs::remove_dir_all(&archive_path)
-            .map_err(|e| format!("Failed to remove existing archive directory: {}", e))?;
+            .map_err(|e| friendly_fs_error("无法清理已有的归档目录", &e))?;
     }
 
     std::fs::rename(&worktree_path, &archive_path)
-        .map_err(|e| format!("Failed to archive worktree: {}", e))?;
+        .map_err(|e| friendly_fs_error("归档 Worktree 失败", &e))?;
 
     log::info!("[worktree] Successfully archived worktree '{}'", name);
     Ok(())
@@ -1303,12 +1301,12 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
             worktree_path
         );
         fs::remove_dir_all(&worktree_path)
-            .map_err(|e| format!("Failed to remove existing directory: {}", e))?;
+            .map_err(|e| friendly_fs_error("无法清理已有目录", &e))?;
     }
 
     // Rename archive directory to restored path
     std::fs::rename(&archive_path, &worktree_path)
-        .map_err(|e| format!("Failed to restore worktree: {}", e))?;
+        .map_err(|e| friendly_fs_error("恢复 Worktree 失败", &e))?;
 
     // Step 2: Re-register git worktrees for each project
     log::info!(
@@ -1611,7 +1609,7 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
         archive_path.display()
     );
     fs::remove_dir_all(&archive_path)
-        .map_err(|e| format!("Failed to delete archived worktree: {}", e))?;
+        .map_err(|e| friendly_fs_error("删除归档 Worktree 失败", &e))?;
 
     // Clean up mapping entry if exists
     if mapping.contains_key(folder_key) {
@@ -1680,7 +1678,7 @@ pub fn add_project_to_worktree_impl(
     let projects_dir = worktree_path.join("projects");
     if !projects_dir.exists() {
         std::fs::create_dir_all(&projects_dir)
-            .map_err(|e| format!("Failed to create projects directory: {}", e))?;
+            .map_err(|e| friendly_fs_error("无法创建 projects 目录", &e))?;
     }
 
     let proj_config = config
@@ -1765,7 +1763,7 @@ pub fn add_project_to_worktree_impl(
                 &branch_name,
             ])
             .output()
-            .map_err(|e| format!("Failed to create worktree: {}", e))?
+            .map_err(|e| friendly_fs_error("创建 Worktree 失败", &e))?
     } else if remote_branch_exists {
         log::info!(
             "[worktree] Remote branch 'origin/{}' already exists, tracking it for project '{}'",
@@ -1785,7 +1783,7 @@ pub fn add_project_to_worktree_impl(
                 &format!("origin/{}", branch_name),
             ])
             .output()
-            .map_err(|e| format!("Failed to create worktree: {}", e))?
+            .map_err(|e| friendly_fs_error("创建 Worktree 失败", &e))?
     } else {
         log::info!(
             "[worktree] Creating new branch '{}' for project '{}' from origin/{}",
@@ -1805,7 +1803,7 @@ pub fn add_project_to_worktree_impl(
                 &format!("origin/{}", request.base_branch),
             ])
             .output()
-            .map_err(|e| format!("Failed to create worktree: {}", e))?
+            .map_err(|e| friendly_fs_error("创建 Worktree 失败", &e))?
     };
 
     if !output.status.success() {
@@ -2018,6 +2016,7 @@ pub fn deploy_to_main_impl(
     let occupation = MainWorkspaceOccupation {
         worktree_name: worktree_name.clone(),
         original_branches: original_branches.clone(),
+        worktree_branches: wt_branches.clone(),
         deployed_at: chrono::Utc::now().to_rfc3339(),
     };
 
@@ -2248,8 +2247,11 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
             continue;
         }
 
-        // The branch name should be the worktree name (convention)
-        let branch = &occupation.worktree_name;
+        // Use the saved worktree branch, fall back to worktree name (old state files)
+        let branch = occupation
+            .worktree_branches
+            .get(proj_name)
+            .unwrap_or(&occupation.worktree_name);
         log::info!(
             "[deploy] Re-attaching worktree project '{}' to branch '{}'",
             proj_name,

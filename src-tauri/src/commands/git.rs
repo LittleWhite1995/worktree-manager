@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::config::{get_window_workspace_config, save_workspace_config_internal};
 use crate::git_ops;
 use crate::types::{CloneProjectRequest, ProjectConfig, SwitchBranchRequest};
-use crate::utils::{git_command, normalize_path, parse_repo_url};
+use crate::utils::{friendly_fs_error, git_command, normalize_path, parse_repo_url};
 
 // ==================== Helper: spawn_blocking wrapper ====================
 
@@ -231,7 +231,7 @@ pub fn scan_existing_projects_impl(
 
     let mut result = vec![];
     let entries = std::fs::read_dir(&projects_dir)
-        .map_err(|e| format!("Failed to read projects dir: {}", e))?;
+        .map_err(|e| friendly_fs_error("无法读取 projects 目录", &e))?;
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -404,7 +404,7 @@ pub fn import_external_project_impl(
 
     // Ensure projects/ dir exists
     std::fs::create_dir_all(&projects_dir)
-        .map_err(|e| format!("Failed to create projects directory: {}", e))?;
+        .map_err(|e| friendly_fs_error("无法创建 projects 目录", &e))?;
 
     // Copy the project directory
     log::info!(
@@ -412,7 +412,7 @@ pub fn import_external_project_impl(
         source_path,
         dest.display()
     );
-    copy_dir_recursive(&source, &dest).map_err(|e| format!("Failed to copy project: {}", e))?;
+    copy_dir_recursive(&source, &dest).map_err(|e| friendly_fs_error("复制项目失败", &e))?;
 
     // Get current branch of the copied project
     let current_branch = git_command()
