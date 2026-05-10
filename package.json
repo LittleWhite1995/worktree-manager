@@ -1,6 +1,11 @@
 {
   "name": "worktree-manager",
   "private": true,
+  "pnpm": {
+    "allowBuilds": {
+      "esbuild": true
+    }
+  },
   "version": "0.1.2",
   "type": "module",
   "scripts": {
