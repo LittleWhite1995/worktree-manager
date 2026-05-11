@@ -81,37 +81,37 @@ const VaultItemTree: FC<VaultItemTreeProps> = ({
   return (
     <div>
       <div
-        className={`flex items-center gap-1 text-xs ${isDir ? 'text-[#8B8B9E] cursor-pointer hover:text-[#E8E8ED]' : 'text-[#8B8B9E]'}`}
+        className={`flex items-center gap-1 text-xs ${isDir ? 'text-[--color-text-secondary] cursor-pointer hover:text-[--color-text-primary]' : 'text-[--color-text-secondary]'}`}
         style={{ paddingLeft: `${indent}px` }}
         onClick={isDir ? handleToggle : undefined}
       >
         {isDir ? (
           <>
             {tooMany ? (
-              <ChevronRight className="w-3 h-3 text-[#55556A] shrink-0" />
+              <ChevronRight className="w-3 h-3 text-[--color-text-muted] shrink-0" />
             ) : expanded ? (
-              <ChevronDown className="w-3 h-3 text-[#8B8B9E] shrink-0" />
+              <ChevronDown className="w-3 h-3 text-[--color-text-secondary] shrink-0" />
             ) : (
-              <ChevronRight className="w-3 h-3 text-[#8B8B9E] shrink-0" />
+              <ChevronRight className="w-3 h-3 text-[--color-text-secondary] shrink-0" />
             )}
-            <Folder className="w-3.5 h-3.5 text-[#6366F1] shrink-0" />
+            <Folder className="w-3.5 h-3.5 text-[--color-accent] shrink-0" />
           </>
         ) : (
           <>
             <span className="w-3 inline-block" />
-            <FileText className="w-3.5 h-3.5 text-[#55556A] shrink-0" />
+            <FileText className="w-3.5 h-3.5 text-[--color-text-muted] shrink-0" />
           </>
         )}
-        <span className={tooMany ? 'text-[#55556A]' : ''}>
+        <span className={tooMany ? 'text-[--color-text-muted]' : ''}>
           {itemName}{isDir ? '/' : ''}
         </span>
-        {loading && <span className="text-[10px] text-[#55556A]">{t('common.loading', '...')}</span>}
+        {loading && <span className="text-[10px] text-[--color-text-muted]">{t('common.loading', '...')}</span>}
         {tooMany && (
           <span className="text-[10px] text-amber-500 ml-1">{t('settings.vaultTooManyItems', '99+')}</span>
         )}
       </div>
       {error && (
-        <div className="text-[10px] text-[#EF4444] pl-4" style={{ paddingLeft: `${indent + 16}px` }}>
+        <div className="text-[10px] text-[--color-error] pl-4" style={{ paddingLeft: `${indent + 16}px` }}>
           {error}
         </div>
       )}
@@ -245,31 +245,31 @@ const VaultSettingsSection: FC = () => {
   }, [t]);
 
   if (loading) {
-    return <div className="text-xs text-[#55556A] py-4">{t('common.loading', '加载中...')}</div>;
+    return <div className="text-xs text-[--color-text-muted] py-4">{t('common.loading', '加载中...')}</div>;
   }
 
   return (
     <div>
       <h2 className="text-lg font-medium mb-4">{t('settings.vaultTitle', 'Vault')}</h2>
-      {error && <p className="text-sm text-[#EF4444] mb-3">{error}</p>}
+      {error && <p className="text-sm text-[--color-error] mb-3">{error}</p>}
 
-      <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-3">
+      <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-3">
         {status?.connected ? (
           <>
             {/* Connected state */}
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-sm font-medium text-[#E8E8ED]">
+              <span className="text-sm font-medium text-[--color-text-primary]">
                 {t('settings.vaultConnected', '已挂载')}
               </span>
             </div>
 
             <div>
-              <label className="block text-xs text-[#55556A] mb-1">
+              <label className="block text-xs text-[--color-text-muted] mb-1">
                 {t('settings.vaultPath', '路径')}
               </label>
               <button
-                className="text-sm text-[#8B8B9E] font-mono break-all text-left hover:text-[#6366F1] transition-colors flex items-center gap-1"
+                className="text-sm text-[--color-text-secondary] font-mono break-all text-left hover:text-[--color-accent] transition-colors flex items-center gap-1"
                 onClick={() => {
                   if (status.vault_path) {
                     callBackend('reveal_in_finder', { path: status.vault_path }).catch(() => {});
@@ -277,7 +277,7 @@ const VaultSettingsSection: FC = () => {
                 }}
                 title={t('settings.vaultOpenPath', '在文件夹中打开')}
               >
-                <FolderOpen className="w-3.5 h-3.5 text-[#55556A] shrink-0" />
+                <FolderOpen className="w-3.5 h-3.5 text-[--color-text-muted] shrink-0" />
                 {status.vault_path}
               </button>
             </div>
@@ -285,14 +285,14 @@ const VaultSettingsSection: FC = () => {
             {/* Synced items toggle */}
             <div>
               <button
-                className="flex items-center gap-1 text-xs text-[#8B8B9E] hover:text-[#E8E8ED] transition-colors"
+                className="flex items-center gap-1 text-xs text-[--color-text-secondary] hover:text-[--color-text-primary] transition-colors"
                 onClick={() => setShowItems(!showItems)}
               >
                 <span className="w-3 h-3 inline-flex items-center justify-center text-[10px]">
                   {showItems ? '\u25BC' : '\u25B6'}
                 </span>
                 {t('settings.vaultSyncedItems', '已同步项')}
-                <span className="text-[#55556A]">({status.synced_items.length})</span>
+                <span className="text-[--color-text-muted]">({status.synced_items.length})</span>
               </button>
               {showItems && status.vault_path && (
                 <div className="mt-2 space-y-0.5 max-h-64 overflow-y-auto pr-1">
@@ -320,7 +320,7 @@ const VaultSettingsSection: FC = () => {
               <Button
                 variant="ghost" size="sm" disabled={linking}
                 onClick={() => handleDisconnect(false)}
-                className="text-[#EF4444] hover:text-[#EF4444]"
+                className="text-[--color-error] hover:text-[--color-error]"
               >
                 {t('settings.vaultDisconnect', '断开')}
               </Button>
@@ -337,8 +337,8 @@ const VaultSettingsSection: FC = () => {
           <>
             {/* Not connected state */}
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#55556A]" />
-              <span className="text-sm text-[#8B8B9E]">
+              <div className="w-2 h-2 rounded-full bg-[--color-text-muted]" />
+              <span className="text-sm text-[--color-text-secondary]">
                 {t('settings.vaultNotConnected', '未挂载')}
               </span>
             </div>
@@ -936,7 +936,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   // ==================== Menu items ====================
   const menuItems = [
     { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" /> },
-    { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <FolderOpen className="w-3.5 h-3.5 text-[#F59E0B]" /> },
+    { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <FolderOpen className="w-3.5 h-3.5 text-[--color-warning]" /> },
     { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
     ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" /> }] : []),
     { id: 'commit' as SettingsSection, label: t('settings.commitNav', '提交设置'), icon: <FileText className="w-3.5 h-3.5" /> },
@@ -949,7 +949,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1E1E26]/50 shrink-0 bg-[#0A0A0F]/95 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[--color-border]/50 shrink-0 bg-[--color-bg-base]/95 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onBack} aria-label={t('settings.backLabel')}>
             <BackIcon className="w-5 h-5" />
@@ -965,24 +965,24 @@ export const SettingsView: FC<SettingsViewProps> = ({
 
       {/* Error banner */}
       {error && (
-        <div className="mx-4 mt-2 p-3 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg shrink-0">
-          <div className="text-[#EF4444] text-sm select-text">{error}</div>
-          <Button variant="link" size="sm" onClick={onClearError} className="text-[#EF4444] hover:text-[#EF4444] mt-1 p-0 h-auto">{t('common.close')}</Button>
+        <div className="mx-4 mt-2 p-3 bg-[--color-error]/10 border border-[--color-error]/20 rounded-lg shrink-0">
+          <div className="text-[--color-error] text-sm select-text">{error}</div>
+          <Button variant="link" size="sm" onClick={onClearError} className="text-[--color-error] hover:text-[--color-error] mt-1 p-0 h-auto">{t('common.close')}</Button>
         </div>
       )}
 
       {/* Main: left menu + right content */}
       <div className="flex flex-1 min-h-0">
         {/* Left sidebar */}
-        <div className="w-48 shrink-0 border-r border-[#1E1E26]/50 py-2 overflow-y-auto">
+        <div className="w-48 shrink-0 border-r border-[--color-border]/50 py-2 overflow-y-auto">
           <nav className="space-y-0.5 px-2">
             {menuItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
                 className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors text-left ${activeSection === item.id
-                  ? 'bg-[#6366F1]/15 text-[#6366F1]'
-                  : 'text-[#8B8B9E] hover:text-[#E8E8ED] hover:bg-[#141419]'
+                  ? 'bg-[--color-accent]/15 text-[--color-accent]'
+                  : 'text-[--color-text-secondary] hover:text-[--color-text-primary] hover:bg-[--color-bg-surface]'
                   }`}
               >
                 {item.icon}
@@ -1007,13 +1007,13 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         key={ws.path}
                         onClick={() => setSelectedWsPath(ws.path)}
                         className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedWsPath === ws.path
-                          ? 'bg-[#6366F1]/15 text-[#6366F1] border border-[#6366F1]/30'
-                          : 'text-[#8B8B9E] hover:text-[#E8E8ED] bg-[#141419] hover:bg-[#1A1A22]/50 border border-transparent'
+                          ? 'bg-[--color-accent]/15 text-[--color-accent] border border-[--color-accent]/30'
+                          : 'text-[--color-text-secondary] hover:text-[--color-text-primary] bg-[--color-bg-surface] hover:bg-[--color-bg-elevated]/50 border border-transparent'
                           }`}
                       >
                         <span>{ws.name}</span>
                         {currentWorkspace?.path === ws.path && (
-                          <span className="text-[10px] text-[#6366F1] bg-[#6366F1]/10 px-1 py-0.5 rounded">{t('settings.current')}</span>
+                          <span className="text-[10px] text-[--color-accent] bg-[--color-accent]/10 px-1 py-0.5 rounded">{t('settings.current')}</span>
                         )}
                       </button>
                     ))}
@@ -1021,21 +1021,21 @@ export const SettingsView: FC<SettingsViewProps> = ({
                 )}
 
                 {/* Workspace Config */}
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-4">
-                  <h3 className="text-sm font-medium text-[#8B8B9E]">{t('settings.workspaceConfig')}</h3>
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-4">
+                  <h3 className="text-sm font-medium text-[--color-text-secondary]">{t('settings.workspaceConfig')}</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-[#55556A] mb-1">{t('settings.workspaceName')}</label>
+                      <label className="block text-xs text-[--color-text-muted] mb-1">{t('settings.workspaceName')}</label>
                       <Input type="text" value={config.name} onChange={(e) => updateField('name', e.target.value)} className="h-8 text-sm" />
                     </div>
                     <div>
-                      <label className="block text-xs text-[#55556A] mb-1">{t('settings.worktreesDirLabel')}</label>
+                      <label className="block text-xs text-[--color-text-muted] mb-1">{t('settings.worktreesDirLabel')}</label>
                       <Input type="text" value={config.worktrees_dir} onChange={(e) => updateField('worktrees_dir', e.target.value)} className="h-8 text-sm" />
                     </div>
                   </div>
                   {/* Linked Workspace Items */}
                   <div>
-                    <label className="block text-xs text-[#55556A] mb-1.5">{t('settings.linkedWorktreeItems')}</label>
+                    <label className="block text-xs text-[--color-text-muted] mb-1.5">{t('settings.linkedWorktreeItems')}</label>
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {/* Merge linked_workspace_items + vault synced items, deduplicated, sorted */}
                       {(() => {
@@ -1065,11 +1065,11 @@ export const SettingsView: FC<SettingsViewProps> = ({
                           const isInConfig = config.linked_workspace_items.includes(item);
                           const isDir = vaultItem?.item_type === 'directory';
                           return (
-                            <span key={index} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${isVaultManaged ? 'bg-emerald-900/30 border border-emerald-700/40 text-emerald-300' : 'bg-[#1A1A22]/50 border border-[#1E1E26]/50 text-[#8B8B9E]'}`}>
+                            <span key={index} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${isVaultManaged ? 'bg-emerald-900/30 border border-emerald-700/40 text-emerald-300' : 'bg-[--color-bg-elevated]/50 border border-[--color-border]/50 text-[--color-text-secondary]'}`}>
                               {isVaultManaged && <Link2 className="w-3 h-3 text-emerald-400" />}
                               {item}{isDir ? '/' : ''}
                               {isInConfig && !isVaultManaged && (
-                                <button type="button" onClick={() => removeLinkedItem(config.linked_workspace_items.indexOf(item))} className="text-[#55556A] hover:text-[#EF4444] transition-colors ml-0.5">&times;</button>
+                                <button type="button" onClick={() => removeLinkedItem(config.linked_workspace_items.indexOf(item))} className="text-[--color-text-muted] hover:text-[--color-error] transition-colors ml-0.5">&times;</button>
                               )}
                             </span>
                           );
@@ -1086,24 +1086,24 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         disabled={!newLinkedItem.trim()}
                       >{t('common.add')}</Button>
                     </div>
-                    <p className="text-[10px] text-[#55556A] mt-1">{t('settings.linkedWorktreeItemsHint')}</p>
+                    <p className="text-[10px] text-[--color-text-muted] mt-1">{t('settings.linkedWorktreeItemsHint')}</p>
                   </div>
                 </div>
 
                 {/* Projects Config */}
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4">
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-[#8B8B9E]">{t('settings.projectConfig')}</h3>
+                    <h3 className="text-sm font-medium text-[--color-text-secondary]">{t('settings.projectConfig')}</h3>
                     <div className="flex items-center gap-2">
                       {/* Form/JSON toggle */}
-                      <div className="flex bg-[#1A1A22]/50 rounded-md p-0.5">
+                      <div className="flex bg-[--color-bg-elevated]/50 rounded-md p-0.5">
                         <button
                           onClick={() => setProjectViewMode('form')}
-                          className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${projectViewMode === 'form' ? 'bg-[#6366F1]/20 text-[#6366F1]' : 'text-[#55556A] hover:text-[#8B8B9E]'}`}
+                          className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${projectViewMode === 'form' ? 'bg-[--color-accent]/20 text-[--color-accent]' : 'text-[--color-text-muted] hover:text-[--color-text-secondary]'}`}
                         >{t('settings.formView', '表单')}</button>
                         <button
                           onClick={() => setProjectViewMode('json')}
-                          className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${projectViewMode === 'json' ? 'bg-[#6366F1]/20 text-[#6366F1]' : 'text-[#55556A] hover:text-[#8B8B9E]'}`}
+                          className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${projectViewMode === 'json' ? 'bg-[--color-accent]/20 text-[--color-accent]' : 'text-[--color-text-muted] hover:text-[--color-text-secondary]'}`}
                         >JSON</button>
                       </div>
                       {projectViewMode === 'form' && (
@@ -1124,12 +1124,12 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   {projectViewMode === 'json' && (
                     <div>
                       {projectJsonError && (
-                        <div className="mb-2 p-2 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded text-xs text-[#EF4444]">{projectJsonError}</div>
+                        <div className="mb-2 p-2 bg-[--color-error]/10 border border-[--color-error]/20 rounded text-xs text-[--color-error]">{projectJsonError}</div>
                       )}
                       <textarea
                         value={projectJsonText}
                         onChange={(e) => { setProjectJsonText(e.target.value); setProjectJsonError(null); }}
-                        className="w-full h-64 bg-[#050508] border border-[#1E1E26]/50 rounded-lg p-3 font-mono text-xs text-[#8B8B9E] resize-none focus:outline-none focus:ring-1 focus:ring-[#6366F1]/50 leading-relaxed"
+                        className="w-full h-64 bg-[--color-bg-base] border border-[--color-border]/50 rounded-lg p-3 font-mono text-xs text-[--color-text-secondary] resize-none focus:outline-none focus:ring-1 focus:ring-[--color-accent]/50 leading-relaxed"
                         spellCheck={false}
                       />
                     </div>
@@ -1139,18 +1139,18 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   {projectViewMode === 'form' && (
                     <div className="space-y-3">
                       {config.projects.map((proj, index) => (
-                        <div key={index} className="bg-[#0A0A0F]/50 border border-[#1E1E26]/30 rounded-lg p-3">
+                        <div key={index} className="bg-[--color-bg-base]/50 border border-[--color-border]/30 rounded-lg p-3">
                           <div className="flex items-start gap-3 mb-2">
-                            <div className="w-5 h-5 rounded bg-[#1A1A22]/50 flex items-center justify-center shrink-0 mt-4">
-                              <span className="text-[10px] font-mono text-[#55556A]">{index + 1}</span>
+                            <div className="w-5 h-5 rounded bg-[--color-bg-elevated]/50 flex items-center justify-center shrink-0 mt-4">
+                              <span className="text-[10px] font-mono text-[--color-text-muted]">{index + 1}</span>
                             </div>
                             <div className="flex-1 grid grid-cols-2 gap-2">
                               <div>
-                                <label className="block text-[10px] text-[#55556A] mb-0.5">{t('settings.projectName')}</label>
+                                <label className="block text-[10px] text-[--color-text-muted] mb-0.5">{t('settings.projectName')}</label>
                                 <Input type="text" value={proj.name} onChange={(e) => updateProject(index, 'name', e.target.value)} placeholder="project-name" className="h-7 text-xs" />
                               </div>
                               <div>
-                                <label className="block text-[10px] text-[#55556A] mb-0.5">{t('settings.baseBranchLabel')}</label>
+                                <label className="block text-[10px] text-[--color-text-muted] mb-0.5">{t('settings.baseBranchLabel')}</label>
                                 <BranchCombobox
                                   value={proj.base_branch} onChange={(value) => updateProject(index, 'base_branch', value)}
                                   onLoadBranches={async () => { const wsPath = selectedWsPath || configPath.replace('/.worktree-manager.json', ''); return await getRemoteBranches(`${wsPath}/projects/${proj.name}`); }}
@@ -1158,7 +1158,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                                 />
                               </div>
                               <div>
-                                <label className="block text-[10px] text-[#55556A] mb-0.5">{t('settings.testBranchLabel')}</label>
+                                <label className="block text-[10px] text-[--color-text-muted] mb-0.5">{t('settings.testBranchLabel')}</label>
                                 <BranchCombobox
                                   value={proj.test_branch} onChange={(value) => updateProject(index, 'test_branch', value)}
                                   onLoadBranches={async () => { const wsPath = selectedWsPath || configPath.replace('/.worktree-manager.json', ''); return await getRemoteBranches(`${wsPath}/projects/${proj.name}`); }}
@@ -1166,7 +1166,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                                 />
                               </div>
                               <div>
-                                <label className="block text-[10px] text-[#55556A] mb-0.5">{t('settings.mergeStrategyLabel')}</label>
+                                <label className="block text-[10px] text-[--color-text-muted] mb-0.5">{t('settings.mergeStrategyLabel')}</label>
                                 <Select value={proj.merge_strategy} onValueChange={(value) => updateProject(index, 'merge_strategy', value)}>
                                   <SelectTrigger className="w-full h-7 text-xs"><SelectValue /></SelectTrigger>
                                   <SelectContent>
@@ -1177,7 +1177,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                                 </Select>
                               </div>
                               <div>
-                                <label className="block text-[10px] text-[#55556A] mb-0.5">{t('settings.preferredIDE', '偏好 IDE')}</label>
+                                <label className="block text-[10px] text-[--color-text-muted] mb-0.5">{t('settings.preferredIDE', '偏好 IDE')}</label>
                                 {(() => {
                                   const prefs: Record<string, string> = JSON.parse(localStorage.getItem('project_preferred_editors') || '{}');
                                   const allEditors: Array<{ id: string; name: string }> =
@@ -1211,7 +1211,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                                 })()}
                               </div>
                               <div>
-                                <label className="block text-[10px] text-[#55556A] mb-0.5">{t('settings.commitPrefixLabel', '前缀模板')}</label>
+                                <label className="block text-[10px] text-[--color-text-muted] mb-0.5">{t('settings.commitPrefixLabel', '前缀模板')}</label>
                                 <Select value={String(proj.commit_prefix_index ?? 0)}
                                   onValueChange={(value) => updateProject(index, 'commit_prefix_index', parseInt(value, 10))}
                                 >
@@ -1225,14 +1225,14 @@ export const SettingsView: FC<SettingsViewProps> = ({
                                 </Select>
                               </div>
                               <div>
-                                <label className="block text-[10px] text-[#55556A] mb-0.5">{t('settings.gitUserNameOverride', 'Git 用户名(覆盖)')}</label>
+                                <label className="block text-[10px] text-[--color-text-muted] mb-0.5">{t('settings.gitUserNameOverride', 'Git 用户名(覆盖)')}</label>
                                 <Input type="text" value={proj.git_user_name || ''}
                                   onChange={(e) => updateProject(index, 'git_user_name', e.target.value || undefined)}
                                   placeholder={t('settings.inheritGlobal', '继承全局')} className="h-7 text-xs"
                                 />
                               </div>
                               <div>
-                                <label className="block text-[10px] text-[#55556A] mb-0.5">{t('settings.gitUserEmailOverride', 'Git 邮箱(覆盖)')}</label>
+                                <label className="block text-[10px] text-[--color-text-muted] mb-0.5">{t('settings.gitUserEmailOverride', 'Git 邮箱(覆盖)')}</label>
                                 <Input type="text" value={proj.git_user_email || ''}
                                   onChange={(e) => updateProject(index, 'git_user_email', e.target.value || undefined)}
                                   placeholder={t('settings.inheritGlobal', '继承全局')} className="h-7 text-xs"
@@ -1240,18 +1240,18 @@ export const SettingsView: FC<SettingsViewProps> = ({
                               </div>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => removeProject(index)}
-                              className="h-6 w-6 text-[#EF4444]/60 hover:text-[#EF4444] hover:bg-[#EF4444]/10 shrink-0"
+                              className="h-6 w-6 text-[--color-error]/60 hover:text-[--color-error] hover:bg-[--color-error]/10 shrink-0"
                               title={t('settings.deleteProject')}
                             ><TrashIcon className="w-3.5 h-3.5" /></Button>
                           </div>
                           {/* Linked Folders */}
-                          <div className="border-t border-[#1E1E26]/30 pt-2 ml-8">
+                          <div className="border-t border-[--color-border]/30 pt-2 ml-8">
                             <div className="flex items-center justify-between mb-1">
-                              <label className="text-[10px] text-[#55556A]">{t('settings.linkedFoldersLabel')}</label>
-                              <Button type="button" variant="ghost" size="sm" className="h-5 text-[10px] gap-0.5 text-[#55556A] hover:text-[#8B8B9E] px-1"
+                              <label className="text-[10px] text-[--color-text-muted]">{t('settings.linkedFoldersLabel')}</label>
+                              <Button type="button" variant="ghost" size="sm" className="h-5 text-[10px] gap-0.5 text-[--color-text-muted] hover:text-[--color-text-secondary] px-1"
                                 onClick={() => handleScanProject(proj.name)} disabled={scanningProject === proj.name || !proj.name}
                               >
-                                {scanningProject === proj.name ? (<><div className="w-2.5 h-2.5 border border-[#6366F1] border-t-transparent rounded-full animate-spin" />{t('settings.scanning')}</>) : (<><Search className="w-2.5 h-2.5" />{t('settings.scan')}</>)}
+                                {scanningProject === proj.name ? (<><div className="w-2.5 h-2.5 border border-[--color-accent] border-t-transparent rounded-full animate-spin" />{t('settings.scanning')}</>) : (<><Search className="w-2.5 h-2.5" />{t('settings.scan')}</>)}
                               </Button>
                             </div>
                             {/* Scan Results */}
@@ -1261,15 +1261,15 @@ export const SettingsView: FC<SettingsViewProps> = ({
                               const filteredResults = projScanResults.filter(r => !existingFolders.has(r.relative_path));
                               if (filteredResults.length === 0) return null;
                               return (
-                                <div className="mb-1.5 p-1.5 bg-[#6366F1]/10 border border-[#6366F1]/20 rounded">
-                                  <div className="text-[9px] font-medium text-[#6366F1] mb-1">{t('settings.scanResult')}</div>
+                                <div className="mb-1.5 p-1.5 bg-[--color-accent]/10 border border-[--color-accent]/20 rounded">
+                                  <div className="text-[9px] font-medium text-[--color-accent] mb-1">{t('settings.scanResult')}</div>
                                   <div className="space-y-0.5">
                                     {filteredResults.map(result => (
-                                      <button key={result.relative_path} type="button" className="w-full flex items-center justify-between px-1.5 py-0.5 text-left rounded hover:bg-[#6366F1]/10 transition-colors"
+                                      <button key={result.relative_path} type="button" className="w-full flex items-center justify-between px-1.5 py-0.5 text-left rounded hover:bg-[--color-accent]/10 transition-colors"
                                         onClick={() => { const newFolders = [...(proj.linked_folders || []), result.relative_path]; updateProject(index, 'linked_folders', newFolders); }}
                                       >
-                                        <span className="text-[10px] text-[#8B8B9E] font-mono">{result.relative_path}</span>
-                                        <span className="text-[9px] text-[#55556A] ml-2">{result.size_display}</span>
+                                        <span className="text-[10px] text-[--color-text-secondary] font-mono">{result.relative_path}</span>
+                                        <span className="text-[9px] text-[--color-text-muted] ml-2">{result.size_display}</span>
                                       </button>
                                     ))}
                                   </div>
@@ -1279,10 +1279,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
                             {(proj.linked_folders || []).length > 0 && (
                               <div className="flex flex-wrap gap-1 mb-1.5">
                                 {(proj.linked_folders || []).map((folder, folderIdx) => (
-                                  <span key={folderIdx} className="inline-flex items-center gap-0.5 bg-[#1A1A22]/50 border border-[#1E1E26]/50 rounded px-1.5 py-0.5 text-[10px] text-[#8B8B9E]">
+                                  <span key={folderIdx} className="inline-flex items-center gap-0.5 bg-[--color-bg-elevated]/50 border border-[--color-border]/50 rounded px-1.5 py-0.5 text-[10px] text-[--color-text-secondary]">
                                     {folder}
                                     <button type="button" onClick={() => { const nf = [...(proj.linked_folders || [])]; nf.splice(folderIdx, 1); updateProject(index, 'linked_folders', nf); }}
-                                      className="text-[#55556A] hover:text-[#EF4444] transition-colors">&times;</button>
+                                      className="text-[--color-text-muted] hover:text-[--color-error] transition-colors">&times;</button>
                                   </span>
                                 ))}
                               </div>
@@ -1302,7 +1302,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         </div>
                       ))}
                       {config.projects.length === 0 && (
-                        <div className="text-center py-6 text-xs text-[#55556A]">
+                        <div className="text-center py-6 text-xs text-[--color-text-muted]">
                           {t('settings.noProjects', '暂无项目配置')}
                         </div>
                       )}
@@ -1312,11 +1312,11 @@ export const SettingsView: FC<SettingsViewProps> = ({
 
                 {/* Delete Workspace */}
                 {workspaces.length > 1 && onRemoveWorkspace && (
-                  <div className="border-t border-[#1E1E26]/30 pt-4">
+                  <div className="border-t border-[--color-border]/30 pt-4">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-[#EF4444]/70 hover:text-[#EF4444] hover:bg-[#EF4444]/10 text-xs gap-1.5"
+                      className="text-[--color-error]/70 hover:text-[--color-error] hover:bg-[--color-error]/10 text-xs gap-1.5"
                       disabled={isCurrentWs}
                       onClick={() => {
                         const ws = workspaces.find(w => w.path === selectedWsPath);
@@ -1327,7 +1327,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       {t('settings.removeWorkspace', '删除此工作区')}
                     </Button>
                     {isCurrentWs && (
-                      <p className="text-[10px] text-[#55556A] mt-1">{t('settings.cannotDeleteCurrent', '当前工作区无法删除')}</p>
+                      <p className="text-[10px] text-[--color-text-muted] mt-1">{t('settings.cannotDeleteCurrent', '当前工作区无法删除')}</p>
                     )}
                   </div>
                 )}
@@ -1343,7 +1343,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
             {activeSection === 'tools' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-[#E8E8ED]">{t('settings.toolsTitle', '工具路径配置')}</h2>
+                  <h2 className="text-base font-semibold text-[--color-text-primary]">{t('settings.toolsTitle', '工具路径配置')}</h2>
                   <Button variant="secondary" size="sm" onClick={handleDetectTools} disabled={toolsDetecting} className="gap-1.5">
                     <RefreshCw className={`w-3.5 h-3.5 ${toolsDetecting ? 'animate-spin' : ''}`} />
                     {toolsDetecting ? t('settings.detecting', '检测中...') : t('settings.autoDetect', '自动检测')}
@@ -1351,15 +1351,15 @@ export const SettingsView: FC<SettingsViewProps> = ({
                 </div>
 
                 {/* Git */}
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-medium text-[#8B8B9E]">Git</h3>
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-[--color-text-secondary]">Git</h3>
                   <div>
-                    <label className="block text-xs text-[#55556A] mb-1">{t('settings.gitPath', 'Git 可执行文件路径')}</label>
+                    <label className="block text-xs text-[--color-text-muted] mb-1">{t('settings.gitPath', 'Git 可执行文件路径')}</label>
                     {detectedTools && detectedTools.git.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
                         {detectedTools.git.map((g, i) => (
                           <button key={i} type="button"
-                            className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${toolPaths.git === g.path ? 'bg-[#6366F1]/20 border-[#6366F1]/50 text-[#6366F1]' : 'bg-[#1A1A22]/50 border-[#1E1E26]/50 text-[#8B8B9E] hover:text-[#E8E8ED]'}`}
+                            className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${toolPaths.git === g.path ? 'bg-[--color-accent]/20 border-[--color-accent]/50 text-[--color-accent]' : 'bg-[--color-bg-elevated]/50 border-[--color-border]/50 text-[--color-text-secondary] hover:text-[--color-text-primary]'}`}
                             onClick={() => saveToolPaths({ ...toolPaths, git: g.path })}
                           >{g.name}: {g.path}</button>
                         ))}
@@ -1373,10 +1373,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
                 </div>
 
                 {/* Terminal */}
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-medium text-[#8B8B9E]">{t('settings.terminalTitle', '终端')}</h3>
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-[--color-text-secondary]">{t('settings.terminalTitle', '终端')}</h3>
                   <div>
-                    <label className="block text-xs text-[#55556A] mb-1">{t('settings.defaultTerminal', '默认终端')}</label>
+                    <label className="block text-xs text-[--color-text-muted] mb-1">{t('settings.defaultTerminal', '默认终端')}</label>
                     {detectedTools && detectedTools.terminals.length > 0 ? (
                       <Select value={toolPaths.terminal || 'auto'}
                         onValueChange={(value) => {
@@ -1393,14 +1393,14 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <div className="text-xs text-[#55556A] bg-[#0A0A0F]/50 border border-[#1E1E26]/30 rounded-md px-3 py-2">
+                      <div className="text-xs text-[--color-text-muted] bg-[--color-bg-base]/50 border border-[--color-border]/30 rounded-md px-3 py-2">
                         {t('settings.terminalAutoHint', '当前使用自动检测。点击上方「自动检测」按钮可发现已安装的终端。')}
                       </div>
                     )}
-                    <p className="text-[10px] text-[#55556A] mt-1">{t('settings.defaultTerminalHint', '打开终端时使用的默认终端程序')}</p>
+                    <p className="text-[10px] text-[--color-text-muted] mt-1">{t('settings.defaultTerminalHint', '打开终端时使用的默认终端程序')}</p>
                   </div>
                   <div>
-                    <label className="block text-xs text-[#55556A] mb-1">{t('settings.terminalCustomPath', '自定义终端路径（覆盖上方选择）')}</label>
+                    <label className="block text-xs text-[--color-text-muted] mb-1">{t('settings.terminalCustomPath', '自定义终端路径（覆盖上方选择）')}</label>
                     <Input type="text" value={toolPaths.terminal_custom || ''} placeholder={t('settings.terminalCustomPlaceholder', '如 C:\\Tools\\cmder\\Cmder.exe 或 /usr/local/bin/fish')}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1410,17 +1410,17 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       }}
                       className="h-8 text-sm font-mono"
                     />
-                    <p className="text-[10px] text-[#55556A] mt-1">{t('settings.terminalCustomHint', '填写后将忽略上方下拉选择，直接使用该路径作为终端程序')}</p>
+                    <p className="text-[10px] text-[--color-text-muted] mt-1">{t('settings.terminalCustomHint', '填写后将忽略上方下拉选择，直接使用该路径作为终端程序')}</p>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm text-[#8B8B9E]">{t('settings.shellIntegration')}</label>
-                      <p className="text-xs text-[#55556A]">{t('settings.shellIntegrationDesc')}</p>
+                      <label className="text-sm text-[--color-text-secondary]">{t('settings.shellIntegration')}</label>
+                      <p className="text-xs text-[--color-text-muted]">{t('settings.shellIntegrationDesc')}</p>
                     </div>
                     <button type="button"
                       onClick={() => { const newVal = !shellIntegrationEnabled; setShellIntegrationEnabled(newVal); saveShellIntegrationEnabled(newVal).catch(() => {}); }}
                       disabled={!shellIntegrationLoaded}
-                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${shellIntegrationEnabled ? 'bg-[#6366F1]' : 'bg-[#55556A]'}`}
+                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${shellIntegrationEnabled ? 'bg-[--color-accent]' : 'bg-[--color-text-muted]'}`}
                     >
                       <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${shellIntegrationEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                     </button>
@@ -1428,10 +1428,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
                 </div>
 
                 {/* Shell */}
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-medium text-[#8B8B9E]">{t('settings.shellTitle', 'Shell')}</h3>
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-[--color-text-secondary]">{t('settings.shellTitle', 'Shell')}</h3>
                   <div>
-                    <label className="block text-xs text-[#55556A] mb-1">{t('settings.defaultShell', '默认 Shell')}</label>
+                    <label className="block text-xs text-[--color-text-muted] mb-1">{t('settings.defaultShell', '默认 Shell')}</label>
                     {detectedTools && detectedTools.shells.length > 0 ? (
                       <Select value={toolPaths.shell || 'auto'}
                         onValueChange={(value) => {
@@ -1448,28 +1448,28 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <div className="text-xs text-[#55556A] bg-[#0A0A0F]/50 border border-[#1E1E26]/30 rounded-md px-3 py-2">
+                      <div className="text-xs text-[--color-text-muted] bg-[--color-bg-base]/50 border border-[--color-border]/30 rounded-md px-3 py-2">
                         {t('settings.shellAutoHint', '当前使用系统默认 Shell。点击上方「自动检测」按钮可发现已安装的 Shell。')}
                       </div>
                     )}
-                    <p className="text-[10px] text-[#55556A] mt-1">{t('settings.defaultShellHint', '内置终端面板使用的 Shell 程序（如 zsh、bash、fish）')}</p>
+                    <p className="text-[10px] text-[--color-text-muted] mt-1">{t('settings.defaultShellHint', '内置终端面板使用的 Shell 程序（如 zsh、bash、fish）')}</p>
                   </div>
                 </div>
 
                 {/* Unified Editor/IDE list */}
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-medium text-[#8B8B9E]">{t('settings.editorTitle', '编辑器 / IDE')}</h3>
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-[--color-text-secondary]">{t('settings.editorTitle', '编辑器 / IDE')}</h3>
                   {(detectedTools?.editors || []).map((editor) => {
                     const pathKey = `editor_${editor.id}`;
                     return (
-                      <div key={editor.id} className="flex items-center gap-3 py-1.5 border-t border-[#1E1E26]/20 first:border-0 first:pt-0">
+                      <div key={editor.id} className="flex items-center gap-3 py-1.5 border-t border-[--color-border]/20 first:border-0 first:pt-0">
                         {editor.icon ? (
                           <img src={editor.icon} width={20} height={20} alt="" className="shrink-0 rounded" style={{ imageRendering: 'auto' }} />
                         ) : (
-                          <span className="w-5 h-5 shrink-0 flex items-center justify-center text-[#55556A] text-[10px]">⌘</span>
+                          <span className="w-5 h-5 shrink-0 flex items-center justify-center text-[--color-text-muted] text-[10px]">⌘</span>
                         )}
                         <div className="w-28 shrink-0">
-                          <span className="text-xs text-[#8B8B9E]">{editor.name}</span>
+                          <span className="text-xs text-[--color-text-secondary]">{editor.name}</span>
                         </div>
                         <Input
                           type="text"
@@ -1480,7 +1480,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         />
                         <button
                           type="button"
-                          className="text-[#55556A] hover:text-[#EF4444] transition-colors shrink-0"
+                          className="text-[--color-text-muted] hover:text-[--color-error] transition-colors shrink-0"
                           title={t('common.delete', '删除')}
                           onClick={() => {
                             const cached: Array<{ id: string; name: string; icon?: string }> = JSON.parse(localStorage.getItem('detected_editors') || '[]');
@@ -1503,7 +1503,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     );
                   })}
                   {/* Add custom editor */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-[#1E1E26]/30">
+                  <div className="flex items-center gap-2 pt-2 border-t border-[--color-border]/30">
                     <Input
                       type="text"
                       placeholder={t('settings.customEditorName', '名称')}
@@ -1520,7 +1520,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       {isTauri() && (
                         <button
                           type="button"
-                          className="h-7 px-2 text-[#8B8B9E] hover:text-[#6366F1] transition-colors shrink-0 flex items-center border border-[#1E1E26] rounded-md"
+                          className="h-7 px-2 text-[--color-text-secondary] hover:text-[--color-accent] transition-colors shrink-0 flex items-center border border-[--color-border] rounded-md"
                           title={t('settings.browseForApp', '选择应用')}
                           onClick={async () => {
                             const { open } = await import('@tauri-apps/plugin-dialog');
@@ -1549,7 +1549,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     </div>
                     <button
                       type="button"
-                      className="text-[#8B8B9E] hover:text-[#10B981] transition-colors shrink-0"
+                      className="text-[--color-text-secondary] hover:text-[--color-success] transition-colors shrink-0"
                       title={t('settings.addCustomEditor', '添加')}
                       onClick={() => {
                         const nameInput = document.getElementById('custom-editor-name') as HTMLInputElement;
@@ -1590,12 +1590,12 @@ export const SettingsView: FC<SettingsViewProps> = ({
                 </div>
 
                 {/* UI Preferences */}
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-medium text-[#8B8B9E]">{t('settings.uiPreferences', '界面')}</h3>
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-[--color-text-secondary]">{t('settings.uiPreferences', '界面')}</h3>
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm text-[#8B8B9E]">{t('settings.showSplitButton', '显示分屏按钮')}</label>
-                      <p className="text-xs text-[#55556A]">{t('settings.showSplitButtonDesc', '在右下角显示分屏快捷按钮，用于添加多工作区面板')}</p>
+                      <label className="text-sm text-[--color-text-secondary]">{t('settings.showSplitButton', '显示分屏按钮')}</label>
+                      <p className="text-xs text-[--color-text-muted]">{t('settings.showSplitButtonDesc', '在右下角显示分屏快捷按钮，用于添加多工作区面板')}</p>
                     </div>
                     <button type="button"
                       onClick={() => {
@@ -1604,7 +1604,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         localStorage.setItem('show_split_button', JSON.stringify(next));
                         window.dispatchEvent(new Event('split-button-changed'));
                       }}
-                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${showSplitButton ? 'bg-[#6366F1]' : 'bg-[#55556A]'}`}
+                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${showSplitButton ? 'bg-[--color-accent]' : 'bg-[--color-text-muted]'}`}
                     >
                       <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${showSplitButton ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                     </button>
@@ -1618,10 +1618,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
               <div>
                 <h2 className="text-lg font-medium mb-2">{t('settings.externalShareTitle', '外网分享')}</h2>
                 <p className="text-xs text-amber-500/80 mb-4">{t('settings.tokenStorageWarning')}</p>
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-medium text-[#8B8B9E]">{t('settings.ngrokShareSubtitle', 'ngrok 分享')}</h3>
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-[--color-text-secondary]">{t('settings.ngrokShareSubtitle', 'ngrok 分享')}</h3>
                   <div>
-                    <label className="block text-sm text-[#8B8B9E] mb-1">{t('settings.ngrokAuthtokenLabel')}</label>
+                    <label className="block text-sm text-[--color-text-secondary] mb-1">{t('settings.ngrokAuthtokenLabel')}</label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <Input type={showNgrokToken ? 'text' : 'password'} value={ngrokToken}
@@ -1629,18 +1629,18 @@ export const SettingsView: FC<SettingsViewProps> = ({
                           placeholder={t('settings.ngrokAuthtokenPlaceholder')} className="w-full pr-9"
                         />
                         <button type="button" onClick={() => setShowNgrokToken(v => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#55556A] hover:text-[#8B8B9E] transition-colors"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[--color-text-muted] hover:text-[--color-text-secondary] transition-colors"
                         >{showNgrokToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                       </div>
                       <Button variant="secondary" size="sm" disabled={ngrokSaving}
                         onClick={async () => { setNgrokSaving(true); setNgrokError(null); try { await saveNgrokToken(ngrokToken.trim()); setNgrokSaved(true); setTimeout(() => setNgrokSaved(false), 2000); } catch (e) { setNgrokError(String(e)); } finally { setNgrokSaving(false); } }}
                       >{ngrokSaving ? t('common.saving') : ngrokSaved ? t('settings.savedSuccess') : t('common.save')}</Button>
                     </div>
-                    {ngrokError && <p className="text-sm text-[#EF4444] mt-1">{ngrokError}</p>}
+                    {ngrokError && <p className="text-sm text-[--color-error] mt-1">{ngrokError}</p>}
                   </div>
-                  <p className="text-xs text-[#55556A]">
+                  <p className="text-xs text-[--color-text-muted]">
                     {t('settings.ngrokHint')}
-                    <button type="button" className="text-[#6366F1] hover:text-[#6366F1] ml-1 underline cursor-pointer transition-colors"
+                    <button type="button" className="text-[--color-accent] hover:text-[--color-accent] ml-1 underline cursor-pointer transition-colors"
                       onClick={() => openLink('https://dashboard.ngrok.com/get-started/your-authtoken')}
                     >{t('settings.ngrokGetToken')}</button>
                   </p>
@@ -1654,10 +1654,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
             {activeSection === 'voice' && dashscopeKeyLoaded && (
               <div>
                 <h2 className="text-lg font-medium mb-4">{t('settings.voiceTitle')}</h2>
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-3">
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-3">
                   {/* Microphone */}
                   <div>
-                    <label className="block text-sm text-[#8B8B9E] mb-1">{t('settings.micDevice')}</label>
+                    <label className="block text-sm text-[--color-text-secondary] mb-1">{t('settings.micDevice')}</label>
                     <div className="flex gap-2">
                       <Select value={selectedMicId || '__default__'}
                         onValueChange={(value) => { const id = value === '__default__' ? '' : value; setSelectedMicId(id); if (id) { localStorage.setItem('preferred-mic-device-id', id); } else { localStorage.removeItem('preferred-mic-device-id'); } }}
@@ -1677,25 +1677,25 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     </div>
                     {micTesting && (
                       <div className="mt-2 flex items-center gap-2">
-                        <span className="text-xs text-[#55556A] shrink-0">{t('settings.volume')}</span>
-                        <div className="flex-1 h-2 bg-[#1A1A22] rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full" style={{ width: `${micVolume}%` }} /></div>
+                        <span className="text-xs text-[--color-text-muted] shrink-0">{t('settings.volume')}</span>
+                        <div className="flex-1 h-2 bg-[--color-bg-elevated] rounded-full overflow-hidden"><div className="h-full bg-green-500 rounded-full" style={{ width: `${micVolume}%` }} /></div>
                       </div>
                     )}
                   </div>
                   {/* Voice Refine Toggle */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm text-[#8B8B9E]">{t('settings.voiceRefineLabel')}</label>
-                      <p className="text-xs text-[#55556A]">{t('settings.voiceRefineDesc')}</p>
+                      <label className="text-sm text-[--color-text-secondary]">{t('settings.voiceRefineLabel')}</label>
+                      <p className="text-xs text-[--color-text-muted]">{t('settings.voiceRefineDesc')}</p>
                     </div>
                     <button type="button" onClick={() => { const newVal = !voiceRefineEnabled; setVoiceRefineEnabled(newVal); saveVoiceRefineEnabled(newVal).catch(() => { }); }}
                       disabled={!voiceRefineLoaded}
-                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${voiceRefineEnabled ? 'bg-[#6366F1]' : 'bg-[#55556A]'}`}
+                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${voiceRefineEnabled ? 'bg-[--color-accent]' : 'bg-[--color-text-muted]'}`}
                     ><span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${voiceRefineEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} /></button>
                   </div>
                   {/* Dashscope API Key */}
                   <div>
-                    <label className="block text-sm text-[#8B8B9E] mb-1">{t('settings.dashscopeKeyLabel')}</label>
+                    <label className="block text-sm text-[--color-text-secondary] mb-1">{t('settings.dashscopeKeyLabel')}</label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <Input type={showDashscopeKey ? 'text' : 'password'} value={dashscopeKey}
@@ -1703,18 +1703,18 @@ export const SettingsView: FC<SettingsViewProps> = ({
                           placeholder={t('settings.dashscopeKeyPlaceholder')} className="w-full pr-9"
                         />
                         <button type="button" onClick={() => setShowDashscopeKey(v => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#55556A] hover:text-[#8B8B9E] transition-colors"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[--color-text-muted] hover:text-[--color-text-secondary] transition-colors"
                         >{showDashscopeKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                       </div>
                       <Button variant="secondary" size="sm" disabled={dashscopeSaving}
                         onClick={async () => { setDashscopeSaving(true); setDashscopeError(null); try { await saveDashscopeApiKey(dashscopeKey.trim()); setDashscopeSaved(true); setTimeout(() => setDashscopeSaved(false), 2000); } catch (e) { setDashscopeError(String(e)); } finally { setDashscopeSaving(false); } }}
                       >{dashscopeSaving ? t('common.saving') : dashscopeSaved ? t('settings.savedSuccess') : t('common.save')}</Button>
                     </div>
-                    {dashscopeError && <p className="text-sm text-[#EF4444] mt-1">{dashscopeError}</p>}
+                    {dashscopeError && <p className="text-sm text-[--color-error] mt-1">{dashscopeError}</p>}
                   </div>
                   {/* Dashscope Base URL */}
                   <div>
-                    <label className="block text-sm text-[#8B8B9E] mb-1">{t('settings.wsAddressLabel')}</label>
+                    <label className="block text-sm text-[--color-text-secondary] mb-1">{t('settings.wsAddressLabel')}</label>
                     <div className="flex gap-2">
                       <Input type="text" value={dashscopeUrl}
                         onChange={(e) => { setDashscopeUrl(e.target.value); setDashscopeUrlSaved(false); }}
@@ -1726,27 +1726,27 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       {dashscopeUrl && dashscopeUrl !== DEFAULT_DASHSCOPE_URL && (
                         <Button variant="ghost" size="sm"
                           onClick={async () => { setDashscopeUrl(''); setDashscopeUrlError(null); try { await saveDashscopeBaseUrl(''); setDashscopeUrlSaved(true); setTimeout(() => setDashscopeUrlSaved(false), 2000); } catch (e) { setDashscopeUrlError(String(e)); } }}
-                          className="text-[#8B8B9E] hover:text-[#E8E8ED]"
+                          className="text-[--color-text-secondary] hover:text-[--color-text-primary]"
                         >{t('settings.restoreDefault')}</Button>
                       )}
                     </div>
-                    {dashscopeUrlError && <p className="text-sm text-[#EF4444] mt-1">{dashscopeUrlError}</p>}
-                    <p className="text-xs text-[#55556A] mt-1">{t('settings.wsAddressHint', { url: DEFAULT_DASHSCOPE_URL })}</p>
+                    {dashscopeUrlError && <p className="text-sm text-[--color-error] mt-1">{dashscopeUrlError}</p>}
+                    <p className="text-xs text-[--color-text-muted] mt-1">{t('settings.wsAddressHint', { url: DEFAULT_DASHSCOPE_URL })}</p>
                   </div>
                   {/* Connection Test */}
                   <div className="flex items-center gap-3">
                     <Button variant="secondary" size="sm" disabled={dashscopeTesting || !dashscopeKey.trim()}
                       onClick={async () => { setDashscopeTesting(true); setDashscopeTestResult(null); try { await saveDashscopeApiKey(dashscopeKey.trim()); if (dashscopeUrl.trim()) { await saveDashscopeBaseUrl(dashscopeUrl.trim()); } await voiceStart(16000); await voiceStop(); setDashscopeTestResult({ ok: true, message: t('settings.connectionSuccess') }); } catch (e) { setDashscopeTestResult({ ok: false, message: String(e) }); } finally { setDashscopeTesting(false); setTimeout(() => setDashscopeTestResult(null), 4000); } }}
                     >
-                      {dashscopeTesting ? (<><div className="w-3 h-3 border border-[#6366F1] border-t-transparent rounded-full animate-spin" />{t('settings.testing')}</>) : t('settings.testConnection')}
+                      {dashscopeTesting ? (<><div className="w-3 h-3 border border-[--color-accent] border-t-transparent rounded-full animate-spin" />{t('settings.testing')}</>) : t('settings.testConnection')}
                     </Button>
                     {dashscopeTestResult && (
-                      <span className={`text-sm ${dashscopeTestResult.ok ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>{dashscopeTestResult.message}</span>
+                      <span className={`text-sm ${dashscopeTestResult.ok ? 'text-[--color-success]' : 'text-[--color-error]'}`}>{dashscopeTestResult.message}</span>
                     )}
                   </div>
-                  <p className="text-xs text-[#55556A]">
+                  <p className="text-xs text-[--color-text-muted]">
                     {t('settings.voiceHint')}
-                    <button type="button" className="text-[#6366F1] hover:text-[#6366F1] ml-1 underline cursor-pointer transition-colors"
+                    <button type="button" className="text-[--color-accent] hover:text-[--color-accent] ml-1 underline cursor-pointer transition-colors"
                       onClick={() => openLink('https://dashscope.console.aliyun.com/apiKey')}
                     >{t('settings.getApiKey')}</button>
                   </p>
@@ -1758,16 +1758,16 @@ export const SettingsView: FC<SettingsViewProps> = ({
             {activeSection === 'commit' && (
               <div>
                 <h2 className="text-lg font-medium mb-4">{t('settings.commitTitle', '提交设置')}</h2>
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4 space-y-4">
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4 space-y-4">
                   {/* 前缀开关 */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm text-[#8B8B9E]">{t('settings.prefixEnabled', '启用提交前缀')}</label>
-                      <p className="text-xs text-[#55556A]">{t('settings.prefixEnabledDesc', '在 commit message 前自动添加前缀')}</p>
+                      <label className="text-sm text-[--color-text-secondary]">{t('settings.prefixEnabled', '启用提交前缀')}</label>
+                      <p className="text-xs text-[--color-text-muted]">{t('settings.prefixEnabledDesc', '在 commit message 前自动添加前缀')}</p>
                     </div>
                     <button type="button"
                       onClick={() => setPrefixEnabled(v => !v)}
-                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${prefixEnabled ? 'bg-[#6366F1]' : 'bg-[#55556A]'}`}
+                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${prefixEnabled ? 'bg-[--color-accent]' : 'bg-[--color-text-muted]'}`}
                     >
                       <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${prefixEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                     </button>
@@ -1776,13 +1776,13 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   {/* Skip Git Hooks */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm text-[#8B8B9E]">{t('settings.skipGitHooks', '跳过 Git Hooks')}</label>
-                      <p className="text-xs text-[#55556A]">{t('settings.skipGitHooksDesc', '提交时跳过 pre-commit / commit-msg hooks')}</p>
+                      <label className="text-sm text-[--color-text-secondary]">{t('settings.skipGitHooks', '跳过 Git Hooks')}</label>
+                      <p className="text-xs text-[--color-text-muted]">{t('settings.skipGitHooksDesc', '提交时跳过 pre-commit / commit-msg hooks')}</p>
                     </div>
                     <button type="button"
                       onClick={() => { const newVal = !skipGitHooks; setSkipGitHooks(newVal); saveSkipGitHooks(newVal).catch(() => {}); }}
                       disabled={!skipGitHooksLoaded}
-                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${skipGitHooks ? 'bg-[#6366F1]' : 'bg-[#55556A]'}`}
+                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${skipGitHooks ? 'bg-[--color-accent]' : 'bg-[--color-text-muted]'}`}
                     >
                       <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${skipGitHooks ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                     </button>
@@ -1791,14 +1791,14 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   {/* 模板列表 */}
                   {prefixEnabled && (
                     <div className="space-y-2">
-                      <label className="block text-sm text-[#8B8B9E]">{t('settings.prefixTemplates', '前缀模板（最多3个）')}</label>
+                      <label className="block text-sm text-[--color-text-secondary]">{t('settings.prefixTemplates', '前缀模板（最多3个）')}</label>
                       {prefixTemplates.map((tpl, i) => (
                         <div key={i} className="flex gap-2 items-center">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => setDefaultPrefixIndex(i)}
-                            className={`px-1.5 ${defaultPrefixIndex === i ? 'text-[#F59E0B]' : 'text-[#55556A] hover:text-[#8B8B9E]'}`}
+                            className={`px-1.5 ${defaultPrefixIndex === i ? 'text-[--color-warning]' : 'text-[--color-text-muted] hover:text-[--color-text-secondary]'}`}
                             title={t('settings.setDefault', '设为默认')}
                           >
                             <Star className={`w-4 h-4 ${defaultPrefixIndex === i ? 'fill-amber-400' : ''}`} />
@@ -1823,7 +1823,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                                   setDefaultPrefixIndex(defaultPrefixIndex - 1);
                                 }
                               }}
-                              className="text-[#EF4444]/60 hover:text-[#EF4444]"
+                              className="text-[--color-error]/60 hover:text-[--color-error]"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -1838,31 +1838,31 @@ export const SettingsView: FC<SettingsViewProps> = ({
                           <PlusIcon className="w-3 h-3" /> {t('settings.addTemplate', '添加模板')}
                         </Button>
                       )}
-                      <p className="text-xs text-[#55556A]">
+                      <p className="text-xs text-[--color-text-muted]">
                         {t('settings.prefixVarsHint', '可用变量: {{worktree-name}}, {{project-name}}, {{branch-name}}, {{repo-name}}, {{date}}')}
                       </p>
                     </div>
                   )}
 
-                  <div className="border-t border-[#1E1E26]/50 pt-4">
+                  <div className="border-t border-[--color-border]/50 pt-4">
                     <Button variant="secondary" size="sm" onClick={handleSavePrefixConfig} disabled={prefixSaving}>
                       {prefixSaving ? t('common.saving') : t('common.save')}
                     </Button>
                   </div>
 
                   {/* 全局 Git User */}
-                  <div className="border-t border-[#1E1E26]/50 pt-4 space-y-3">
-                    <h3 className="text-sm font-medium text-[#8B8B9E]">{t('settings.globalGitUser', '全局 Git 用户')}</h3>
+                  <div className="border-t border-[--color-border]/50 pt-4 space-y-3">
+                    <h3 className="text-sm font-medium text-[--color-text-secondary]">{t('settings.globalGitUser', '全局 Git 用户')}</h3>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-[#55556A] mb-1">{t('settings.gitUserName', '用户名')}</label>
+                        <label className="block text-xs text-[--color-text-muted] mb-1">{t('settings.gitUserName', '用户名')}</label>
                         <Input type="text" value={globalGitName}
                           onChange={(e) => setGlobalGitName(e.target.value)}
                           placeholder="Git 用户名" className="text-xs"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-[#55556A] mb-1">{t('settings.gitUserEmail', '邮箱')}</label>
+                        <label className="block text-xs text-[--color-text-muted] mb-1">{t('settings.gitUserEmail', '邮箱')}</label>
                         <Input type="text" value={globalGitEmail}
                           onChange={(e) => setGlobalGitEmail(e.target.value)}
                           placeholder="user@example.com" className="text-xs"
@@ -1881,7 +1881,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
             {activeSection === 'cloud' && (
               <div className="space-y-4">
                 <h2 className="text-lg font-medium mb-4">{t('settings.cloudTitle', '云端连接')}</h2>
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4">
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4">
                   {cloudStatus?.connected ? (
                     <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg space-y-2">
                       <div className="flex items-center justify-between">
@@ -1894,23 +1894,23 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       {(cloudStatus.username || cloudStatus.user_email) && (
                         <div className="text-xs text-muted-foreground space-y-0.5 pt-1 border-t border-green-200/30">
                           {cloudStatus.username && (
-                            <p>{t('settings.cloudUsername', '用户名')}: <span className="text-[#8B8B9E]">{cloudStatus.username}</span></p>
+                            <p>{t('settings.cloudUsername', '用户名')}: <span className="text-[--color-text-secondary]">{cloudStatus.username}</span></p>
                           )}
                           {cloudStatus.user_email && (
-                            <p>{t('settings.cloudEmail', '邮箱')}: <span className="text-[#8B8B9E]">{cloudStatus.user_email}</span></p>
+                            <p>{t('settings.cloudEmail', '邮箱')}: <span className="text-[--color-text-secondary]">{cloudStatus.user_email}</span></p>
                           )}
                           {cloudStatus.token_expires_at && (
-                            <p>{t('settings.cloudTokenExpiry', 'Token 有效期至')}: <span className="text-[#8B8B9E]">{new Date(cloudStatus.token_expires_at).toLocaleString()}</span></p>
+                            <p>{t('settings.cloudTokenExpiry', 'Token 有效期至')}: <span className="text-[--color-text-secondary]">{new Date(cloudStatus.token_expires_at).toLocaleString()}</span></p>
                           )}
                         </div>
                       )}
                     </div>
                   ) : pairingCode ? (
-                    <div className="space-y-3 p-4 border border-[#1E1E26]/50 rounded-lg">
+                    <div className="space-y-3 p-4 border border-[--color-border]/50 rounded-lg">
                       <p className="text-sm text-muted-foreground">{t('settings.cloudPairingHint', '请在 WMS 管理后台输入以下配对码：')}</p>
                       <p className="text-3xl font-mono font-bold text-center tracking-wider">{pairingCode}</p>
                       {pairingStatus?.status === 'claimed' && (
-                        <div className="p-3 bg-yellow-50 dark:bg-[#F59E0B]/10 rounded">
+                        <div className="p-3 bg-yellow-50 dark:bg-[--color-warning]/10 rounded">
                           <p className="text-sm">{t('settings.cloudPairingRequest', '用户')} <strong>{pairingStatus.user_email || pairingStatus.username}</strong> {t('settings.cloudPairingRequestSuffix', '请求连接此设备')}</p>
                           <div className="flex gap-2 mt-2">
                             <Button size="sm" onClick={handleCloudApprove}>{t('settings.cloudApprove', '同意')}</Button>
@@ -1922,8 +1922,8 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">服务端 <code className="bg-[#1A1A22]/50 px-1.5 py-0.5 rounded text-xs">https://wms.kirov-opensource.com/</code></p>
-                      <p className="text-sm text-muted-foreground">设备名称 <code className="bg-[#1A1A22]/50 px-1.5 py-0.5 rounded text-xs">自动获取 hostname</code></p>
+                      <p className="text-sm text-muted-foreground">服务端 <code className="bg-[--color-bg-elevated]/50 px-1.5 py-0.5 rounded text-xs">https://wms.kirov-opensource.com/</code></p>
+                      <p className="text-sm text-muted-foreground">设备名称 <code className="bg-[--color-bg-elevated]/50 px-1.5 py-0.5 rounded text-xs">自动获取 hostname</code></p>
                       <Button onClick={handleStartPairing}>{t('settings.cloudStartPairing', '开始配对')}</Button>
                     </div>
                   )}
@@ -1935,16 +1935,16 @@ export const SettingsView: FC<SettingsViewProps> = ({
             {activeSection === 'about' && (
               <div>
                 <h2 className="text-lg font-medium mb-4">{t('settings.aboutTitle')}</h2>
-                <div className="bg-[#141419] border border-[#1E1E26]/50 rounded-lg p-4">
+                <div className="bg-[--color-bg-surface] border border-[--color-border]/50 rounded-lg p-4">
                   <div className="flex items-center gap-4 mb-3">
                     <div>
-                      <h3 className="text-base font-semibold text-[#E8E8ED]">Worktree Manager</h3>
-                      <p className="text-xs text-[#8B8B9E] mt-0.5 select-text">{t('settings.versionLabel', { version: appVersion })}</p>
+                      <h3 className="text-base font-semibold text-[--color-text-primary]">Worktree Manager</h3>
+                      <p className="text-xs text-[--color-text-secondary] mt-0.5 select-text">{t('settings.versionLabel', { version: appVersion })}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-[#8B8B9E] mb-4">{t('settings.appDescription')}</p>
+                  <p className="text-sm text-[--color-text-secondary] mb-4">{t('settings.appDescription')}</p>
                   <div className="mb-4">
-                    <label className="block text-sm text-[#8B8B9E] mb-1">{t('settings.language')}</label>
+                    <label className="block text-sm text-[--color-text-secondary] mb-1">{t('settings.language')}</label>
                     <Select value={i18n.language} onValueChange={(lng) => { i18n.changeLanguage(lng); localStorage.setItem('i18n-lang', lng); }}>
                       <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1960,13 +1960,13 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     </Button>
                   )}
                   {isTauri() && (
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1E1E26]/50">
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-[--color-border]/50">
                       <div>
-                        <label className="text-sm text-[#8B8B9E]">DevTools (F12)</label>
-                        <p className="text-xs text-[#55556A]">{t('settings.devToolsDesc', 'Press F12 to open developer tools')}</p>
+                        <label className="text-sm text-[--color-text-secondary]">DevTools (F12)</label>
+                        <p className="text-xs text-[--color-text-muted]">{t('settings.devToolsDesc', 'Press F12 to open developer tools')}</p>
                       </div>
                       <button type="button" onClick={() => { const newVal = !devConsoleEnabled; setDevConsoleEnabled(newVal); localStorage.setItem('dev-console-enabled', String(newVal)); window.dispatchEvent(new Event('dev-console-enabled-changed')); }}
-                        className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${devConsoleEnabled ? 'bg-[#6366F1]' : 'bg-[#55556A]'}`}
+                        className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${devConsoleEnabled ? 'bg-[--color-accent]' : 'bg-[--color-text-muted]'}`}
                       ><span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${devConsoleEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} /></button>
                     </div>
                   )}

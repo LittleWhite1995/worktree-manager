@@ -34,28 +34,28 @@ const TYPE_DURATION: Record<ToastType, number> = {
 
 const typeConfig: Record<ToastType, { bg: string; icon: FC<{ className?: string }>; barColor: string; iconColor: string }> = {
   success: {
-    bg: 'bg-[#141419] border-[#1E1E26]',
+    bg: 'bg-[--color-bg-surface] border-[--color-border]',
     icon: CheckCircle,
-    barColor: 'bg-[#10B981]',
-    iconColor: 'text-[#10B981]',
+    barColor: 'bg-[--color-success]',
+    iconColor: 'text-[--color-success]',
   },
   error: {
-    bg: 'bg-[#141419] border-[#1E1E26]',
+    bg: 'bg-[--color-bg-surface] border-[--color-border]',
     icon: XCircle,
-    barColor: 'bg-[#EF4444]',
-    iconColor: 'text-[#EF4444]',
+    barColor: 'bg-[--color-error]',
+    iconColor: 'text-[--color-error]',
   },
   info: {
-    bg: 'bg-[#141419] border-[#1E1E26]',
+    bg: 'bg-[--color-bg-surface] border-[--color-border]',
     icon: Info,
-    barColor: 'bg-[#6366F1]',
-    iconColor: 'text-[#6366F1]',
+    barColor: 'bg-[--color-accent]',
+    iconColor: 'text-[--color-accent]',
   },
   warning: {
-    bg: 'bg-[#141419] border-[#1E1E26]',
+    bg: 'bg-[--color-bg-surface] border-[--color-border]',
     icon: AlertTriangle,
-    barColor: 'bg-[#F59E0B]',
-    iconColor: 'text-[#F59E0B]',
+    barColor: 'bg-[--color-warning]',
+    iconColor: 'text-[--color-warning]',
   },
 };
 
@@ -107,10 +107,10 @@ export const ToastProvider: FC<{ children: ReactNode }> = ({ children }) => {
               <div className={`w-0.5 shrink-0 ${config.barColor}`} />
               <div className="flex items-start gap-2.5 p-3 flex-1">
                 <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${config.iconColor}`} />
-                <p className="text-sm text-[#E8E8ED] flex-1 break-words">{t.message}</p>
+                <p className="text-sm text-[--color-text-primary] flex-1 break-words">{t.message}</p>
                 <button
                   onClick={() => dismiss(t.id)}
-                  className="shrink-0 text-[#55556A] hover:text-[#E8E8ED] transition-colors"
+                  className="shrink-0 text-[--color-text-muted] hover:text-[--color-text-primary] transition-colors"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>

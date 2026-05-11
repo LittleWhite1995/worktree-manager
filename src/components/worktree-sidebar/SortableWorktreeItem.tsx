@@ -35,7 +35,7 @@ export const SortableWorktreeItem: FC<SortableWorktreeItemProps> = ({ id, childr
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
-          className="flex items-center px-1 text-[#55556A] hover:text-[#8B8B9E] cursor-grab active:cursor-grabbing touch-none"
+          className="flex items-center px-1 text-[--color-text-muted] hover:text-[--color-text-secondary] cursor-grab active:cursor-grabbing touch-none"
           tabIndex={-1}
           aria-label={t('sidebar.dragToReorder')}
         >

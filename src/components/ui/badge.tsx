@@ -8,12 +8,12 @@ const Badge = React.forwardRef<
   }
 >(({ className, variant = "default", ...props }, ref) => {
   const variants = {
-    default: "border-transparent bg-[#6366F1]/15 text-[#818CF8]",
-    secondary: "border-transparent bg-[#1A1A22] text-[#8B8B9E]",
-    success: "border-transparent bg-[#10B981]/15 text-[#34D399]",
-    warning: "border-transparent bg-[#F59E0B]/15 text-[#FBBF24]",
-    destructive: "border-transparent bg-[#EF4444]/15 text-[#F87171]",
-    outline: "border-[#1E1E26] text-[#8B8B9E]",
+    default: "border-transparent bg-[--color-accent]/15 text-[--color-accent-hover]",
+    secondary: "border-transparent bg-[--color-bg-elevated] text-[--color-text-secondary]",
+    success: "border-transparent bg-[--color-success]/15 text-[--color-success-light]",
+    warning: "border-transparent bg-[--color-warning]/15 text-[--color-warning-light]",
+    destructive: "border-transparent bg-[--color-error]/15 text-[--color-error-light]",
+    outline: "border-[--color-border] text-[--color-text-secondary]",
   };
 
   return (

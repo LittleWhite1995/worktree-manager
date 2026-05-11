@@ -49,7 +49,7 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="w-12 bg-[#141419] border-r border-[#1E1E26] flex flex-col items-center py-2 shrink-0">
+    <div className="w-12 bg-[--color-bg-surface] border-r border-[--color-border] flex flex-col items-center py-2 shrink-0">
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -69,24 +69,24 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
           <TooltipTrigger asChild>
             <button
               onClick={() => onShowWorkspaceMenu(!showWorkspaceMenu)}
-              className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-[#1A1A22] transition-colors mb-1"
+              className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-[--color-bg-elevated] transition-colors mb-1"
             >
-              <WorkspaceIcon className="w-4 h-4 text-[#6366F1]" />
+              <WorkspaceIcon className="w-4 h-4 text-[--color-accent]" />
             </button>
           </TooltipTrigger>
           <TooltipContent side="right">{currentWorkspace?.name || 'Workspace'}</TooltipContent>
         </Tooltip>
 
-        <div className="w-6 h-px bg-[#1A1A22] my-1.5" />
+        <div className="w-6 h-px bg-[--color-bg-elevated] my-1.5" />
 
         {mainWorkspaceExists && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={() => onSelectWorktree(null)}
-                className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5 ${!selectedWorktree ? 'bg-[#1A1A22]' : 'hover:bg-[#1A1A22]'}`}
+                className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5 ${!selectedWorktree ? 'bg-[--color-bg-elevated]' : 'hover:bg-[--color-bg-elevated]'}`}
               >
-                <FolderIcon className="w-4 h-4 text-[#8B8B9E]" />
+                <FolderIcon className="w-4 h-4 text-[--color-text-secondary]" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">{t('sidebar.main')}</TooltipContent>
@@ -107,8 +107,8 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
                     className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors shrink-0 ${isLockedByOther && isTauri
                       ? 'opacity-30 cursor-not-allowed'
                       : selectedWorktree?.name === worktree.name
-                        ? 'bg-[#6366F1]/20 text-[#6366F1]'
-                        : 'hover:bg-[#1A1A22] text-[#6366F1]'
+                        ? 'bg-[--color-accent]/20 text-[--color-accent]'
+                        : 'hover:bg-[--color-bg-elevated] text-[--color-accent]'
                       }`}
                   >
                     <FolderIcon className="w-4 h-4" />

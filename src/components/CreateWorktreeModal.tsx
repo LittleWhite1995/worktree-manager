@@ -142,12 +142,12 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[560px] max-h-[80vh] overflow-hidden p-0">
-        <DialogHeader className="p-5 border-b border-[#1E1E26]">
+        <DialogHeader className="p-5 border-b border-[--color-border]">
           <DialogTitle>{t('createWorktree.title')}</DialogTitle>
         </DialogHeader>
         <div className="p-5 overflow-y-auto max-h-[60vh]">
           <div className="mb-5">
-            <label className="block text-sm font-medium text-[#8B8B9E] mb-2">{t('createWorktree.nameLabel')}</label>
+            <label className="block text-sm font-medium text-[--color-text-secondary] mb-2">{t('createWorktree.nameLabel')}</label>
             <Input
               type="text"
               value={worktreeName}
@@ -155,10 +155,10 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
               placeholder="feature-login-page"
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) onSubmit(); }}
-              className={nameValidation.error ? 'border-[#EF4444] focus:border-[#EF4444]' : ''}
+              className={nameValidation.error ? 'border-[--color-error] focus:border-[--color-error]' : ''}
             />
             {nameValidation.error && (
-              <p className="text-[#EF4444] text-xs mt-1">{nameValidation.error}</p>
+              <p className="text-[--color-error] text-xs mt-1">{nameValidation.error}</p>
             )}
           </div>
 
@@ -166,17 +166,17 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
           {hasNonAscii && nameValidation.valid && (
             <div className="mb-5 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
               <div className="flex items-start gap-2 mb-2">
-                <svg className="w-4 h-4 text-[#F59E0B] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-[--color-warning] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <p className="text-xs text-[#F59E0B]/90">{t('createWorktree.nonAsciiWarning')}</p>
+                <p className="text-xs text-[--color-warning]/90">{t('createWorktree.nonAsciiWarning')}</p>
               </div>
               <label className="flex items-center gap-2 cursor-pointer mb-2">
                 <Checkbox
                   checked={useFolderAlias}
                   onChange={() => onUseFolderAliasChange(!useFolderAlias)}
                 />
-                <span className="text-sm text-[#8B8B9E]">{t('createWorktree.useFolderAlias')}</span>
+                <span className="text-sm text-[--color-text-secondary]">{t('createWorktree.useFolderAlias')}</span>
               </label>
               {useFolderAlias && (
                 <div>
@@ -186,7 +186,7 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
                       value={folderAlias}
                       onChange={(e) => onFolderAliasChange(e.target.value)}
                       placeholder="apple-brave-crane"
-                      className={`flex-1 text-sm h-8 ${aliasValidation.error ? 'border-[#EF4444] focus:border-[#EF4444]' : ''}`}
+                      className={`flex-1 text-sm h-8 ${aliasValidation.error ? 'border-[--color-error] focus:border-[--color-error]' : ''}`}
                     />
                     <Button
                       variant="secondary"
@@ -201,9 +201,9 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
                     </Button>
                   </div>
                   {aliasValidation.error && (
-                    <p className="text-[#EF4444] text-xs mt-1">{aliasValidation.error}</p>
+                    <p className="text-[--color-error] text-xs mt-1">{aliasValidation.error}</p>
                   )}
-                  <p className="text-xs text-[#55556A] mt-1.5">
+                  <p className="text-xs text-[--color-text-muted] mt-1.5">
                     {t('createWorktree.aliasMappingHint', { alias: folderAlias.trim() || '...', name: worktreeName.trim() })}
                   </p>
                 </div>
@@ -212,15 +212,15 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-[#8B8B9E] mb-2">{t('createWorktree.selectProjects')}</label>
+            <label className="block text-sm font-medium text-[--color-text-secondary] mb-2">{t('createWorktree.selectProjects')}</label>
             <div className="space-y-2">
               {config.projects.map(proj => (
                 <div
                   key={proj.name}
                   className={`p-3 rounded-lg border cursor-pointer transition-all ${
                     selectedProjects.has(proj.name)
-                      ? "bg-[#6366F1]/10 border-[#6366F1]/50"
-                      : "bg-[#0A0A0F]/50 border-[#1E1E26] hover:border-[#1E1E26]"
+                      ? "bg-[--color-accent]/10 border-[--color-accent]/50"
+                      : "bg-[--color-bg-base]/50 border-[--color-border] hover:border-[--color-border]"
                   }`}
                   onClick={() => onToggleProject(proj.name, proj.base_branch)}
                 >
@@ -230,11 +230,11 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
                         checked={selectedProjects.has(proj.name)}
                         onChange={() => {}}
                       />
-                      <span className="font-medium text-[#E8E8ED]">{proj.name}</span>
+                      <span className="font-medium text-[--color-text-primary]">{proj.name}</span>
                     </div>
                     {selectedProjects.has(proj.name) && (
                       <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                        <span className="text-xs text-[#8B8B9E]">Base:</span>
+                        <span className="text-xs text-[--color-text-secondary]">Base:</span>
                         <Select
                           value={selectedProjects.get(proj.name) || proj.base_branch}
                           onValueChange={(value) => onUpdateBaseBranch(proj.name, value)}
@@ -253,7 +253,7 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
                       </div>
                     )}
                   </div>
-                  <div className="text-[#55556A] text-xs mt-1.5 pl-7">{t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}</div>
+                  <div className="text-[--color-text-muted] text-xs mt-1.5 pl-7">{t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}</div>
                 </div>
               ))}
             </div>
@@ -261,15 +261,15 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
         </div>
         {creating && (
           <div className="px-5 pb-1">
-            <div className="flex items-center gap-2 text-xs text-[#6366F1]/80">
-              <div className="flex-1 h-1 bg-[#1A1A22] rounded-full overflow-hidden">
+            <div className="flex items-center gap-2 text-xs text-[--color-accent]/80">
+              <div className="flex-1 h-1 bg-[--color-bg-elevated] rounded-full overflow-hidden">
                 <div className="h-full rounded-full animate-progress-indeterminate animate-gradient" />
               </div>
               <span className="whitespace-nowrap tabular-nums">{t('common.creating')} {formatElapsed(elapsedSeconds)}</span>
             </div>
           </div>
         )}
-        <DialogFooter className="p-5 border-t border-[#1E1E26]">
+        <DialogFooter className="p-5 border-t border-[--color-border]">
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={creating}>{t('common.cancel')}</Button>
           <Button
             onClick={onSubmit}

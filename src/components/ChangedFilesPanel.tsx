@@ -9,12 +9,12 @@ import type { ChangedFile, FileDiff, ProjectStatus } from '../types';
 // ==================== Status helpers ====================
 
 const STATUS_COLORS: Record<string, string> = {
-    M: 'text-[#F59E0B]',
-    A: 'text-[#10B981]',
-    D: 'text-[#EF4444]',
-    R: 'text-[#6366F1]',
-    C: 'text-[#6366F1]',
-    '?': 'text-[#55556A]',
+    M: 'text-[--color-warning]',
+    A: 'text-[--color-success]',
+    D: 'text-[--color-error]',
+    R: 'text-[--color-accent]',
+    C: 'text-[--color-accent]',
+    '?': 'text-[--color-text-muted]',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -29,10 +29,10 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_BG: Record<string, string> = {
     M: 'bg-amber-500/10 border-amber-500/30',
     A: 'bg-emerald-500/10 border-emerald-500/30',
-    D: 'bg-[#EF4444]/10 border-[#EF4444]/30',
-    R: 'bg-[#6366F1]/10 border-[#6366F1]/30',
+    D: 'bg-[--color-error]/10 border-[--color-error]/30',
+    R: 'bg-[--color-accent]/10 border-[--color-accent]/30',
     C: 'bg-sky-500/10 border-sky-500/30',
-    '?': 'bg-[#55556A]/10 border-[#55556A]/30',
+    '?': 'bg-[--color-text-muted]/10 border-[--color-text-muted]/30',
 };
 
 const STATUS_ORDER = ['M', 'A', 'D', 'R', 'C', '?'] as const;
@@ -334,13 +334,13 @@ const FileTreeItem: FC<{
             <button
                 data-file-key={node.path}
                 className={`w-full flex items-center gap-1.5 px-2 py-1 text-left text-xs transition-colors rounded-sm ${isSelected
-                    ? 'bg-[#6366F1]/20 text-[#6366F1]'
-                    : 'hover:bg-[#1A1A22]/50 text-[#8B8B9E]'
+                    ? 'bg-[--color-accent]/20 text-[--color-accent]'
+                    : 'hover:bg-[--color-bg-elevated]/50 text-[--color-text-secondary]'
                     }`}
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 onClick={() => onSelect(file.projectName, file.path, node.path)}
             >
-                <span className={`font-mono text-[10px] font-bold ${STATUS_COLORS[file.status] || 'text-[#55556A]'}`}>
+                <span className={`font-mono text-[10px] font-bold ${STATUS_COLORS[file.status] || 'text-[--color-text-muted]'}`}>
                     {file.status}
                 </span>
                 <span className="truncate">{node.name}</span>
@@ -353,14 +353,14 @@ const FileTreeItem: FC<{
     return (
         <div>
             <button
-                className="w-full flex items-center gap-1.5 px-2 py-1 text-left text-xs hover:bg-[#1A1A22]/50 text-[#8B8B9E] transition-colors rounded-sm"
+                className="w-full flex items-center gap-1.5 px-2 py-1 text-left text-xs hover:bg-[--color-bg-elevated]/50 text-[--color-text-secondary] transition-colors rounded-sm"
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 onClick={() => onToggleExpand(node.path)}
             >
                 <ChevronIcon expanded={isExpanded} className="w-3 h-3 shrink-0" />
-                <FolderIcon className="w-3.5 h-3.5 shrink-0 text-[#6366F1]/60" />
+                <FolderIcon className="w-3.5 h-3.5 shrink-0 text-[--color-accent]/60" />
                 <span className="truncate font-medium">{node.name}</span>
-                <span className="text-[10px] text-[#55556A] ml-auto shrink-0">
+                <span className="text-[10px] text-[--color-text-muted] ml-auto shrink-0">
                     {countFiles(node)}
                 </span>
             </button>
@@ -517,13 +517,13 @@ const DiffView: FC<{
             <div
                 className={`flex min-h-[1.6em] ${isChange
                     ? side === 'left' ? 'bg-red-500/10' : 'bg-emerald-500/10'
-                    : isEmpty ? 'bg-[#1A1A22]/10' : ''
+                    : isEmpty ? 'bg-[--color-bg-elevated]/10' : ''
                     }`}
             >
-                <span className="w-10 shrink-0 text-right pr-2 text-[#55556A] select-none text-[11px]">
+                <span className="w-10 shrink-0 text-right pr-2 text-[--color-text-muted] select-none text-[11px]">
                     {lineNumber ?? ''}
                 </span>
-                <span className="w-4 shrink-0 text-center text-[#55556A] select-none">
+                <span className="w-4 shrink-0 text-center text-[--color-text-muted] select-none">
                     {marker}
                 </span>
                 <pre className="flex-1 whitespace-pre-wrap break-all pr-2">
@@ -535,12 +535,12 @@ const DiffView: FC<{
 
     if (diff.is_binary) {
         return (
-            <div className="border-b border-[#1E1E26]/50">
-                <div className="sticky top-0 z-10 bg-[#141419] border-b border-[#1E1E26]/50 px-4 py-2 flex items-center gap-2">
-                    <span className="text-xs font-mono text-[#8B8B9E]">{diff.file_path}</span>
-                    <span className="text-[10px] text-[#55556A] px-1.5 py-0.5 rounded bg-[#1A1A22]/50">Binary</span>
+            <div className="border-b border-[--color-border]/50">
+                <div className="sticky top-0 z-10 bg-[--color-bg-surface] border-b border-[--color-border]/50 px-4 py-2 flex items-center gap-2">
+                    <span className="text-xs font-mono text-[--color-text-secondary]">{diff.file_path}</span>
+                    <span className="text-[10px] text-[--color-text-muted] px-1.5 py-0.5 rounded bg-[--color-bg-elevated]/50">Binary</span>
                 </div>
-                <div className="px-4 py-6 text-center text-sm text-[#55556A]">
+                <div className="px-4 py-6 text-center text-sm text-[--color-text-muted]">
                     Binary file — cannot display diff
                 </div>
             </div>
@@ -548,15 +548,15 @@ const DiffView: FC<{
     }
 
     return (
-        <div className="border-b border-[#1E1E26]/50">
+        <div className="border-b border-[--color-border]/50">
             {/* Sticky file header */}
-            <div className="sticky top-0 z-10 bg-[#141419]/95 backdrop-blur-sm border-b border-[#1E1E26]/50 px-4 py-2 flex items-center gap-2">
-                <span className="text-xs font-mono text-[#8B8B9E]">{diff.file_path}</span>
+            <div className="sticky top-0 z-10 bg-[--color-bg-surface]/95 backdrop-blur-sm border-b border-[--color-border]/50 px-4 py-2 flex items-center gap-2">
+                <span className="text-xs font-mono text-[--color-text-secondary]">{diff.file_path}</span>
                 {diff.is_new && (
-                    <span className="text-[10px] text-[#10B981] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30">New</span>
+                    <span className="text-[10px] text-[--color-success] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30">New</span>
                 )}
                 {diff.is_deleted && (
-                    <span className="text-[10px] text-[#EF4444] px-1.5 py-0.5 rounded bg-[#EF4444]/10 border border-[#EF4444]/30">Deleted</span>
+                    <span className="text-[10px] text-[--color-error] px-1.5 py-0.5 rounded bg-[--color-error]/10 border border-[--color-error]/30">Deleted</span>
                 )}
                 {canUseChangedOnly && (
                     <div className="ml-auto flex items-center gap-1">
@@ -586,7 +586,7 @@ const DiffView: FC<{
                     if (row.type === 'gap') {
                         return (
                             <div key={`gap-${index}`} className="grid grid-cols-2">
-                                <div className="col-span-2 px-4 py-1.5 text-center text-[11px] text-[#55556A] bg-[#141419]/70 border-y border-[#1E1E26]/30">
+                                <div className="col-span-2 px-4 py-1.5 text-center text-[11px] text-[--color-text-muted] bg-[--color-bg-surface]/70 border-y border-[--color-border]/30">
                                     {t('detail.hiddenUnchangedLines', {
                                         count: row.hiddenCount,
                                         defaultValue: '{{count}} unchanged lines hidden',
@@ -598,7 +598,7 @@ const DiffView: FC<{
 
                     return (
                         <div key={`pair-${index}`} className="grid grid-cols-2">
-                            <div className="border-r border-[#1E1E26]/30">
+                            <div className="border-r border-[--color-border]/30">
                                 {renderLineCell(row.pair.left, 'left')}
                             </div>
                             <div>
@@ -610,7 +610,7 @@ const DiffView: FC<{
             </div>
 
             {truncated && (
-                <div className="px-4 py-2 text-center text-xs text-[#55556A] bg-[#141419]">
+                <div className="px-4 py-2 text-center text-xs text-[--color-text-muted] bg-[--color-bg-surface]">
                     ... {pairs.length - MAX_LINES} more lines not shown ...
                 </div>
             )}
@@ -917,17 +917,17 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
 
     return (
         <div className="h-full flex flex-col">
-            <div className="shrink-0 border-b border-[#1E1E26]/50 bg-[#141419]/30">
+            <div className="shrink-0 border-b border-[--color-border]/50 bg-[--color-bg-surface]/30">
                 <div className="flex items-center gap-2 px-4 py-2">
-                    <LogIcon className="w-4 h-4 text-[#8B8B9E]" />
-                    <span className="text-sm font-medium text-[#8B8B9E]">
+                    <LogIcon className="w-4 h-4 text-[--color-text-secondary]" />
+                    <span className="text-sm font-medium text-[--color-text-secondary]">
                         {t('detail.changedFiles', 'Changed Files')}
                     </span>
-                    <span className="text-xs text-[#55556A] bg-[#1A1A22]/50 px-2 py-0.5 rounded-full">
+                    <span className="text-xs text-[--color-text-muted] bg-[--color-bg-elevated]/50 px-2 py-0.5 rounded-full">
                         {totalChanges}
                     </span>
                     {visibleFiles.length !== allFiles.length && (
-                        <span className="text-xs text-[#6366F1] bg-[#6366F1]/10 border border-[#6366F1]/20 px-2 py-0.5 rounded-full">
+                        <span className="text-xs text-[--color-accent] bg-[--color-accent]/10 border border-[--color-accent]/20 px-2 py-0.5 rounded-full">
                             {visibleFiles.length}/{allFiles.length}
                         </span>
                     )}
@@ -938,13 +938,13 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
                             value={searchQuery}
                             onChange={(event) => setSearchQuery(event.target.value)}
                             placeholder={t('detail.filterChangedFiles', 'Filter by project or file path')}
-                            className="h-8 bg-[#0A0A0F]/60 border-[#1E1E26] text-sm"
+                            className="h-8 bg-[--color-bg-base]/60 border-[--color-border] text-sm"
                         />
                         {(searchQuery || statusFilters.size > 0 || projectFilter) && (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 shrink-0 text-xs text-[#8B8B9E]"
+                                className="h-8 shrink-0 text-xs text-[--color-text-secondary]"
                                 onClick={clearFilters}
                             >
                                 {t('common.clear', 'Clear')}
@@ -957,8 +957,8 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
                             <button
                                 className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
                                     projectFilter === null
-                                        ? 'border-[#6366F1]/40 bg-[#6366F1]/15 text-[#6366F1]'
-                                        : 'border-[#1E1E26] bg-[#141419] text-[#8B8B9E] hover:text-[#E8E8ED]'
+                                        ? 'border-[--color-accent]/40 bg-[--color-accent]/15 text-[--color-accent]'
+                                        : 'border-[--color-border] bg-[--color-bg-surface] text-[--color-text-secondary] hover:text-[--color-text-primary]'
                                 }`}
                                 onClick={() => setProjectFilter(null)}
                             >
@@ -971,8 +971,8 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
                                         key={projectName}
                                         className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
                                             projectFilter === projectName
-                                                ? 'border-[#6366F1]/40 bg-[#6366F1]/15 text-[#6366F1]'
-                                                : 'border-[#1E1E26] bg-[#141419] text-[#8B8B9E] hover:text-[#E8E8ED]'
+                                                ? 'border-[--color-accent]/40 bg-[--color-accent]/15 text-[--color-accent]'
+                                                : 'border-[--color-border] bg-[--color-bg-surface] text-[--color-text-secondary] hover:text-[--color-text-primary]'
                                         }`}
                                         onClick={() => setProjectFilter(projectName)}
                                     >
@@ -995,7 +995,7 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
                                     className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
                                         active
                                             ? `${STATUS_BG[status]} ${STATUS_COLORS[status]}`
-                                            : 'border-[#1E1E26] bg-[#141419] text-[#8B8B9E] hover:text-[#E8E8ED]'
+                                            : 'border-[--color-border] bg-[--color-bg-surface] text-[--color-text-secondary] hover:text-[--color-text-primary]'
                                     }`}
                                     onClick={() => handleToggleStatusFilter(status)}
                                 >
@@ -1012,32 +1012,32 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
                 {/* File tree sidebar */}
                 <div
                     ref={treeContainerRef}
-                    className="shrink-0 border-r border-[#1E1E26]/50 overflow-y-auto bg-[#141419]/30"
+                    className="shrink-0 border-r border-[--color-border]/50 overflow-y-auto bg-[--color-bg-surface]/30"
                     style={{ width: `${treeWidth}px` }}
                 >
                     {loadingFiles ? (
                         <div className="flex items-center justify-center py-8">
-                            <RefreshIcon className="w-5 h-5 text-[#55556A] animate-spin" />
+                            <RefreshIcon className="w-5 h-5 text-[--color-text-muted] animate-spin" />
                         </div>
                     ) : visibleFiles.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center px-4 py-10 text-center text-[#55556A] gap-2">
+                        <div className="flex flex-col items-center justify-center px-4 py-10 text-center text-[--color-text-muted] gap-2">
                             <LogIcon className="w-8 h-8" />
                             <p className="text-sm">{t('detail.noChangedFilesMatch', 'No changed files match the current filters')}</p>
                         </div>
                     ) : (
                         <div className="py-1">
                             {/* Summary */}
-                            <div className="px-3 py-1.5 flex items-center gap-2 text-[11px] text-[#55556A] border-b border-[#1E1E26]/30 mb-1">
+                            <div className="px-3 py-1.5 flex items-center gap-2 text-[11px] text-[--color-text-muted] border-b border-[--color-border]/30 mb-1">
                                 {STATUS_ORDER.map((s) => {
                                     const count = visibleStatusCounts[s] || 0;
                                     if (count === 0) return null;
                                     return (
                                         <span
                                             key={s}
-                                            className={`px-1.5 py-0.5 rounded border ${STATUS_BG[s] || 'bg-[#1A1A22]/30 border-[#1E1E26]'}`}
+                                            className={`px-1.5 py-0.5 rounded border ${STATUS_BG[s] || 'bg-[--color-bg-elevated]/30 border-[--color-border]'}`}
                                         >
                                             <span className={STATUS_COLORS[s]}>{count}</span>{' '}
-                                            <span className="text-[#55556A]">
+                                            <span className="text-[--color-text-muted]">
                                                 {STATUS_LABELS[s]}
                                             </span>
                                         </span>
@@ -1063,25 +1063,25 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
 
                 {/* Resize handle */}
                 <div
-                    className="w-1 shrink-0 cursor-col-resize hover:bg-[#6366F1]/30 active:bg-[#6366F1]/50 transition-colors"
+                    className="w-1 shrink-0 cursor-col-resize hover:bg-[--color-accent]/30 active:bg-[--color-accent]/50 transition-colors"
                     onMouseDown={handleMouseDown}
                 />
 
                 {/* Diff content */}
                 <div className="flex-1 min-w-0 flex flex-col">
                     {selectedFileMeta && (
-                        <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-[#1E1E26]/50 bg-[#0A0A0F]/40">
-                            <span className={`font-mono text-xs font-bold ${STATUS_COLORS[selectedFileMeta.status] || 'text-[#8B8B9E]'}`}>
+                        <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-[--color-border]/50 bg-[--color-bg-base]/40">
+                            <span className={`font-mono text-xs font-bold ${STATUS_COLORS[selectedFileMeta.status] || 'text-[--color-text-secondary]'}`}>
                                 {selectedFileMeta.status}
                             </span>
-                            <span className="rounded bg-[#1A1A22]/60 px-2 py-0.5 text-[11px] text-[#8B8B9E]">
+                            <span className="rounded bg-[--color-bg-elevated]/60 px-2 py-0.5 text-[11px] text-[--color-text-secondary]">
                                 {selectedFileMeta.projectName}
                             </span>
-                            <span className="min-w-0 truncate text-xs text-[#8B8B9E]">
+                            <span className="min-w-0 truncate text-xs text-[--color-text-secondary]">
                                 {selectedFileMeta.path}
                             </span>
                             <div className="ml-auto flex items-center gap-2">
-                                <span className="text-[11px] text-[#55556A]">
+                                <span className="text-[11px] text-[--color-text-muted]">
                                     {selectedIndex >= 0 ? `${selectedIndex + 1}/${orderedVisibleFiles.length}` : null}
                                 </span>
                                 <Button
@@ -1108,26 +1108,26 @@ export const ChangedFilesPanel: FC<ChangedFilesPanelProps> = ({
 
                     <div className="flex-1 overflow-y-auto">
                         {visibleFiles.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-[#55556A] gap-2">
+                            <div className="flex flex-col items-center justify-center h-full text-[--color-text-muted] gap-2">
                                 <LogIcon className="w-10 h-10" />
                                 <p className="text-sm">{t('detail.noChangedFilesMatch', 'No changed files match the current filters')}</p>
                             </div>
                         ) : !selectedFile ? (
-                            <div className="flex flex-col items-center justify-center h-full text-[#55556A] gap-2">
+                            <div className="flex flex-col items-center justify-center h-full text-[--color-text-muted] gap-2">
                                 <LogIcon className="w-10 h-10" />
                                 <p className="text-sm">{t('detail.selectFileToDiff', 'Select a file to view diff')}</p>
                             </div>
                         ) : isSelectedDiffLoading ? (
-                            <div className="flex flex-col items-center justify-center h-full text-[#55556A] gap-3">
+                            <div className="flex flex-col items-center justify-center h-full text-[--color-text-muted] gap-3">
                                 <RefreshIcon className="w-5 h-5 animate-spin" />
-                                <p className="text-sm text-[#8B8B9E]">
+                                <p className="text-sm text-[--color-text-secondary]">
                                     {selectedFileMeta?.path || t('common.loading')}
                                 </p>
                             </div>
                         ) : selectedDiff ? (
                             <DiffView diff={selectedDiff} />
                         ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-[#55556A] gap-2">
+                            <div className="flex flex-col items-center justify-center h-full text-[--color-text-muted] gap-2">
                                 <LogIcon className="w-10 h-10" />
                                 <p className="text-sm">{t('detail.selectFileToDiff', 'Select a file to view diff')}</p>
                             </div>

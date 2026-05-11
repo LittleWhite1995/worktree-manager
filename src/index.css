@@ -15,8 +15,106 @@
   --accent: #6366F1;
   --accent-hover: #818CF8;
   --success: #10B981;
+  --success-light: #34D399;
   --warning: #F59E0B;
+  --warning-light: #FBBF24;
   --error: #EF4444;
+  --error-light: #F87171;
+}
+
+/* Tailwind v4 theme registration */
+@theme {
+  --color-bg-base: var(--bg-base);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-border: var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-success: var(--success);
+  --color-success-light: var(--success-light);
+  --color-warning: var(--warning);
+  --color-warning-light: var(--warning-light);
+  --color-error: var(--error);
+  --color-error-light: var(--error-light);
+}
+
+/* Monokai */
+[data-theme="monokai"] {
+  --bg-base: #1E1F1C;
+  --bg-surface: #272822;
+  --bg-elevated: #3E3D32;
+  --border: #49483E;
+  --text-primary: #F8F8F2;
+  --text-secondary: #A6A68A;
+  --text-muted: #75715E;
+  --accent: #F92672;
+  --accent-hover: #FF6188;
+  --success: #A6E22E;
+  --success-light: #C1E849;
+  --warning: #E6DB74;
+  --warning-light: #F0E68C;
+  --error: #F92672;
+  --error-light: #FF6188;
+}
+
+/* Dracula */
+[data-theme="dracula"] {
+  --bg-base: #1E1F29;
+  --bg-surface: #282A36;
+  --bg-elevated: #343746;
+  --border: #44475A;
+  --text-primary: #F8F8F2;
+  --text-secondary: #BFBFBF;
+  --text-muted: #6272A4;
+  --accent: #BD93F9;
+  --accent-hover: #C9A8FC;
+  --success: #50FA7B;
+  --success-light: #69FF94;
+  --warning: #F1FA8C;
+  --warning-light: #FFFFA5;
+  --error: #FF5555;
+  --error-light: #FF6E6E;
+}
+
+/* Solarized Dark */
+[data-theme="solarized-dark"] {
+  --bg-base: #001E27;
+  --bg-surface: #002B36;
+  --bg-elevated: #073642;
+  --border: #094553;
+  --text-primary: #EEE8D5;
+  --text-secondary: #93A1A1;
+  --text-muted: #586E75;
+  --accent: #268BD2;
+  --accent-hover: #4BA3E0;
+  --success: #859900;
+  --success-light: #98A820;
+  --warning: #B58900;
+  --warning-light: #C99A00;
+  --error: #DC322F;
+  --error-light: #E85050;
+}
+
+/* Nord */
+[data-theme="nord"] {
+  --bg-base: #1D2029;
+  --bg-surface: #2E3440;
+  --bg-elevated: #3B4252;
+  --border: #434C5E;
+  --text-primary: #ECEFF4;
+  --text-secondary: #D8DEE9;
+  --text-muted: #4C566A;
+  --accent: #88C0D0;
+  --accent-hover: #8FBCBB;
+  --success: #A3BE8C;
+  --success-light: #B5C99D;
+  --warning: #EBCB8B;
+  --warning-light: #EFD39E;
+  --error: #BF616A;
+  --error-light: #C9757D;
 }
 
 /* Maple Mono NF CN — bundled terminal font with Nerd Font icons + CJK */
@@ -355,7 +453,7 @@ button {
 }
 
 .animate-gradient {
-  background: linear-gradient(90deg, #3b82f6, #6366f1, #3b82f6);
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover), var(--accent));
   background-size: 200% 100%;
   animation: gradient-shift 2s linear infinite;
 }

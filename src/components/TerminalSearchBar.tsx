@@ -78,7 +78,7 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
 
   return (
     <div
-      className="absolute top-2 right-2 z-30 flex items-center gap-1 px-2 py-1.5 bg-[#141419] border border-[#1E1E26] rounded-lg shadow-lg"
+      className="absolute top-2 right-2 z-30 flex items-center gap-1 px-2 py-1.5 bg-[--color-bg-surface] border border-[--color-border] rounded-lg shadow-lg"
       onKeyDown={handleKeyDown}
     >
       <input
@@ -87,18 +87,18 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t('terminal.searchPlaceholder')}
-        className={`w-48 px-2 py-1 text-xs bg-[#0A0A0F] border rounded text-[#E8E8ED] placeholder-[#55556A] outline-none focus:border-[#6366F1] transition-colors ${
-          query && !hasResults ? 'border-[#EF4444]' : 'border-[#1E1E26]'
+        className={`w-48 px-2 py-1 text-xs bg-[--color-bg-base] border rounded text-[--color-text-primary] placeholder-[--color-text-muted] outline-none focus:border-[--color-accent] transition-colors ${
+          query && !hasResults ? 'border-[--color-error]' : 'border-[--color-border]'
         }`}
         aria-label={t('terminal.search')}
       />
       {query && !hasResults && (
-        <span className="text-[10px] text-[#EF4444] whitespace-nowrap">{t('terminal.noResults')}</span>
+        <span className="text-[10px] text-[--color-error] whitespace-nowrap">{t('terminal.noResults')}</span>
       )}
       <button
         onClick={() => setCaseSensitive(!caseSensitive)}
         className={`p-1 rounded transition-colors ${
-          caseSensitive ? 'text-[#6366F1] bg-[#6366F1]/20' : 'text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22]'
+          caseSensitive ? 'text-[--color-accent] bg-[--color-accent]/20' : 'text-[--color-text-muted] hover:text-[--color-text-secondary] hover:bg-[--color-bg-elevated]'
         }`}
         title={t('terminal.caseSensitive')}
         aria-label={t('terminal.caseSensitive')}
@@ -109,7 +109,7 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
       <button
         onClick={() => setUseRegex(!useRegex)}
         className={`p-1 rounded transition-colors ${
-          useRegex ? 'text-[#6366F1] bg-[#6366F1]/20' : 'text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22]'
+          useRegex ? 'text-[--color-accent] bg-[--color-accent]/20' : 'text-[--color-text-muted] hover:text-[--color-text-secondary] hover:bg-[--color-bg-elevated]'
         }`}
         title={t('terminal.useRegex')}
         aria-label={t('terminal.useRegex')}
@@ -117,10 +117,10 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
       >
         <Regex className="w-3.5 h-3.5" />
       </button>
-      <div className="w-px h-4 bg-[#1A1A22] mx-0.5" />
+      <div className="w-px h-4 bg-[--color-bg-elevated] mx-0.5" />
       <button
         onClick={() => doFindPrevious(query, options)}
-        className="p-1 rounded text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
+        className="p-1 rounded text-[--color-text-muted] hover:text-[--color-text-secondary] hover:bg-[--color-bg-elevated] transition-colors"
         title={t('terminal.prevResult')}
         aria-label={t('terminal.prevResult')}
       >
@@ -128,16 +128,16 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
       </button>
       <button
         onClick={() => doFindNext(query, options)}
-        className="p-1 rounded text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
+        className="p-1 rounded text-[--color-text-muted] hover:text-[--color-text-secondary] hover:bg-[--color-bg-elevated] transition-colors"
         title={t('terminal.nextResult')}
         aria-label={t('terminal.nextResult')}
       >
         <ChevronDown className="w-3.5 h-3.5" />
       </button>
-      <div className="w-px h-4 bg-[#1A1A22] mx-0.5" />
+      <div className="w-px h-4 bg-[--color-bg-elevated] mx-0.5" />
       <button
         onClick={onClose}
-        className="p-1 rounded text-[#55556A] hover:text-[#8B8B9E] hover:bg-[#1A1A22] transition-colors"
+        className="p-1 rounded text-[--color-text-muted] hover:text-[--color-text-secondary] hover:bg-[--color-bg-elevated] transition-colors"
         title={t('terminal.closeSearch')}
         aria-label={t('terminal.closeSearch')}
       >
