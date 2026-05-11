@@ -831,7 +831,7 @@ async fn h_pty_create(Json(args): Json<Value>) -> Response {
                     existing_shell,
                     requested_shell
                 );
-                m.close_session(&session_id)?;
+                m.close_session(&session_id, "h_pty_create: shell changed (HTTP)")?;
             }
 
             m.create_session(&session_id, &cwd, cols, rows, shell.as_deref())
@@ -871,7 +871,9 @@ async fn h_pty_resize(Json(args): Json<Value>) -> Response {
 
 async fn h_pty_close(Json(args): Json<Value>) -> Response {
     let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
-    result_ok(with_pty_manager(move |m| m.close_session(&session_id)).await)
+    result_ok(
+        with_pty_manager(move |m| m.close_session(&session_id, "h_pty_close: HTTP request")).await,
+    )
 }
 
 async fn h_pty_exists(Json(args): Json<Value>) -> Response {
@@ -881,7 +883,12 @@ async fn h_pty_exists(Json(args): Json<Value>) -> Response {
 
 async fn h_pty_close_by_path(Json(args): Json<Value>) -> Response {
     let path_prefix = args["pathPrefix"].as_str().unwrap_or("").to_string();
-    result_json(with_pty_manager(move |m| Ok(m.close_sessions_by_path_prefix(&path_prefix))).await)
+    result_json(
+        with_pty_manager(move |m| {
+            Ok(m.close_sessions_by_path_prefix(&path_prefix, "h_pty_close_by_path: HTTP request"))
+        })
+        .await,
+    )
 }
 
 // -- Auth --

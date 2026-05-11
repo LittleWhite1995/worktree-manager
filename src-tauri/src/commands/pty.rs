@@ -34,7 +34,7 @@ pub(crate) fn pty_create(
             existing_shell,
             requested_shell
         );
-        manager.close_session(&session_id)?;
+        manager.close_session(&session_id, "pty_create: shell changed")?;
     }
 
     log::info!(
@@ -94,7 +94,7 @@ pub(crate) fn pty_close(session_id: String) -> Result<(), String> {
     let mut manager = PTY_MANAGER
         .lock()
         .map_err(|e| format!("Lock error: {}", e))?;
-    let result = manager.close_session(&session_id);
+    let result = manager.close_session(&session_id, "pty_close: frontend request");
     match &result {
         Ok(()) => log::info!("[pty] Closed session: {}", session_id),
         Err(e) => log::error!("[pty] Failed to close session {}: {}", session_id, e),
@@ -119,7 +119,8 @@ pub(crate) fn pty_close_by_path(path_prefix: String) -> Result<Vec<String>, Stri
     let mut manager = PTY_MANAGER
         .lock()
         .map_err(|e| format!("Lock error: {}", e))?;
-    let closed = manager.close_sessions_by_path_prefix(&path_prefix);
+    let closed =
+        manager.close_sessions_by_path_prefix(&path_prefix, "pty_close_by_path: frontend request");
     log::info!(
         "[pty] Closed {} sessions matching path prefix: {}",
         closed.len(),

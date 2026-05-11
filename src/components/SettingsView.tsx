@@ -1624,13 +1624,22 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       onClick={() => {
                         const nameInput = document.getElementById('custom-editor-name') as HTMLInputElement;
                         const pathInput = document.getElementById('custom-editor-path') as HTMLInputElement;
-                        const name = nameInput?.value?.trim();
+                        let name = nameInput?.value?.trim();
                         const path = pathInput?.value?.trim();
-                        if (!name || !path) return;
+                        if (!path) return;
+                        if (!name) {
+                          name = path.split(/[/\\]/).pop()?.replace(/\.(app|exe)$/i, '') ?? '';
+                          if (!name) return;
+                          if (nameInput) nameInput.value = name;
+                        }
                         const id = `custom-${name.toLowerCase().replace(/\s+/g, '-')}`;
                         const customs: Array<{ id: string; name: string; path: string }> = JSON.parse(localStorage.getItem('custom_editors') || '[]');
-                        if (customs.some(c => c.id === id)) return;
-                        customs.push({ id, name, path });
+                        const existingIdx = customs.findIndex(c => c.id === id);
+                        if (existingIdx >= 0) {
+                          customs[existingIdx] = { id, name, path };
+                        } else {
+                          customs.push({ id, name, path });
+                        }
                         localStorage.setItem('custom_editors', JSON.stringify(customs));
                         const pendingIcon = pathInput?.dataset?.pendingIcon;
                         if (pendingIcon) {
@@ -1640,16 +1649,28 @@ export const SettingsView: FC<SettingsViewProps> = ({
                           delete pathInput.dataset.pendingIcon;
                         }
                         const detected: Array<{ id: string; name: string; icon?: string }> = JSON.parse(localStorage.getItem('detected_editors') || '[]');
-                        detected.push({ id, name, icon: pendingIcon });
+                        const detIdx = detected.findIndex(e => e.id === id);
+                        if (detIdx >= 0) {
+                          detected[detIdx] = { id, name, icon: pendingIcon };
+                        } else {
+                          detected.push({ id, name, icon: pendingIcon });
+                        }
                         localStorage.setItem('detected_editors', JSON.stringify(detected));
                         const tp = JSON.parse(localStorage.getItem('tool_paths') || '{}');
                         tp[`editor_${id}`] = path;
                         localStorage.setItem('tool_paths', JSON.stringify(tp));
                         window.dispatchEvent(new Event('editors-detected'));
-                        setDetectedTools(prev => prev
-                          ? { ...prev, editors: [...prev.editors, { id, name, path, icon: pendingIcon || undefined }] }
-                          : { git: [], terminals: [], shells: [], editors: [{ id, name, path, icon: pendingIcon || undefined }] }
-                        );
+                        setDetectedTools(prev => {
+                          const newEditor = { id, name, path, icon: pendingIcon || undefined };
+                          if (!prev) return { git: [], terminals: [], shells: [], editors: [newEditor] };
+                          const idx = prev.editors.findIndex(e => e.id === id);
+                          if (idx >= 0) {
+                            const editors = [...prev.editors];
+                            editors[idx] = newEditor;
+                            return { ...prev, editors };
+                          }
+                          return { ...prev, editors: [...prev.editors, newEditor] };
+                        });
                         nameInput.value = '';
                         pathInput.value = '';
                       }}
