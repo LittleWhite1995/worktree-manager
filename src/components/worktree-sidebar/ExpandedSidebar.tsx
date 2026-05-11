@@ -734,7 +734,7 @@ const WorktreeList: FC<{
               return (
                 <SortableWorktreeItem key={worktree.name} id={worktree.name}>
                   <div
-                    className={`px-4 py-2.5 transition-all duration-150 border-l-2 ${isDeployed
+                    className={`px-3 py-2.5 transition-all duration-150 border-l-2 ${isDeployed
                       ? 'border-transparent opacity-50 cursor-not-allowed'
                       : isLockedByOther && isTauri
                         ? 'border-transparent opacity-50 cursor-not-allowed'
@@ -833,7 +833,7 @@ const WorktreeList: FC<{
       {showArchived && sortedArchivedWorktrees.map((worktree) => (
         <div
           key={worktree.name}
-          className={`px-4 py-2.5 cursor-pointer transition-colors opacity-60 ${selectedWorktree?.name === worktree.name ? 'bg-[var(--color-bg-elevated)]' : 'hover:bg-[var(--color-bg-elevated)]'}`}
+          className={`px-3 py-2.5 cursor-pointer transition-colors opacity-60 ${selectedWorktree?.name === worktree.name ? 'bg-[var(--color-bg-elevated)]' : 'hover:bg-[var(--color-bg-elevated)]'}`}
           onClick={() => onSelectWorktree(worktree)}
         >
           <div className="flex items-center gap-2.5">
