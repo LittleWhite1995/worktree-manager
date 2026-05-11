@@ -27,14 +27,14 @@
     window.onerror = function (msg, url, line, col, err) {
       var el = document.getElementById('root');
       if (el && !el.hasChildNodes()) {
-        el.style.cssText = 'padding:2rem;font-family:monospace;color:#ef4444;white-space:pre-wrap';
+        el.style.cssText = 'padding:1rem;font-family:monospace;color:#ef4444;white-space:pre-wrap';
         el.textContent = msg + '\n  at ' + url + ':' + line + ':' + col;
       }
     };
     window.addEventListener('unhandledrejection', function (e) {
       var el = document.getElementById('root');
       if (el && !el.hasChildNodes()) {
-        el.style.cssText = 'padding:2rem;font-family:monospace;color:#ef4444;white-space:pre-wrap';
+        el.style.cssText = 'padding:1rem;font-family:monospace;color:#ef4444;white-space:pre-wrap';
         el.textContent = 'Unhandled rejection: ' + (e.reason && e.reason.message || e.reason || e);
       }
     });
