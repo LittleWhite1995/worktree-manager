@@ -17,8 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star } from 'lucide-react';
+import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Palette, Check } from 'lucide-react';
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
+import { useTheme } from '../hooks/useTheme';
 import { BranchCombobox } from './BranchCombobox';
 import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild } from '../types';
 import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect } from '../lib/backend';
@@ -387,7 +388,59 @@ interface SettingsViewProps {
   onRemoveWorkspace?: (path: string) => void;
 }
 
-type SettingsSection = 'workspaces' | 'vault' | 'tools' | 'share' | 'commit' | 'voice' | 'cloud' | 'about';
+type SettingsSection = 'workspaces' | 'appearance' | 'vault' | 'tools' | 'share' | 'commit' | 'voice' | 'cloud' | 'about';
+
+// ==================== AppearanceSettingsSection ====================
+const AppearanceSettingsSection: FC = () => {
+  const { t } = useTranslation();
+  const { themeId, setTheme, themes } = useTheme();
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-medium text-[--color-text-primary] mb-1">{t('settings.activeTheme')}</h3>
+        <p className="text-xs text-[--color-text-muted] mb-4">Choose a color theme for the application</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2">
+        {themes.map(theme => {
+          const isActive = themeId === theme.id;
+          const c = theme.colors;
+          return (
+            <button
+              key={theme.id}
+              onClick={() => setTheme(theme.id)}
+              className={`relative flex items-center gap-3 w-full p-3 rounded-lg border transition-all text-left ${
+                isActive
+                  ? 'border-[--color-accent] bg-[--color-accent]/5'
+                  : 'border-[--color-border]/50 bg-[--color-bg-surface] hover:border-[--color-border] hover:bg-[--color-bg-elevated]'
+              }`}
+            >
+              {/* Color preview dots */}
+              <div className="flex gap-1.5 shrink-0">
+                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.bgBase }} />
+                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.bgSurface }} />
+                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.accent }} />
+                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.success }} />
+                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.error }} />
+              </div>
+
+              {/* Theme name */}
+              <span className={`text-sm font-medium flex-1 ${isActive ? 'text-[--color-accent]' : 'text-[--color-text-primary]'}`}>
+                {t(`themes.${theme.id === 'default-dark' ? 'defaultDark' : theme.id.replace('-', '')}`)}
+              </span>
+
+              {/* Active indicator */}
+              {isActive && (
+                <Check className="w-4 h-4 text-[--color-accent] shrink-0" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 export const SettingsView: FC<SettingsViewProps> = ({
   workspaceConfig,
@@ -936,6 +989,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   // ==================== Menu items ====================
   const menuItems = [
     { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" /> },
+    { id: 'appearance' as SettingsSection, label: t('settings.appearance'), icon: <Palette className="w-3.5 h-3.5" /> },
     { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <FolderOpen className="w-3.5 h-3.5 text-[--color-warning]" /> },
     { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
     ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" /> }] : []),
@@ -1332,6 +1386,11 @@ export const SettingsView: FC<SettingsViewProps> = ({
                   </div>
                 )}
               </div>
+            )}
+
+            {/* ==================== Appearance Section ==================== */}
+            {activeSection === 'appearance' && (
+              <AppearanceSettingsSection />
             )}
 
             {/* ==================== Vault Section ==================== */}
