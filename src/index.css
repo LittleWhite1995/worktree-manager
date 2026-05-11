@@ -1,8 +1,5 @@
 @import "tailwindcss";
 
-/* Inter font for UI */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 /* Design token CSS custom properties */
 :root {
   --bg-base: #0A0A0F;
