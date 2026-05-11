@@ -1,5 +1,5 @@
 import { useState, type FC } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -78,7 +78,11 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
         </DialogHeader>
         <div className="py-4">
           <p className="text-sm text-[var(--color-text-secondary)] mb-4">
-            {t('addProjectToWorktree.desc', { name: worktree.display_name || worktree.name })}
+            <Trans
+              i18nKey="addProjectToWorktree.desc"
+              values={{ name: worktree.display_name || worktree.name }}
+              components={[<strong className="text-[var(--color-text-primary)] font-medium" />]}
+            />
           </p>
 
           {availableProjects.length === 0 ? (
