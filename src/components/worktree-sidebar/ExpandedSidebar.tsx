@@ -59,6 +59,7 @@ import {
   WarningIcon,
   WorkspaceIcon,
 } from '../Icons';
+import { GitBranch } from 'lucide-react';
 import type { WorktreeSidebarProps } from './types';
 import { ShareBar } from './ShareBar';
 import { SortableWorktreeItem } from './SortableWorktreeItem';
@@ -733,7 +734,7 @@ const WorktreeList: FC<{
               return (
                 <SortableWorktreeItem key={worktree.name} id={worktree.name}>
                   <div
-                    className={`pr-4 py-2.5 transition-all duration-150 border-l-2 ${isDeployed
+                    className={`px-4 py-2.5 transition-all duration-150 border-l-2 ${isDeployed
                       ? 'border-transparent opacity-50 cursor-not-allowed'
                       : isLockedByOther && isTauri
                         ? 'border-transparent opacity-50 cursor-not-allowed'
@@ -751,7 +752,7 @@ const WorktreeList: FC<{
                     onTouchMove={() => !activeId && onTouchMove()}
                   >
                     <div className="flex items-center gap-2.5">
-                      <FolderIcon className={`w-4 h-4 ${isLockedByOther || isDeployed ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-accent)]'}`} />
+                      <GitBranch className={`w-4 h-4 ${isLockedByOther || isDeployed ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-accent)]'}`} />
                       <TooltipProvider delayDuration={300}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -797,7 +798,7 @@ const WorktreeList: FC<{
             {activeWorktree ? (
               <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-md px-4 py-2.5 shadow-xl opacity-70">
                 <div className="flex items-center gap-2.5">
-                  <FolderIcon className="w-4 h-4 text-[var(--color-accent)]" />
+                  <GitBranch className="w-4 h-4 text-[var(--color-accent)]" />
                   <span className="font-medium text-sm">{activeWorktree.display_name || activeWorktree.name}</span>
                 </div>
               </div>
