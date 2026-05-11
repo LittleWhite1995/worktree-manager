@@ -14,12 +14,15 @@
   --text-muted: #55556A;
   --accent: #6366F1;
   --accent-hover: #818CF8;
+  --accent-fg: #FFFFFF;
   --success: #10B981;
   --success-light: #34D399;
   --warning: #F59E0B;
   --warning-light: #FBBF24;
+  --warning-fg: #1E1E26;
   --error: #EF4444;
   --error-light: #F87171;
+  --error-fg: #FFFFFF;
 }
 
 /* Tailwind v4 theme registration */
@@ -33,12 +36,15 @@
   --color-text-muted: var(--text-muted);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
   --color-success: var(--success);
   --color-success-light: var(--success-light);
   --color-warning: var(--warning);
   --color-warning-light: var(--warning-light);
+  --color-warning-fg: var(--warning-fg);
   --color-error: var(--error);
   --color-error-light: var(--error-light);
+  --color-error-fg: var(--error-fg);
 }
 
 /* Monokai */
@@ -52,12 +58,15 @@
   --text-muted: #75715E;
   --accent: #F92672;
   --accent-hover: #FF6188;
+  --accent-fg: #FFFFFF;
   --success: #A6E22E;
   --success-light: #C1E849;
   --warning: #E6DB74;
   --warning-light: #F0E68C;
+  --warning-fg: #272822;
   --error: #F92672;
   --error-light: #FF6188;
+  --error-fg: #FFFFFF;
 }
 
 /* Dracula */
@@ -71,12 +80,15 @@
   --text-muted: #6272A4;
   --accent: #BD93F9;
   --accent-hover: #C9A8FC;
+  --accent-fg: #282A36;
   --success: #50FA7B;
   --success-light: #69FF94;
   --warning: #F1FA8C;
   --warning-light: #FFFFA5;
+  --warning-fg: #282A36;
   --error: #FF5555;
   --error-light: #FF6E6E;
+  --error-fg: #FFFFFF;
 }
 
 /* Solarized Dark */
@@ -90,12 +102,15 @@
   --text-muted: #586E75;
   --accent: #268BD2;
   --accent-hover: #4BA3E0;
+  --accent-fg: #FFFFFF;
   --success: #859900;
   --success-light: #98A820;
   --warning: #B58900;
   --warning-light: #C99A00;
+  --warning-fg: #FFFFFF;
   --error: #DC322F;
   --error-light: #E85050;
+  --error-fg: #FFFFFF;
 }
 
 /* Nord */
@@ -109,12 +124,15 @@
   --text-muted: #4C566A;
   --accent: #88C0D0;
   --accent-hover: #8FBCBB;
+  --accent-fg: #2E3440;
   --success: #A3BE8C;
   --success-light: #B5C99D;
   --warning: #EBCB8B;
   --warning-light: #EFD39E;
+  --warning-fg: #2E3440;
   --error: #BF616A;
   --error-light: #C9757D;
+  --error-fg: #FFFFFF;
 }
 
 /* Default Light */
@@ -128,12 +146,15 @@
   --text-muted: #9CA3AF;
   --accent: #4F46E5;
   --accent-hover: #6366F1;
+  --accent-fg: #FFFFFF;
   --success: #059669;
   --success-light: #10B981;
   --warning: #D97706;
   --warning-light: #F59E0B;
+  --warning-fg: #FFFFFF;
   --error: #DC2626;
   --error-light: #EF4444;
+  --error-fg: #FFFFFF;
 }
 
 /* Solarized Light */
@@ -147,12 +168,15 @@
   --text-muted: #93A1A1;
   --accent: #268BD2;
   --accent-hover: #2AA198;
+  --accent-fg: #FFFFFF;
   --success: #859900;
   --success-light: #98A820;
   --warning: #B58900;
   --warning-light: #C99A00;
+  --warning-fg: #FFFFFF;
   --error: #DC322F;
   --error-light: #E85050;
+  --error-fg: #FFFFFF;
 }
 
 /* GitHub Light */
@@ -166,12 +190,15 @@
   --text-muted: #8C959F;
   --accent: #0969DA;
   --accent-hover: #218BFF;
+  --accent-fg: #FFFFFF;
   --success: #1F883D;
   --success-light: #2DA44E;
   --warning: #9A6700;
   --warning-light: #BF8700;
+  --warning-fg: #FFFFFF;
   --error: #D1242F;
   --error-light: #E5534B;
+  --error-fg: #FFFFFF;
 }
 
 /* Maple Mono NF CN — bundled terminal font with Nerd Font icons + CJK */

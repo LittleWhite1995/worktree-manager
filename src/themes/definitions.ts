@@ -8,12 +8,15 @@ export interface ThemeColors {
   textMuted: string;
   accent: string;
   accentHover: string;
+  accentFg: string;
   success: string;
   successLight: string;
   warning: string;
   warningLight: string;
+  warningFg: string;
   error: string;
   errorLight: string;
+  errorFg: string;
 }
 
 export interface ThemeDefinition {
@@ -37,12 +40,15 @@ export const defaultDark: ThemeDefinition = {
     textMuted: '#55556A',
     accent: '#6366F1',
     accentHover: '#818CF8',
+    accentFg: '#FFFFFF',
     success: '#10B981',
     successLight: '#34D399',
     warning: '#F59E0B',
     warningLight: '#FBBF24',
+    warningFg: '#1E1E26',
     error: '#EF4444',
     errorLight: '#F87171',
+    errorFg: '#FFFFFF',
   },
 };
 
@@ -60,12 +66,15 @@ export const monokai: ThemeDefinition = {
     textMuted: '#75715E',
     accent: '#F92672',
     accentHover: '#FF6188',
+    accentFg: '#FFFFFF',
     success: '#A6E22E',
     successLight: '#C1E849',
     warning: '#E6DB74',
     warningLight: '#F0E68C',
+    warningFg: '#272822',
     error: '#F92672',
     errorLight: '#FF6188',
+    errorFg: '#FFFFFF',
   },
 };
 
@@ -83,12 +92,15 @@ export const dracula: ThemeDefinition = {
     textMuted: '#6272A4',
     accent: '#BD93F9',
     accentHover: '#C9A8FC',
+    accentFg: '#282A36',
     success: '#50FA7B',
     successLight: '#69FF94',
     warning: '#F1FA8C',
     warningLight: '#FFFFA5',
+    warningFg: '#282A36',
     error: '#FF5555',
     errorLight: '#FF6E6E',
+    errorFg: '#FFFFFF',
   },
 };
 
@@ -106,12 +118,15 @@ export const solarizedDark: ThemeDefinition = {
     textMuted: '#586E75',
     accent: '#268BD2',
     accentHover: '#4BA3E0',
+    accentFg: '#FFFFFF',
     success: '#859900',
     successLight: '#98A820',
     warning: '#B58900',
     warningLight: '#C99A00',
+    warningFg: '#FFFFFF',
     error: '#DC322F',
     errorLight: '#E85050',
+    errorFg: '#FFFFFF',
   },
 };
 
@@ -129,12 +144,15 @@ export const nord: ThemeDefinition = {
     textMuted: '#4C566A',
     accent: '#88C0D0',
     accentHover: '#8FBCBB',
+    accentFg: '#2E3440',
     success: '#A3BE8C',
     successLight: '#B5C99D',
     warning: '#EBCB8B',
     warningLight: '#EFD39E',
+    warningFg: '#2E3440',
     error: '#BF616A',
     errorLight: '#C9757D',
+    errorFg: '#FFFFFF',
   },
 };
 
@@ -152,12 +170,15 @@ export const defaultLight: ThemeDefinition = {
     textMuted: '#9CA3AF',
     accent: '#4F46E5',
     accentHover: '#6366F1',
+    accentFg: '#FFFFFF',
     success: '#059669',
     successLight: '#10B981',
     warning: '#D97706',
     warningLight: '#F59E0B',
+    warningFg: '#FFFFFF',
     error: '#DC2626',
     errorLight: '#EF4444',
+    errorFg: '#FFFFFF',
   },
 };
 
@@ -175,12 +196,15 @@ export const solarizedLight: ThemeDefinition = {
     textMuted: '#93A1A1',
     accent: '#268BD2',
     accentHover: '#2AA198',
+    accentFg: '#FFFFFF',
     success: '#859900',
     successLight: '#98A820',
     warning: '#B58900',
     warningLight: '#C99A00',
+    warningFg: '#FFFFFF',
     error: '#DC322F',
     errorLight: '#E85050',
+    errorFg: '#FFFFFF',
   },
 };
 
@@ -198,12 +222,15 @@ export const githubLight: ThemeDefinition = {
     textMuted: '#8C959F',
     accent: '#0969DA',
     accentHover: '#218BFF',
+    accentFg: '#FFFFFF',
     success: '#1F883D',
     successLight: '#2DA44E',
     warning: '#9A6700',
     warningLight: '#BF8700',
+    warningFg: '#FFFFFF',
     error: '#D1242F',
     errorLight: '#E5534B',
+    errorFg: '#FFFFFF',
   },
 };
 

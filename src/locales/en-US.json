@@ -509,6 +509,7 @@
   "settings.devToolsDesc": "Open developer tools for debugging",
   "settings.appearance": "Appearance",
   "settings.activeTheme": "Active Theme",
+  "settings.themeDesc": "Choose a color theme for the application",
   "themes.defaultDark": "Default Dark",
   "themes.monokai": "Monokai",
   "themes.dracula": "Dracula",

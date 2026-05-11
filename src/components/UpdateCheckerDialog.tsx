@@ -129,7 +129,7 @@ const ChannelCard: FC<ChannelCardProps> = ({
     blue: {
       bg: 'bg-[var(--color-accent)]/5',
       border: 'border-[var(--color-accent)]/20',
-      btn: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent)] text-white',
+      btn: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-[var(--color-accent-fg)]',
       text: 'text-[var(--color-accent)]',
     },
     emerald: {

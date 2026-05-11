@@ -9,11 +9,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-[var(--color-accent)] text-white shadow-sm hover:bg-[var(--color-accent-hover)] active:scale-[0.98]",
+          "bg-[var(--color-accent)] text-[var(--color-accent-fg)] shadow-sm hover:bg-[var(--color-accent-hover)] active:scale-[0.98]",
         destructive:
-          "bg-[var(--color-error)] text-white shadow-sm hover:bg-[var(--color-error-light)] active:scale-[0.98]",
+          "bg-[var(--color-error)] text-[var(--color-error-fg)] shadow-sm hover:bg-[var(--color-error-light)] active:scale-[0.98]",
         warning:
-          "bg-[var(--color-warning)] text-white shadow-sm hover:bg-[var(--color-warning-light)] active:scale-[0.98]",
+          "bg-[var(--color-warning)] text-[var(--color-warning-fg)] shadow-sm hover:bg-[var(--color-warning-light)] active:scale-[0.98]",
         outline:
           "border border-[var(--color-border)] bg-transparent text-[var(--color-text-primary)] shadow-sm hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-text-primary)]",
         secondary:

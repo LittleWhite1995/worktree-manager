@@ -410,7 +410,7 @@ const AppearanceSettingsSection: FC = () => {
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-1">{t('settings.activeTheme')}</h3>
-        <p className="text-xs text-[var(--color-text-muted)] mb-4">Choose a color theme for the application</p>
+        <p className="text-xs text-[var(--color-text-muted)] mb-4">{t('settings.themeDesc')}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-2">

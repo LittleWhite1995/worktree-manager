@@ -500,6 +500,7 @@
   "settings.devToolsDesc": "打开开发者工具进行调试",
   "settings.appearance": "外观",
   "settings.activeTheme": "当前主题",
+  "settings.themeDesc": "选择应用的主题配色",
   "themes.defaultDark": "默认深色",
   "themes.monokai": "Monokai",
   "themes.dracula": "Dracula",

@@ -259,8 +259,8 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
             className={`absolute z-[60] rounded-full flex items-center justify-center
                        shadow-lg transition-all duration-200 cursor-pointer
                        ${showSplitMenu
-                         ? 'bg-[var(--color-accent)] text-white rotate-45'
-                         : 'bg-[var(--color-accent)] text-[var(--color-text-primary)] hover:bg-[var(--color-accent)] hover:text-white'
+                         ? 'bg-[var(--color-accent)] text-[var(--color-accent-fg)] rotate-45'
+                         : 'bg-[var(--color-accent)] text-[var(--color-text-primary)] hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-fg)]'
                        }`}
             title={t('grid.splitView')}
           >
