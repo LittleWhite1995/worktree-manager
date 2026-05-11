@@ -11,6 +11,7 @@ import {
 
 import type { WorktreeListItem, WorkspaceRef } from '../../types';
 import {
+  FolderIcon,
   SettingsIcon,
   SidebarExpandIcon,
   WorkspaceIcon,
@@ -86,7 +87,7 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
                 onClick={() => onSelectWorktree(null)}
                 className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5 ${!selectedWorktree ? 'bg-[var(--color-bg-elevated)]' : 'hover:bg-[var(--color-bg-elevated)]'}`}
               >
-                <GitBranch className="w-4 h-4 text-[var(--color-text-secondary)]" />
+                <FolderIcon className="w-4 h-4 text-[var(--color-text-secondary)]" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">{t('sidebar.main')}</TooltipContent>
