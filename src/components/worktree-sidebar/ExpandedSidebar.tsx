@@ -734,7 +734,7 @@ const WorktreeList: FC<{
               return (
                 <SortableWorktreeItem key={worktree.name} id={worktree.name}>
                   <div
-                    className={`px-3 py-2.5 transition-all duration-150 border-l-2 ${isDeployed
+                    className={`pl-1 pr-3 py-2.5 transition-all duration-150 border-l-2 ${isDeployed
                       ? 'border-transparent opacity-50 cursor-not-allowed'
                       : isLockedByOther && isTauri
                         ? 'border-transparent opacity-50 cursor-not-allowed'
