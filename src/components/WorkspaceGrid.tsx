@@ -204,17 +204,17 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
   }, [colWidths, rowHeights]);
 
   return (
-    <div ref={containerRef} className="h-screen bg-[--color-bg-base] text-[--color-text-primary] flex flex-col relative overflow-hidden">
+    <div ref={containerRef} className="h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)] flex flex-col relative overflow-hidden">
       <div className="flex-1 min-h-0 flex flex-col">
         {grid.map((row, rowIndex) => (
           <div key={`row-wrapper-${row[0].key}`} className="min-h-0 flex flex-col" style={{ height: `${rowHeights[rowIndex] ?? 100}%` }}>
             {/* Row resize handle */}
             {rowIndex > 0 && (
               <div
-                className="shrink-0 h-1 cursor-row-resize group/row-handle flex items-center justify-center hover:bg-[--color-accent]/30 transition-colors z-10"
+                className="shrink-0 h-1 cursor-row-resize group/row-handle flex items-center justify-center hover:bg-[var(--color-accent)]/30 transition-colors z-10"
                 onMouseDown={(e) => handleResizeStart(e, 'row', 0, rowIndex - 1)}
               >
-                <div className="w-8 h-0.5 rounded-full bg-[--color-border] group-hover/row-handle:bg-[--color-accent] transition-colors" />
+                <div className="w-8 h-0.5 rounded-full bg-[var(--color-border)] group-hover/row-handle:bg-[var(--color-accent)] transition-colors" />
               </div>
             )}
             <div className="flex-1 min-h-0 flex">
@@ -225,10 +225,10 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
                     {/* Column resize handle */}
                     {colIndex > 0 && (
                       <div
-                        className="shrink-0 w-1 cursor-col-resize group/col-handle flex items-center justify-center hover:bg-[--color-accent]/30 transition-colors z-10"
+                        className="shrink-0 w-1 cursor-col-resize group/col-handle flex items-center justify-center hover:bg-[var(--color-accent)]/30 transition-colors z-10"
                         onMouseDown={(e) => handleResizeStart(e, 'col', rowIndex, colIndex - 1)}
                       >
-                        <div className="h-8 w-0.5 rounded-full bg-[--color-border] group-hover/col-handle:bg-[--color-accent] transition-colors" />
+                        <div className="h-8 w-0.5 rounded-full bg-[var(--color-border)] group-hover/col-handle:bg-[var(--color-accent)] transition-colors" />
                       </div>
                     )}
                     <CellContext.Provider
@@ -259,8 +259,8 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
             className={`absolute z-[60] rounded-full flex items-center justify-center
                        shadow-lg transition-all duration-200 cursor-pointer
                        ${showSplitMenu
-                         ? 'bg-[--color-accent] text-white rotate-45'
-                         : 'bg-[--color-accent] text-[--color-text-primary] hover:bg-[--color-accent] hover:text-white'
+                         ? 'bg-[var(--color-accent)] text-white rotate-45'
+                         : 'bg-[var(--color-accent)] text-[var(--color-text-primary)] hover:bg-[var(--color-accent)] hover:text-white'
                        }`}
             title={t('grid.splitView')}
           >
@@ -276,14 +276,14 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
                   key={`add-col-${row[0].key}`}
                   onClick={() => { addCellToRow(rowIndex); setShowSplitMenu(false); }}
                   className="absolute right-0 z-50 w-8 flex items-center justify-center
-                             cursor-pointer bg-[--color-accent]/10 border-l-2 border-[--color-accent]/40
-                             hover:bg-[--color-accent]/20 transition-colors animate-in fade-in duration-150"
+                             cursor-pointer bg-[var(--color-accent)]/10 border-l-2 border-[var(--color-accent)]/40
+                             hover:bg-[var(--color-accent)]/20 transition-colors animate-in fade-in duration-150"
                   style={{
                     top: `${rowHeights.slice(0, rowIndex).reduce((a, b) => a + b, 0)}%`,
                     height: `${rowHeights[rowIndex]}%`,
                   }}
                 >
-                  <div className="text-[--color-accent]">
+                  <div className="text-[var(--color-accent)]">
                     <PlusIcon className="w-3.5 h-3.5" />
                   </div>
                 </div>
@@ -293,10 +293,10 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
                 <div
                   onClick={() => { addRow(); setShowSplitMenu(false); }}
                   className="absolute bottom-0 left-0 right-0 z-50 h-8 flex items-center justify-center
-                             cursor-pointer bg-[--color-accent]/10 border-t-2 border-[--color-accent]/40
-                             hover:bg-[--color-accent]/20 transition-colors animate-in fade-in duration-150"
+                             cursor-pointer bg-[var(--color-accent)]/10 border-t-2 border-[var(--color-accent)]/40
+                             hover:bg-[var(--color-accent)]/20 transition-colors animate-in fade-in duration-150"
                 >
-                  <div className="flex items-center gap-1 text-[--color-accent]">
+                  <div className="flex items-center gap-1 text-[var(--color-accent)]">
                     <PlusIcon className="w-3.5 h-3.5" />
                   </div>
                 </div>

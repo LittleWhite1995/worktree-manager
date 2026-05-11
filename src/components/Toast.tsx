@@ -34,28 +34,28 @@ const TYPE_DURATION: Record<ToastType, number> = {
 
 const typeConfig: Record<ToastType, { bg: string; icon: FC<{ className?: string }>; barColor: string; iconColor: string }> = {
   success: {
-    bg: 'bg-[--color-bg-surface] border-[--color-border]',
+    bg: 'bg-[var(--color-bg-surface)] border-[var(--color-border)]',
     icon: CheckCircle,
-    barColor: 'bg-[--color-success]',
-    iconColor: 'text-[--color-success]',
+    barColor: 'bg-[var(--color-success)]',
+    iconColor: 'text-[var(--color-success)]',
   },
   error: {
-    bg: 'bg-[--color-bg-surface] border-[--color-border]',
+    bg: 'bg-[var(--color-bg-surface)] border-[var(--color-border)]',
     icon: XCircle,
-    barColor: 'bg-[--color-error]',
-    iconColor: 'text-[--color-error]',
+    barColor: 'bg-[var(--color-error)]',
+    iconColor: 'text-[var(--color-error)]',
   },
   info: {
-    bg: 'bg-[--color-bg-surface] border-[--color-border]',
+    bg: 'bg-[var(--color-bg-surface)] border-[var(--color-border)]',
     icon: Info,
-    barColor: 'bg-[--color-accent]',
-    iconColor: 'text-[--color-accent]',
+    barColor: 'bg-[var(--color-accent)]',
+    iconColor: 'text-[var(--color-accent)]',
   },
   warning: {
-    bg: 'bg-[--color-bg-surface] border-[--color-border]',
+    bg: 'bg-[var(--color-bg-surface)] border-[var(--color-border)]',
     icon: AlertTriangle,
-    barColor: 'bg-[--color-warning]',
-    iconColor: 'text-[--color-warning]',
+    barColor: 'bg-[var(--color-warning)]',
+    iconColor: 'text-[var(--color-warning)]',
   },
 };
 
@@ -107,10 +107,10 @@ export const ToastProvider: FC<{ children: ReactNode }> = ({ children }) => {
               <div className={`w-0.5 shrink-0 ${config.barColor}`} />
               <div className="flex items-start gap-2.5 p-3 flex-1">
                 <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${config.iconColor}`} />
-                <p className="text-sm text-[--color-text-primary] flex-1 break-words">{t.message}</p>
+                <p className="text-sm text-[var(--color-text-primary)] flex-1 break-words">{t.message}</p>
                 <button
                   onClick={() => dismiss(t.id)}
-                  className="shrink-0 text-[--color-text-muted] hover:text-[--color-text-primary] transition-colors"
+                  className="shrink-0 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>

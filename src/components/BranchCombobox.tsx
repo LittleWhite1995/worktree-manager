@@ -106,7 +106,7 @@ export const BranchCombobox: FC<BranchComboboxProps> = ({
             </PopoverTrigger>
             <PopoverContent className="w-[280px] p-0" align="end">
               <div className="flex flex-col max-h-[300px]">
-                <div className="p-2 border-b border-[--color-border]">
+                <div className="p-2 border-b border-[var(--color-border)]">
                   <div className="flex items-center gap-2">
                     <Input
                       type="text"
@@ -129,11 +129,11 @@ export const BranchCombobox: FC<BranchComboboxProps> = ({
                 </div>
                 <div className="overflow-y-auto">
                   {loading ? (
-                    <div className="p-4 text-center text-sm text-[--color-text-secondary]">
+                    <div className="p-4 text-center text-sm text-[var(--color-text-secondary)]">
                       {t('common.loading')}
                     </div>
                   ) : filteredBranches.length === 0 ? (
-                    <div className="p-4 text-center text-sm text-[--color-text-secondary]">
+                    <div className="p-4 text-center text-sm text-[var(--color-text-secondary)]">
                       {searchQuery ? t('branchCombobox.noMatch') : t('branchCombobox.noBranches')}
                     </div>
                   ) : (
@@ -142,8 +142,8 @@ export const BranchCombobox: FC<BranchComboboxProps> = ({
                         <button
                           key={branch}
                           onClick={() => handleSelect(branch)}
-                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[--color-bg-elevated]/50 transition-colors ${
-                            branch === value ? 'bg-[--color-bg-elevated]/30 text-[--color-accent]' : 'text-[--color-text-secondary]'
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-elevated)]/50 transition-colors ${
+                            branch === value ? 'bg-[var(--color-bg-elevated)]/30 text-[var(--color-accent)]' : 'text-[var(--color-text-secondary)]'
                           }`}
                         >
                           {branch}

@@ -4,24 +4,24 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-accent]/40 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/40 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-[--color-accent] text-white shadow-sm hover:bg-[--color-accent-hover] active:scale-[0.98]",
+          "bg-[var(--color-accent)] text-white shadow-sm hover:bg-[var(--color-accent-hover)] active:scale-[0.98]",
         destructive:
-          "bg-[--color-error] text-white shadow-sm hover:bg-[--color-error-light] active:scale-[0.98]",
+          "bg-[var(--color-error)] text-white shadow-sm hover:bg-[var(--color-error-light)] active:scale-[0.98]",
         warning:
-          "bg-[--color-warning] text-white shadow-sm hover:bg-[--color-warning-light] active:scale-[0.98]",
+          "bg-[var(--color-warning)] text-white shadow-sm hover:bg-[var(--color-warning-light)] active:scale-[0.98]",
         outline:
-          "border border-[--color-border] bg-transparent text-[--color-text-primary] shadow-sm hover:bg-[--color-bg-elevated] hover:text-[--color-text-primary]",
+          "border border-[var(--color-border)] bg-transparent text-[var(--color-text-primary)] shadow-sm hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-text-primary)]",
         secondary:
-          "bg-[--color-bg-surface] text-[--color-text-primary] shadow-sm hover:bg-[--color-bg-elevated] border border-[--color-border]",
+          "bg-[var(--color-bg-surface)] text-[var(--color-text-primary)] shadow-sm hover:bg-[var(--color-bg-elevated)] border border-[var(--color-border)]",
         ghost:
-          "text-[--color-text-primary] hover:bg-[--color-bg-surface]",
+          "text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface)]",
         link:
-          "text-[--color-accent] underline-offset-4 hover:underline",
+          "text-[var(--color-accent)] underline-offset-4 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-2",

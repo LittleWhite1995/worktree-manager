@@ -113,7 +113,7 @@ function MobileTerminalToolbar({
   };
 
   return (
-    <div ref={toolbarRef} className="flex items-center gap-1.5 px-2 py-1.5 bg-[--color-bg-surface]/95 border-t border-[--color-border]/50 overflow-x-auto shrink-0 scrollbar-none"
+    <div ref={toolbarRef} className="flex items-center gap-1.5 px-2 py-1.5 bg-[var(--color-bg-surface)]/95 border-t border-[var(--color-border)]/50 overflow-x-auto shrink-0 scrollbar-none"
       style={{ touchAction: 'pan-x' }}
     >
       {TOOLBAR_BUTTONS.map((btn) => (
@@ -123,7 +123,7 @@ function MobileTerminalToolbar({
           className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium select-none touch-manipulation transition-colors ${
             pendingBtn === btn.label
               ? 'bg-yellow-600/90 text-yellow-100 ring-1 ring-yellow-400'
-              : 'bg-[--color-bg-elevated]/80 text-[--color-text-secondary] active:bg-[--color-border]'
+              : 'bg-[var(--color-bg-elevated)]/80 text-[var(--color-text-secondary)] active:bg-[var(--color-border)]'
           }`}
         >
           {btn.label}
@@ -135,7 +135,7 @@ function MobileTerminalToolbar({
             (document.activeElement as HTMLElement)?.blur();
             onResize();
           }}
-          className="shrink-0 px-2.5 py-1 rounded-full bg-[--color-accent]/80 text-[--color-accent] text-xs font-medium active:bg-[--color-accent] select-none touch-manipulation"
+          className="shrink-0 px-2.5 py-1 rounded-full bg-[var(--color-accent)]/80 text-[var(--color-accent)] text-xs font-medium active:bg-[var(--color-accent)] select-none touch-manipulation"
         >
           Resize
         </button>
@@ -152,7 +152,7 @@ function MobileTerminalToolbar({
         </button>
       )}
       {sentToast && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] px-4 py-2 rounded-lg bg-[--color-success]/95 text-[--color-text-primary] text-sm font-medium shadow-lg pointer-events-none animate-pulse">
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] px-4 py-2 rounded-lg bg-[var(--color-success)]/95 text-[var(--color-text-primary)] text-sm font-medium shadow-lg pointer-events-none animate-pulse">
           {sentToast} sent
         </div>
       )}
@@ -1039,25 +1039,25 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
 
         {/* Initializing overlay */}
         {(initStatus || initError) && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[--color-bg-base]/80 backdrop-blur-sm z-20">
+          <div className="absolute inset-0 flex items-center justify-center bg-[var(--color-bg-base)]/80 backdrop-blur-sm z-20">
             <div className="flex flex-col items-center gap-3">
               {initStatus ? (
                 <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-[--color-accent] animate-spin" fill="none" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-[var(--color-accent)] animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span className="text-[--color-text-secondary] text-sm font-medium">{initStatus}</span>
+                  <span className="text-[var(--color-text-secondary)] text-sm font-medium">{initStatus}</span>
                 </div>
               ) : initError ? (
                 <>
-                  <div className="flex items-center gap-2 text-[--color-error]">
+                  <div className="flex items-center gap-2 text-[var(--color-error)]">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span className="text-sm font-medium">Connection failed</span>
                   </div>
-                  <p className="text-[--color-text-secondary] text-xs max-w-xs text-center">{initError}</p>
+                  <p className="text-[var(--color-text-secondary)] text-xs max-w-xs text-center">{initError}</p>
                   <button
                     onClick={() => {
                       initializedRef.current = false;
@@ -1076,7 +1076,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         {/* WS connection status overlay (browser mode only) */}
         {!isTauri() && !wsConnected && (
           <div className="absolute inset-0 flex items-end justify-center pointer-events-none z-10 pb-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-900/80 backdrop-blur-sm border border-amber-700/50 text-[--color-warning] text-xs font-medium shadow-lg pointer-events-auto">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-900/80 backdrop-blur-sm border border-amber-700/50 text-[var(--color-warning)] text-xs font-medium shadow-lg pointer-events-auto">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
               Reconnecting...
             </div>
@@ -1091,38 +1091,38 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               onClick={handleCloseContextMenu}
             />
             <div
-              className="fixed z-50 bg-[--color-bg-surface] border border-[--color-border] rounded-lg shadow-lg py-1 min-w-[140px]"
+              className="fixed z-50 bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 min-w-[140px]"
               style={{ left: contextMenu.x, top: contextMenu.y }}
             >
               <button
-                className="w-full px-3 py-1 text-left text-sm text-[--color-text-secondary] hover:bg-[--color-bg-elevated] transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
                 onClick={handleCopy}
               >
                 Copy
               </button>
               <button
-                className="w-full px-3 py-1 text-left text-sm text-[--color-text-secondary] hover:bg-[--color-bg-elevated] transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
                 onClick={handlePaste}
               >
                 Paste
               </button>
-              <div className="border-t border-[--color-border] my-0.5" />
+              <div className="border-t border-[var(--color-border)] my-0.5" />
               <button
-                className="w-full px-3 py-1 text-left text-sm text-[--color-text-secondary] hover:bg-[--color-bg-elevated] transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
                 onClick={handleResizeToFit}
               >
                 Resize to Fit
               </button>
-              <div className="border-t border-[--color-border] my-0.5" />
+              <div className="border-t border-[var(--color-border)] my-0.5" />
               <button
-                className="w-full px-3 py-1 text-left text-sm text-[--color-text-secondary] hover:bg-[--color-bg-elevated] transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
                 onClick={handleClear}
               >
                 Clear
               </button>
-              <div className="border-t border-[--color-border] my-0.5" />
+              <div className="border-t border-[var(--color-border)] my-0.5" />
               <button
-                className="w-full px-3 py-1 text-left text-sm text-[--color-warning] hover:bg-[--color-bg-elevated] transition-colors"
+                className="w-full px-3 py-1 text-left text-sm text-[var(--color-warning)] hover:bg-[var(--color-bg-elevated)] transition-colors"
                 onClick={handleShowDebugInfo}
               >
                 Debug Info
@@ -1138,19 +1138,19 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               className="fixed inset-0 z-50"
               onClick={handleCloseDebugInfo}
             />
-            <div className="absolute z-[60] top-2 left-2 w-[80vw] max-w-[80vw] max-h-[80vh] bg-[--color-bg-base]/95 border border-amber-600/50 rounded-lg shadow-xl select-text flex flex-col">
-              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[--color-border]/80">
-                <span className="text-xs font-bold text-[--color-warning] uppercase tracking-wider">Terminal Debug Info</span>
+            <div className="absolute z-[60] top-2 left-2 w-[80vw] max-w-[80vw] max-h-[80vh] bg-[var(--color-bg-base)]/95 border border-amber-600/50 rounded-lg shadow-xl select-text flex flex-col">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--color-border)]/80">
+                <span className="text-xs font-bold text-[var(--color-warning)] uppercase tracking-wider">Terminal Debug Info</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleCopyDebugInfo}
-                    className="text-[--color-text-secondary] hover:text-white text-xs px-2 py-1 rounded border border-[--color-border] hover:bg-[--color-bg-surface] transition-colors"
+                    className="text-[var(--color-text-secondary)] hover:text-white text-xs px-2 py-1 rounded border border-[var(--color-border)] hover:bg-[var(--color-bg-surface)] transition-colors"
                   >
                     {debugInfoCopied ? 'Copied' : 'Copy'}
                   </button>
                   <button
                     onClick={handleCloseDebugInfo}
-                    className="text-[--color-text-secondary] hover:text-white text-xs px-1.5 py-1 rounded hover:bg-[--color-bg-elevated] transition-colors"
+                    className="text-[var(--color-text-secondary)] hover:text-white text-xs px-1.5 py-1 rounded hover:bg-[var(--color-bg-elevated)] transition-colors"
                   >
                     Close
                   </button>
@@ -1167,8 +1167,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
                         key={key}
                         className={`text-xs ${DEBUG_INFO_WIDE_KEYS.has(key) ? 'col-span-full' : ''}`}
                       >
-                        <span className="text-[--color-text-secondary] font-medium">{key}:</span>
-                        <span className="text-[--color-text-primary] ml-1 break-all font-mono">{value}</span>
+                        <span className="text-[var(--color-text-secondary)] font-medium">{key}:</span>
+                        <span className="text-[var(--color-text-primary)] ml-1 break-all font-mono">{value}</span>
                       </div>
                     ))}
                   </div>

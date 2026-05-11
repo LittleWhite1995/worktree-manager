@@ -457,18 +457,18 @@ export const GitOperations: FC<GitOperationsProps> = ({
       {error && (
         <div
           className={`p-2 rounded text-xs transition-opacity duration-200 ${errorPersistent
-            ? 'bg-[--color-error]/10 border border-[--color-error]/30'
-            : 'bg-[--color-error]/10 border border-[--color-error]/20 cursor-pointer'
+            ? 'bg-[var(--color-error)]/10 border border-[var(--color-error)]/30'
+            : 'bg-[var(--color-error)]/10 border border-[var(--color-error)]/20 cursor-pointer'
             } ${dismissing === 'error' ? 'opacity-0' : 'opacity-100'}`}
           onClick={errorPersistent ? undefined : dismissError}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[--color-error] flex-1 whitespace-pre-wrap break-all">{error}</span>
+            <span className="text-[var(--color-error)] flex-1 whitespace-pre-wrap break-all">{error}</span>
             <button
               onClick={(e) => { e.stopPropagation(); dismissError(); }}
-              className="shrink-0 p-0.5 rounded hover:bg-[--color-error]/30 transition-colors"
+              className="shrink-0 p-0.5 rounded hover:bg-[var(--color-error)]/30 transition-colors"
             >
-              <CloseIcon className="w-3 h-3 text-[--color-error]" />
+              <CloseIcon className="w-3 h-3 text-[var(--color-error)]" />
             </button>
           </div>
           {errorPersistent && onOpenTerminal && (
@@ -477,7 +477,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
                 e.stopPropagation();
                 onOpenTerminal(projectPath);
               }}
-              className="mt-1.5 flex items-center gap-1.5 text-[--color-error] hover:text-[--color-error] transition-colors text-xs bg-[--color-error]/20 hover:bg-[--color-error]/30 rounded px-2 py-1"
+              className="mt-1.5 flex items-center gap-1.5 text-[var(--color-error)] hover:text-[var(--color-error)] transition-colors text-xs bg-[var(--color-error)]/20 hover:bg-[var(--color-error)]/30 rounded px-2 py-1"
             >
               <TerminalIcon className="w-3 h-3" />
               <span>{t('git.openTerminalToResolve')}</span>
@@ -491,12 +491,12 @@ export const GitOperations: FC<GitOperationsProps> = ({
           onClick={() => { clearTimeout(successTimerRef.current); setSuccess(null); setDismissing(null); }}
         >
           <span>{success}</span>
-          <CloseIcon className="w-3 h-3 shrink-0 text-[--color-success]" />
+          <CloseIcon className="w-3 h-3 shrink-0 text-[var(--color-success)]" />
         </div>
       )}
 
       <div className="flex items-center justify-between">
-        <div className="text-xs text-[--color-text-secondary]">
+        <div className="text-xs text-[var(--color-text-secondary)]">
           {loading ? (
             <span className="flex items-center gap-1">
               <RefreshIcon className="w-3 h-3 animate-spin" />
@@ -595,8 +595,8 @@ export const GitOperations: FC<GitOperationsProps> = ({
       </div>
 
       {fetchingSyncing && (
-        <div className="flex items-center gap-2 text-xs text-[--color-accent]/80">
-          <div className="flex-1 h-1 bg-[--color-bg-elevated] rounded-full overflow-hidden">
+        <div className="flex items-center gap-2 text-xs text-[var(--color-accent)]/80">
+          <div className="flex-1 h-1 bg-[var(--color-bg-elevated)] rounded-full overflow-hidden">
             <div className="h-full rounded-full animate-progress-indeterminate animate-gradient" />
           </div>
           <span className="whitespace-nowrap">{t('git.syncRemote')}</span>
@@ -604,8 +604,8 @@ export const GitOperations: FC<GitOperationsProps> = ({
       )}
 
       {(testBranchExists === false || baseBranchExists === false) && (
-        <div className="text-xs text-[--color-warning]/80 flex items-center gap-1">
-          <WarningIcon className="w-3.5 h-3.5 text-[--color-warning]" />
+        <div className="text-xs text-[var(--color-warning)]/80 flex items-center gap-1">
+          <WarningIcon className="w-3.5 h-3.5 text-[var(--color-warning)]" />
           <span>
             {testBranchExists === false && t('git.remoteBranchNotExists', { branch: testBranch })}
             {testBranchExists === false && baseBranchExists === false && ', '}
@@ -648,15 +648,15 @@ export const GitOperations: FC<GitOperationsProps> = ({
           </DialogHeader>
           <div className="space-y-3">
             {/* Content area with prefix block + textarea */}
-            <div className="bg-[--color-bg-surface] border border-[--color-border] rounded-lg overflow-hidden focus-within:border-[--color-accent]">
+            <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden focus-within:border-[var(--color-accent)]">
               {/* Prefix block */}
               {prefixConfig.enabled && prefix && (
                 <div
                   onClick={handlePrefixToContent}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[--color-accent]/10 border-b border-[--color-border]/50 text-xs text-blue-300 cursor-pointer hover:bg-[--color-accent]/15 transition-colors select-none"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-accent)]/10 border-b border-[var(--color-border)]/50 text-xs text-blue-300 cursor-pointer hover:bg-[var(--color-accent)]/15 transition-colors select-none"
                   title={t('git.clickPrefixToEdit', '点击将前缀转换为可编辑内容')}
                 >
-                  <Pencil className="w-3 h-3 text-[--color-accent]/70 shrink-0" />
+                  <Pencil className="w-3 h-3 text-[var(--color-accent)]/70 shrink-0" />
                   <span className="font-mono truncate">{prefix}</span>
                 </div>
               )}
@@ -668,16 +668,16 @@ export const GitOperations: FC<GitOperationsProps> = ({
                 }}
                 placeholder={generatingMessage ? t('git.generating') : t('git.commitMessagePlaceholder', '输入 commit 内容...')}
                 disabled={generatingMessage}
-                className="w-full bg-transparent p-3 text-sm text-[--color-text-primary] placeholder-[--color-text-muted] resize-none focus:outline-none"
+                className="w-full bg-transparent p-3 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] resize-none focus:outline-none"
                 rows={4}
               />
             </div>
 
             {/* Preview of full message */}
             {(prefix || content) && (
-              <div className="text-xs text-[--color-text-muted] bg-[--color-bg-base]/50 rounded px-2 py-1.5 border border-[--color-border]/30">
-                <span className="text-[--color-text-secondary]">{t('git.preview', '预览')}:</span>{' '}
-                <span className="text-[--color-text-secondary] font-mono">{(prefix + content) || t('git.emptyMessage', '(空)')}</span>
+              <div className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-base)]/50 rounded px-2 py-1.5 border border-[var(--color-border)]/30">
+                <span className="text-[var(--color-text-secondary)]">{t('git.preview', '预览')}:</span>{' '}
+                <span className="text-[var(--color-text-secondary)] font-mono">{(prefix + content) || t('git.emptyMessage', '(空)')}</span>
               </div>
             )}
 
@@ -716,7 +716,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
                           <span className="flex items-center w-full gap-2"
                           >
                             <div
-                              className="p-0.5 rounded hover:bg-[--color-bg-elevated]/50 cursor-pointer"
+                              className="p-0.5 rounded hover:bg-[var(--color-bg-elevated)]/50 cursor-pointer"
                               onPointerDown={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
@@ -732,7 +732,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
                               }}
                             >
                               <Star
-                                className={`w-3 h-3 pointer-events-none ${isDefault ? 'fill-amber-400 text-[--color-warning]' : 'text-[--color-text-muted]'}`}
+                                className={`w-3 h-3 pointer-events-none ${isDefault ? 'fill-amber-400 text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'}`}
                               />
                             </div>
                             <span className="truncate">{label}</span>
@@ -745,7 +745,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
                       <span className="flex items-center w-full gap-2"
                       >
                         <div
-                          className="p-0.5 rounded hover:bg-[--color-bg-elevated]/50 cursor-pointer"
+                          className="p-0.5 rounded hover:bg-[var(--color-bg-elevated)]/50 cursor-pointer"
                           onPointerDown={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
@@ -762,7 +762,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
                           }}
                         >
                           <Star
-                            className={`w-3 h-3 pointer-events-none ${prefixConfig.default_index === prefixConfig.templates.length ? 'fill-amber-400 text-[--color-warning]' : 'text-[--color-text-muted]'}`}
+                            className={`w-3 h-3 pointer-events-none ${prefixConfig.default_index === prefixConfig.templates.length ? 'fill-amber-400 text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'}`}
                           />
                         </div>
                         <span>{t('git.noPrefix', '无')}</span>

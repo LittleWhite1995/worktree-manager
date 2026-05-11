@@ -38,8 +38,8 @@ const SimpleMarkdown: FC<{ content: string }> = ({ content }) => {
       elements.push(
         <ul key={key++} className="space-y-1 mb-2">
           {listItems.map((item, i) => (
-            <li key={i} className="text-xs text-[--color-text-secondary] flex items-start gap-1.5">
-              <span className="text-[--color-accent] mt-0.5 shrink-0">•</span>
+            <li key={i} className="text-xs text-[var(--color-text-secondary)] flex items-start gap-1.5">
+              <span className="text-[var(--color-accent)] mt-0.5 shrink-0">•</span>
               <span>{renderInline(item)}</span>
             </li>
           ))}
@@ -61,11 +61,11 @@ const SimpleMarkdown: FC<{ content: string }> = ({ content }) => {
       if (boldIdx === Infinity && codeIdx === Infinity) { parts.push(remaining); break; }
       if (boldIdx <= codeIdx && boldMatch) {
         parts.push(remaining.slice(0, boldIdx));
-        parts.push(<strong key={partKey++} className="text-[--color-text-primary] font-medium">{boldMatch[1]}</strong>);
+        parts.push(<strong key={partKey++} className="text-[var(--color-text-primary)] font-medium">{boldMatch[1]}</strong>);
         remaining = remaining.slice(boldIdx + boldMatch[0].length);
       } else if (codeMatch) {
         parts.push(remaining.slice(0, codeIdx));
-        parts.push(<code key={partKey++} className="px-1 py-0.5 bg-[--color-bg-elevated] rounded text-[10px] text-[--color-accent]">{codeMatch[1]}</code>);
+        parts.push(<code key={partKey++} className="px-1 py-0.5 bg-[var(--color-bg-elevated)] rounded text-[10px] text-[var(--color-accent)]">{codeMatch[1]}</code>);
         remaining = remaining.slice(codeIdx + codeMatch[0].length);
       }
     }
@@ -79,7 +79,7 @@ const SimpleMarkdown: FC<{ content: string }> = ({ content }) => {
     if (headingMatch) {
       flushList();
       elements.push(
-        <h4 key={key++} className="text-xs font-semibold text-[--color-text-primary] mb-1 mt-2 first:mt-0">
+        <h4 key={key++} className="text-xs font-semibold text-[var(--color-text-primary)] mb-1 mt-2 first:mt-0">
           {renderInline(headingMatch[2])}
         </h4>
       );
@@ -89,7 +89,7 @@ const SimpleMarkdown: FC<{ content: string }> = ({ content }) => {
     if (listMatch) { listItems.push(listMatch[1]); continue; }
     flushList();
     elements.push(
-      <p key={key++} className="text-xs text-[--color-text-secondary] mb-1">
+      <p key={key++} className="text-xs text-[var(--color-text-secondary)] mb-1">
         {renderInline(trimmed)}
       </p>
     );
@@ -127,16 +127,16 @@ const ChannelCard: FC<ChannelCardProps> = ({
 
   const accentClasses: Record<string, { bg: string; border: string; btn: string; text: string }> = {
     blue: {
-      bg: 'bg-[--color-accent]/5',
-      border: 'border-[--color-accent]/20',
-      btn: 'bg-[--color-accent] hover:bg-[--color-accent] text-white',
-      text: 'text-[--color-accent]',
+      bg: 'bg-[var(--color-accent)]/5',
+      border: 'border-[var(--color-accent)]/20',
+      btn: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent)] text-white',
+      text: 'text-[var(--color-accent)]',
     },
     emerald: {
       bg: 'bg-emerald-500/5',
       border: 'border-emerald-500/20',
       btn: 'bg-emerald-600 hover:bg-emerald-500 text-white',
-      text: 'text-[--color-success]',
+      text: 'text-[var(--color-success)]',
     },
   };
   const accent = accentClasses[accentColor] ?? accentClasses.blue;
@@ -149,8 +149,8 @@ const ChannelCard: FC<ChannelCardProps> = ({
           {icon}
         </div>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-[--color-text-primary] truncate">{title}</h3>
-          <p className="text-[11px] text-[--color-text-muted] truncate">{subtitle}</p>
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{title}</h3>
+          <p className="text-[11px] text-[var(--color-text-muted)] truncate">{subtitle}</p>
         </div>
       </div>
 
@@ -159,24 +159,24 @@ const ChannelCard: FC<ChannelCardProps> = ({
         {status === 'idle' || status === 'checking' ? (
           <div className="flex flex-col items-center gap-2">
             <Loader2 className={`w-7 h-7 ${accent.text} animate-spin`} />
-            <span className="text-xs text-[--color-text-secondary]">{t('updater.checking')}</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">{t('updater.checking')}</span>
           </div>
         ) : status === 'available' ? (
           <div className="flex flex-col items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-[--color-accent]/10 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-[var(--color-accent)]/10 flex items-center justify-center">
               <Rocket className={`w-5 h-5 ${accent.text}`} />
             </div>
-            <span className="text-sm font-medium text-[--color-text-primary]">
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">
               v{version}
             </span>
-            <span className="text-[11px] text-[--color-text-muted]">{t('updater.newVersionAvailable')}</span>
+            <span className="text-[11px] text-[var(--color-text-muted)]">{t('updater.newVersionAvailable')}</span>
           </div>
         ) : status === 'up-to-date' ? (
           <div className="flex flex-col items-center gap-2">
             <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-[--color-success]" />
+              <CheckCircle className="w-5 h-5 text-[var(--color-success)]" />
             </div>
-            <span className="text-xs text-[--color-text-secondary]">{t('updater.upToDate')}</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">{t('updater.upToDate')}</span>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
@@ -249,11 +249,11 @@ const MirrorListPanel: FC<MirrorListPanelProps> = ({
     <div className="mt-2">
       <button
         type="button"
-        className="w-full flex items-center justify-between text-[11px] text-[--color-text-secondary] hover:text-[--color-text-secondary] transition-colors py-1"
+        className="w-full flex items-center justify-between text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-secondary)] transition-colors py-1"
         onClick={() => setExpanded(!expanded)}
       >
         <span className="flex items-center gap-1.5">
-          <Zap className="w-3 h-3 text-[--color-success]" />
+          <Zap className="w-3 h-3 text-[var(--color-success)]" />
           {speedTesting
             ? t('updater.speedTesting')
             : selectedMirror
@@ -267,7 +267,7 @@ const MirrorListPanel: FC<MirrorListPanelProps> = ({
       </button>
 
       {expanded && (
-        <div className="mt-1 rounded-lg bg-[--color-bg-surface] border border-[--color-border]/50 p-2 space-y-1">
+        <div className="mt-1 rounded-lg bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 p-2 space-y-1">
           {results.map((r) => (
             <div
               key={r.name}
@@ -276,28 +276,28 @@ const MirrorListPanel: FC<MirrorListPanelProps> = ({
               className={`flex items-center justify-between text-[11px] px-2 py-1 rounded ${
                 selectedMirror?.url === r.url
                   ? 'bg-emerald-500/10 border border-emerald-500/20'
-                  : r.available ? 'hover:bg-[--color-bg-elevated]/50 cursor-pointer' : 'opacity-60'
+                  : r.available ? 'hover:bg-[var(--color-bg-elevated)]/50 cursor-pointer' : 'opacity-60'
               }`}
               onClick={() => r.available && onSelectMirror({ name: r.name, url: r.url, builtin: true })}
             >
               <span className="flex items-center gap-2 min-w-0">
-                <span className={`w-1.5 h-1.5 rounded-full ${r.available ? 'bg-[--color-success]' : 'bg-[--color-error]'}`} />
-                <span className="text-[--color-text-secondary] truncate">{r.name}</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${r.available ? 'bg-[var(--color-success)]' : 'bg-[var(--color-error)]'}`} />
+                <span className="text-[var(--color-text-secondary)] truncate">{r.name}</span>
               </span>
               <span className="flex items-center gap-2 shrink-0">
                 {r.available ? (
                   <>
                     {r.speed_mbps > 0 ? (
-                      <span className="text-[--color-success]">{r.speed_mbps} MB/s</span>
+                      <span className="text-[var(--color-success)]">{r.speed_mbps} MB/s</span>
                     ) : (
-                      <span className="text-[--color-text-muted]">{r.ping_ms}ms</span>
+                      <span className="text-[var(--color-text-muted)]">{r.ping_ms}ms</span>
                     )}
                     {testingMirrors.has(r.url) ? (
-                      <Loader2 className="w-3 h-3 text-[--color-success] animate-spin" />
+                      <Loader2 className="w-3 h-3 text-[var(--color-success)] animate-spin" />
                     ) : (
                       <button
                         type="button"
-                        className="text-[--color-text-muted] hover:text-[--color-success] transition-colors"
+                        className="text-[var(--color-text-muted)] hover:text-[var(--color-success)] transition-colors"
                         title={t('updater.retest')}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -316,37 +316,37 @@ const MirrorListPanel: FC<MirrorListPanelProps> = ({
                     )}
                   </>
                 ) : (
-                  <span className="text-[--color-error]">{t('updater.mirrorUnavailable')}</span>
+                  <span className="text-[var(--color-error)]">{t('updater.mirrorUnavailable')}</span>
                 )}
               </span>
             </div>
           ))}
 
           {results.length === 0 && !speedTesting && (
-            <div className="text-[11px] text-[--color-text-muted] text-center py-2">
+            <div className="text-[11px] text-[var(--color-text-muted)] text-center py-2">
               {t('updater.noMirrorAvailable')}
             </div>
           )}
 
           {speedTesting && (
             <div className="flex items-center justify-center gap-2 py-2">
-              <Loader2 className="w-3 h-3 text-[--color-success] animate-spin" />
-              <span className="text-[11px] text-[--color-text-secondary]">{t('updater.speedTesting')}</span>
+              <Loader2 className="w-3 h-3 text-[var(--color-success)] animate-spin" />
+              <span className="text-[11px] text-[var(--color-text-secondary)]">{t('updater.speedTesting')}</span>
             </div>
           )}
 
           {!speedTesting && results.length > 0 && (
             <button
               type="button"
-              className="w-full text-[11px] text-[--color-text-muted] hover:text-[--color-text-secondary] transition-colors py-1"
+              className="w-full text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors py-1"
               onClick={onTestSpeed}
             >
               {t('updater.retest')}
             </button>
           )}
 
-          <div className="pt-1 border-t border-[--color-border]/50">
-            <p className="text-[10px] text-[--color-text-muted] mb-1">{t('updater.addCustomMirror')}</p>
+          <div className="pt-1 border-t border-[var(--color-border)]/50">
+            <p className="text-[10px] text-[var(--color-text-muted)] mb-1">{t('updater.addCustomMirror')}</p>
             <div className="flex gap-1.5">
               <Input
                 className="h-6 text-[11px] flex-1 min-w-0"
@@ -430,12 +430,12 @@ export const UpdateCheckerDialog: FC<UpdateCheckerDialogProps> = ({
       <DialogContent className="max-w-[580px] p-0">
         <DialogHeader className="p-5 pb-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[--color-accent]/10 flex items-center justify-center">
-              <Rocket className="w-5 h-5 text-[--color-accent]" />
+            <div className="w-10 h-10 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center">
+              <Rocket className="w-5 h-5 text-[var(--color-accent)]" />
             </div>
             <div>
               <DialogTitle className="text-lg">{t('updater.checkForUpdates')}</DialogTitle>
-              <DialogDescription className="text-xs text-[--color-text-muted] mt-0.5">
+              <DialogDescription className="text-xs text-[var(--color-text-muted)] mt-0.5">
                 {updateInfo?.currentVersion
                   ? t('updater.currentVersion', { version: updateInfo.currentVersion })
                   : ''}
@@ -450,7 +450,7 @@ export const UpdateCheckerDialog: FC<UpdateCheckerDialogProps> = ({
             <ChannelCard
               title={t('updater.officialChannel')}
               subtitle="GitHub Releases"
-              icon={<Github className="w-4 h-4 text-[--color-accent]" />}
+              icon={<Github className="w-4 h-4 text-[var(--color-accent)]" />}
               status={officialStatus}
               version={updateInfo?.version}
               error={officialError}
@@ -461,7 +461,7 @@ export const UpdateCheckerDialog: FC<UpdateCheckerDialogProps> = ({
             <ChannelCard
               title={t('updater.mirrorChannel')}
               subtitle={selectedMirror?.name ?? 'GHProxy'}
-              icon={<Globe className="w-4 h-4 text-[--color-success]" />}
+              icon={<Globe className="w-4 h-4 text-[var(--color-success)]" />}
               status={mirrorStatus}
               version={mirrorVersion ?? updateInfo?.version}
               error={mirrorError}
@@ -487,8 +487,8 @@ export const UpdateCheckerDialog: FC<UpdateCheckerDialogProps> = ({
         {/* Release Notes (shown if any channel found update) */}
         {showNotes && (
           <div className="px-5 pb-4">
-            <div className="rounded-lg bg-[--color-bg-surface] border border-[--color-border]/50 p-3 max-h-[200px] overflow-y-auto">
-              <p className="text-[11px] font-medium text-[--color-text-secondary] mb-1.5 uppercase tracking-wider">{t('updater.releaseNotes')}</p>
+            <div className="rounded-lg bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 p-3 max-h-[200px] overflow-y-auto">
+              <p className="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1.5 uppercase tracking-wider">{t('updater.releaseNotes')}</p>
               <SimpleMarkdown content={updateInfo!.notes.join('\n')} />
             </div>
           </div>
@@ -496,7 +496,7 @@ export const UpdateCheckerDialog: FC<UpdateCheckerDialogProps> = ({
 
         {/* Footer */}
         <div className="px-5 pb-5 flex items-center justify-between">
-          <div className="text-[11px] text-[--color-text-muted]">
+          <div className="text-[11px] text-[var(--color-text-muted)]">
             {updateInfo?.date && t('updater.releaseDate', { date: updateInfo.date })}
           </div>
           <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>

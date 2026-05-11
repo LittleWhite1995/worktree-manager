@@ -85,7 +85,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
           <button
             onClick={onClose}
             className="absolute top-1 right-1 z-30 w-4 h-4 rounded-sm flex items-center justify-center
-                       text-[--color-text-muted] bg-[--color-bg-surface]/60 opacity-0 group-hover/cell:opacity-100
+                       text-[var(--color-text-muted)] bg-[var(--color-bg-surface)]/60 opacity-0 group-hover/cell:opacity-100
                        hover:!bg-red-600 hover:!text-white transition-all"
             title={t('grid.closeCell')}
           >
@@ -97,7 +97,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
 
         {/* Settings View (desktop) */}
         <div
-          className="h-full bg-[--color-bg-base] text-[--color-text-primary] p-6 overflow-y-auto"
+          className="h-full bg-[var(--color-bg-base)] text-[var(--color-text-primary)] p-6 overflow-y-auto"
           style={{ display: viewMode === 'settings' && workspace.config ? 'block' : 'none' }}
         >
           {workspace.config && (
@@ -119,7 +119,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
 
         {/* Main View (desktop) */}
         <div
-          className="h-full bg-[--color-bg-base] text-[--color-text-primary] flex overflow-hidden"
+          className="h-full bg-[var(--color-bg-base)] text-[var(--color-text-primary)] flex overflow-hidden"
           style={{ display: viewMode === 'main' ? 'flex' : 'none' }}
         >
           {!terminalFullscreen && (
@@ -172,7 +172,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
             />
           )}
 
-          <div className="flex-1 min-w-0 flex flex-col bg-[--color-bg-base]">
+          <div className="flex-1 min-w-0 flex flex-col bg-[var(--color-bg-base)]">
             {!terminalFullscreen && (
               <div className="flex-1 p-6 overflow-y-auto min-h-0">
                 <WorktreeDetail

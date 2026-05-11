@@ -129,10 +129,10 @@ export const GlobalDialogs: FC<GlobalDialogsProps> = ({
               { keys: 'Escape', desc: t('app.shortcutEscape') },
             ].map(({ keys, desc }) => (
               <div key={keys} className="flex items-center justify-between py-1.5 px-1">
-                <span className="text-sm text-[--color-text-secondary]">{desc}</span>
+                <span className="text-sm text-[var(--color-text-secondary)]">{desc}</span>
                 <div className="flex gap-1">
                   {keys.split(' ').map((k) => (
-                    <kbd key={k} className="px-2 py-0.5 bg-[--color-bg-elevated] border border-[--color-border] rounded text-xs font-mono text-[--color-text-secondary]">{k}</kbd>
+                    <kbd key={k} className="px-2 py-0.5 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded text-xs font-mono text-[var(--color-text-secondary)]">{k}</kbd>
                   ))}
                 </div>
               </div>
@@ -148,7 +148,7 @@ export const GlobalDialogs: FC<GlobalDialogsProps> = ({
             <DialogTitle>{t('app.ngrokTokenTitle')}</DialogTitle>
             <DialogDescription>
               {t('app.ngrokTokenDescPlain')}{' '}
-              <a href="https://dashboard.ngrok.com/get-started/your-authtoken" target="_blank" rel="noopener noreferrer" className="text-[--color-accent] hover:underline">{t('settings.ngrokGetToken')}</a>
+              <a href="https://dashboard.ngrok.com/get-started/your-authtoken" target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">{t('settings.ngrokGetToken')}</a>
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -164,7 +164,7 @@ export const GlobalDialogs: FC<GlobalDialogsProps> = ({
           <DialogFooter className="flex items-center justify-between sm:justify-between">
             <button
               type="button"
-              className="text-xs text-[--color-accent] hover:text-blue-300 underline transition-colors"
+              className="text-xs text-[var(--color-accent)] hover:text-blue-300 underline transition-colors"
               onClick={() => {
                 share.setShowNgrokTokenDialog(false);
                 onOpenSettings();
@@ -195,8 +195,8 @@ export const GlobalDialogs: FC<GlobalDialogsProps> = ({
             <DialogTitle>{t('share.disclaimerTitle', '分享须知')}</DialogTitle>
             <DialogDescription className="space-y-3 pt-2 text-left">
               <p>{t('share.disclaimerPolicy', '开启分享功能后，您的 Workspace 将可通过网络被其他设备访问。请确保您已了解并遵守所在公司/组织的安全政策和数据共享规定。')}</p>
-              <p className="font-medium text-[--color-text-secondary]">🔒 {t('share.disclaimerEncryption', '所有分享连接均通过加密通道传输（HTTPS/WSS），隧道服务不会存储或截取任何数据，您的代码和工作内容始终受到端到端加密保护。')}</p>
-              <p className="text-[--color-text-muted] text-xs">{t('share.disclaimerResponsibility', '使用分享功能即代表您已知悉上述信息并自行承担相关合规责任。')}</p>
+              <p className="font-medium text-[var(--color-text-secondary)]">🔒 {t('share.disclaimerEncryption', '所有分享连接均通过加密通道传输（HTTPS/WSS），隧道服务不会存储或截取任何数据，您的代码和工作内容始终受到端到端加密保护。')}</p>
+              <p className="text-[var(--color-text-muted)] text-xs">{t('share.disclaimerResponsibility', '使用分享功能即代表您已知悉上述信息并自行承担相关合规责任。')}</p>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
