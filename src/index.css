@@ -117,6 +117,63 @@
   --error-light: #C9757D;
 }
 
+/* Default Light */
+[data-theme="default-light"] {
+  --bg-base: #FFFFFF;
+  --bg-surface: #F8F9FA;
+  --bg-elevated: #F1F3F5;
+  --border: #E5E7EB;
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-muted: #9CA3AF;
+  --accent: #4F46E5;
+  --accent-hover: #6366F1;
+  --success: #059669;
+  --success-light: #10B981;
+  --warning: #D97706;
+  --warning-light: #F59E0B;
+  --error: #DC2626;
+  --error-light: #EF4444;
+}
+
+/* Solarized Light */
+[data-theme="solarized-light"] {
+  --bg-base: #FDF6E3;
+  --bg-surface: #F5EFD8;
+  --bg-elevated: #EEE8D5;
+  --border: #D8D2BC;
+  --text-primary: #073642;
+  --text-secondary: #586E75;
+  --text-muted: #93A1A1;
+  --accent: #268BD2;
+  --accent-hover: #2AA198;
+  --success: #859900;
+  --success-light: #98A820;
+  --warning: #B58900;
+  --warning-light: #C99A00;
+  --error: #DC322F;
+  --error-light: #E85050;
+}
+
+/* GitHub Light */
+[data-theme="github-light"] {
+  --bg-base: #FFFFFF;
+  --bg-surface: #F6F8FA;
+  --bg-elevated: #EAEEF2;
+  --border: #D0D7DE;
+  --text-primary: #1F2328;
+  --text-secondary: #656D76;
+  --text-muted: #8C959F;
+  --accent: #0969DA;
+  --accent-hover: #218BFF;
+  --success: #1F883D;
+  --success-light: #2DA44E;
+  --warning: #9A6700;
+  --warning-light: #BF8700;
+  --error: #D1242F;
+  --error-light: #E5534B;
+}
+
 /* Maple Mono NF CN — bundled terminal font with Nerd Font icons + CJK */
 @font-face {
   font-family: "Maple Mono NF CN";
@@ -379,12 +436,12 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(30 30 38 / 0.5);
+  background: color-mix(in srgb, var(--text-muted) 50%, transparent);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(30 30 38 / 0.8);
+  background: color-mix(in srgb, var(--text-muted) 80%, transparent);
 }
 
 /* Hide scrollbar when not hovering */
@@ -393,7 +450,7 @@ html {
 }
 
 .overflow-y-auto:hover::-webkit-scrollbar-thumb {
-  background: rgb(30 30 38 / 0.5);
+  background: color-mix(in srgb, var(--text-muted) 50%, transparent);
 }
 
 /* Horizontal scrollbar for terminal tabs */
@@ -402,11 +459,11 @@ html {
 }
 
 .overflow-x-auto::-webkit-scrollbar-thumb {
-  background: rgb(30 30 38 / 0.3);
+  background: color-mix(in srgb, var(--text-muted) 30%, transparent);
 }
 
 .overflow-x-auto:hover::-webkit-scrollbar-thumb {
-  background: rgb(30 30 38 / 0.6);
+  background: color-mix(in srgb, var(--text-muted) 60%, transparent);
 }
 
 /* Prevent image dragging */

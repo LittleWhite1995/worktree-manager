@@ -138,10 +138,82 @@ export const nord: ThemeDefinition = {
   },
 };
 
+export const defaultLight: ThemeDefinition = {
+  id: 'default-light',
+  name: 'Default Light',
+  nameKey: 'themes.defaultLight',
+  colors: {
+    bgBase: '#FFFFFF',
+    bgSurface: '#F8F9FA',
+    bgElevated: '#F1F3F5',
+    border: '#E5E7EB',
+    textPrimary: '#111827',
+    textSecondary: '#4B5563',
+    textMuted: '#9CA3AF',
+    accent: '#4F46E5',
+    accentHover: '#6366F1',
+    success: '#059669',
+    successLight: '#10B981',
+    warning: '#D97706',
+    warningLight: '#F59E0B',
+    error: '#DC2626',
+    errorLight: '#EF4444',
+  },
+};
+
+export const solarizedLight: ThemeDefinition = {
+  id: 'solarized-light',
+  name: 'Solarized Light',
+  nameKey: 'themes.solarizedLight',
+  colors: {
+    bgBase: '#FDF6E3',
+    bgSurface: '#F5EFD8',
+    bgElevated: '#EEE8D5',
+    border: '#D8D2BC',
+    textPrimary: '#073642',
+    textSecondary: '#586E75',
+    textMuted: '#93A1A1',
+    accent: '#268BD2',
+    accentHover: '#2AA198',
+    success: '#859900',
+    successLight: '#98A820',
+    warning: '#B58900',
+    warningLight: '#C99A00',
+    error: '#DC322F',
+    errorLight: '#E85050',
+  },
+};
+
+export const githubLight: ThemeDefinition = {
+  id: 'github-light',
+  name: 'GitHub Light',
+  nameKey: 'themes.githubLight',
+  colors: {
+    bgBase: '#FFFFFF',
+    bgSurface: '#F6F8FA',
+    bgElevated: '#EAEEF2',
+    border: '#D0D7DE',
+    textPrimary: '#1F2328',
+    textSecondary: '#656D76',
+    textMuted: '#8C959F',
+    accent: '#0969DA',
+    accentHover: '#218BFF',
+    success: '#1F883D',
+    successLight: '#2DA44E',
+    warning: '#9A6700',
+    warningLight: '#BF8700',
+    error: '#D1242F',
+    errorLight: '#E5534B',
+  },
+};
+
 export const ALL_THEMES: ThemeDefinition[] = [
   defaultDark,
   monokai,
   dracula,
   solarizedDark,
   nord,
+  defaultLight,
+  solarizedLight,
+  githubLight,
 ];

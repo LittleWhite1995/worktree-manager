@@ -397,6 +397,9 @@ const THEME_I18N_KEY: Record<string, string> = {
   'dracula': 'themes.dracula',
   'solarized-dark': 'themes.solarizedDark',
   'nord': 'themes.nord',
+  'default-light': 'themes.defaultLight',
+  'solarized-light': 'themes.solarizedLight',
+  'github-light': 'themes.githubLight',
 };
 
 const AppearanceSettingsSection: FC = () => {
@@ -426,11 +429,11 @@ const AppearanceSettingsSection: FC = () => {
             >
               {/* Color preview dots */}
               <div className="flex gap-1.5 shrink-0">
-                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.bgBase }} />
-                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.bgSurface }} />
-                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.accent }} />
-                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.success }} />
-                <div className="w-5 h-5 rounded-full border border-white/10" style={{ background: c.error }} />
+                <div className="w-5 h-5 rounded-full border border-[var(--color-text-muted)]/30" style={{ background: c.bgBase }} />
+                <div className="w-5 h-5 rounded-full border border-[var(--color-text-muted)]/30" style={{ background: c.bgSurface }} />
+                <div className="w-5 h-5 rounded-full border border-[var(--color-text-muted)]/30" style={{ background: c.accent }} />
+                <div className="w-5 h-5 rounded-full border border-[var(--color-text-muted)]/30" style={{ background: c.success }} />
+                <div className="w-5 h-5 rounded-full border border-[var(--color-text-muted)]/30" style={{ background: c.error }} />
               </div>
 
               {/* Theme name */}
