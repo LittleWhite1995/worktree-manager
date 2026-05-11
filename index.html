@@ -12,6 +12,12 @@
   <meta name="apple-mobile-web-app-title" content="Worktree" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#0f172a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <script>
+    (function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)})();
+  </script>
   <title>Worktree Manager</title>
 </head>
 
@@ -21,14 +27,14 @@
     window.onerror = function (msg, url, line, col, err) {
       var el = document.getElementById('root');
       if (el && !el.hasChildNodes()) {
-        el.style.cssText = 'padding:2rem;font-family:monospace;color:#ef4444;white-space:pre-wrap';
+        el.style.cssText = 'padding:1rem;font-family:monospace;color:#ef4444;white-space:pre-wrap';
         el.textContent = msg + '\n  at ' + url + ':' + line + ':' + col;
       }
     };
     window.addEventListener('unhandledrejection', function (e) {
       var el = document.getElementById('root');
       if (el && !el.hasChildNodes()) {
-        el.style.cssText = 'padding:2rem;font-family:monospace;color:#ef4444;white-space:pre-wrap';
+        el.style.cssText = 'padding:1rem;font-family:monospace;color:#ef4444;white-space:pre-wrap';
         el.textContent = 'Unhandled rejection: ' + (e.reason && e.reason.message || e.reason || e);
       }
     });

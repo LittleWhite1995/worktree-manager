@@ -52,7 +52,7 @@ export const AddWorkspaceModal: FC<AddWorkspaceModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[480px] p-0">
-        <DialogHeader className="p-5 border-b border-slate-700">
+        <DialogHeader className="p-5 border-b border-[var(--color-border)]">
           <DialogTitle>{t('addWorkspace.importTitle')}</DialogTitle>
           <DialogDescription>
             {t('addWorkspace.importDesc')}
@@ -60,7 +60,7 @@ export const AddWorkspaceModal: FC<AddWorkspaceModalProps> = ({
         </DialogHeader>
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">{t('addWorkspace.dirPath')}</label>
+            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('addWorkspace.dirPath')}</label>
             <div className="flex gap-2">
               <Input
                 type="text"
@@ -75,10 +75,10 @@ export const AddWorkspaceModal: FC<AddWorkspaceModalProps> = ({
                 <FolderIcon className="w-4 h-4" />
               </Button>
             </div>
-            <p className="text-xs text-slate-500 mt-1">{t('addWorkspace.dirPathHint')}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">{t('addWorkspace.dirPathHint')}</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">{t('common.name')}</label>
+            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('common.name')}</label>
             <Input
               type="text"
               value={name}
@@ -88,7 +88,7 @@ export const AddWorkspaceModal: FC<AddWorkspaceModalProps> = ({
             />
           </div>
         </div>
-        <DialogFooter className="p-5 border-t border-slate-700">
+        <DialogFooter className="p-5 border-t border-[var(--color-border)]">
           <Button variant="secondary" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button
             onClick={onSubmit}
@@ -136,7 +136,7 @@ export const CreateWorkspaceModal: FC<CreateWorkspaceModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[480px] p-0">
-        <DialogHeader className="p-5 border-b border-slate-700">
+        <DialogHeader className="p-5 border-b border-[var(--color-border)]">
           <DialogTitle>{t('addWorkspace.createTitle')}</DialogTitle>
           <DialogDescription>
             {t('addWorkspace.createDesc')}
@@ -144,7 +144,7 @@ export const CreateWorkspaceModal: FC<CreateWorkspaceModalProps> = ({
         </DialogHeader>
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">{t('addWorkspace.workspaceName')}</label>
+            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('addWorkspace.workspaceName')}</label>
             <Input
               type="text"
               value={name}
@@ -155,7 +155,7 @@ export const CreateWorkspaceModal: FC<CreateWorkspaceModalProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">{t('addWorkspace.parentDir')}</label>
+            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('addWorkspace.parentDir')}</label>
             <div className="flex gap-2">
               <Input
                 type="text"
@@ -171,13 +171,13 @@ export const CreateWorkspaceModal: FC<CreateWorkspaceModalProps> = ({
             </div>
           </div>
           {fullPath && (
-            <div className="p-3 rounded bg-slate-800/50 border border-slate-700/50">
-              <p className="text-xs text-slate-400 mb-1">{t('addWorkspace.willCreate')}</p>
-              <p className="text-sm font-mono text-slate-300 select-text">{fullPath}</p>
+            <div className="p-3 rounded bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50">
+              <p className="text-xs text-[var(--color-text-secondary)] mb-1">{t('addWorkspace.willCreate')}</p>
+              <p className="text-sm font-mono text-[var(--color-text-secondary)] select-text">{fullPath}</p>
             </div>
           )}
         </div>
-        <DialogFooter className="p-5 border-t border-slate-700">
+        <DialogFooter className="p-5 border-t border-[var(--color-border)]">
           <Button variant="secondary" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button
             onClick={onSubmit}

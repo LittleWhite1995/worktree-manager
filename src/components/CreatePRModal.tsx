@@ -73,7 +73,7 @@ export const CreatePRModal: FC<CreatePRModalProps> = ({
 
         <div className="px-5 py-4 space-y-4">
           <div className="space-y-2">
-            <label className="text-sm text-slate-300">{t('createPR.titleLabel')}</label>
+            <label className="text-sm text-[var(--color-text-secondary)]">{t('createPR.titleLabel')}</label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -87,13 +87,13 @@ export const CreatePRModal: FC<CreatePRModalProps> = ({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-slate-300">{t('createPR.bodyLabel')}</label>
+            <label className="text-sm text-[var(--color-text-secondary)]">{t('createPR.bodyLabel')}</label>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder={t('createPR.bodyPlaceholder')}
               rows={4}
-              className="flex w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 resize-none"
+              className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] resize-none"
             />
           </div>
         </div>

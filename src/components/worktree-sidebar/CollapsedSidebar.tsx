@@ -16,6 +16,7 @@ import {
   SidebarExpandIcon,
   WorkspaceIcon,
 } from '../Icons';
+import { GitBranch } from 'lucide-react';
 
 interface CollapsedSidebarProps {
   activeWorktrees: WorktreeListItem[];
@@ -49,7 +50,7 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="w-12 bg-slate-800/50 border-r border-slate-700/50 flex flex-col items-center py-2 shrink-0">
+    <div className="w-12 bg-[var(--color-bg-surface)] border-r border-[var(--color-border)] flex flex-col items-center py-2 shrink-0">
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -69,24 +70,24 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
           <TooltipTrigger asChild>
             <button
               onClick={() => onShowWorkspaceMenu(!showWorkspaceMenu)}
-              className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-slate-700/50 transition-colors mb-1"
+              className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-[var(--color-bg-elevated)] transition-colors mb-1"
             >
-              <WorkspaceIcon className="w-4 h-4 text-blue-400" />
+              <WorkspaceIcon className="w-4 h-4 text-[var(--color-accent)]" />
             </button>
           </TooltipTrigger>
           <TooltipContent side="right">{currentWorkspace?.name || 'Workspace'}</TooltipContent>
         </Tooltip>
 
-        <div className="w-6 h-px bg-slate-700/50 my-1.5" />
+        <div className="w-6 h-px bg-[var(--color-bg-elevated)] my-1.5" />
 
         {mainWorkspaceExists && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={() => onSelectWorktree(null)}
-                className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5 ${!selectedWorktree ? 'bg-slate-700/50' : 'hover:bg-slate-700/30'}`}
+                className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5 ${!selectedWorktree ? 'bg-[var(--color-bg-elevated)]' : 'hover:bg-[var(--color-bg-elevated)]'}`}
               >
-                <FolderIcon className="w-4 h-4 text-slate-400" />
+                <FolderIcon className="w-4 h-4 text-[var(--color-text-secondary)]" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">{t('sidebar.main')}</TooltipContent>
@@ -107,11 +108,11 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
                     className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors shrink-0 ${isLockedByOther && isTauri
                       ? 'opacity-30 cursor-not-allowed'
                       : selectedWorktree?.name === worktree.name
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'hover:bg-slate-700/30 text-blue-400'
+                        ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]'
+                        : 'hover:bg-[var(--color-bg-elevated)] text-[var(--color-accent)]'
                       }`}
                   >
-                    <FolderIcon className="w-4 h-4" />
+                    <GitBranch className="w-4 h-4" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">

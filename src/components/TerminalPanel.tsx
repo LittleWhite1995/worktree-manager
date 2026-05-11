@@ -187,8 +187,8 @@ const FloatingMicButton: FC<{
     <button
       ref={btnRef}
       className={`z-20 w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm touch-none ${isRecording
-        ? 'bg-red-900/70 border-2 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.5)] animate-pulse'
-        : 'bg-slate-800/70 border-2 border-green-500/60'
+        ? 'bg-[var(--color-error)]/70 border-2 border-[var(--color-error)] shadow-[0_0_12px_rgba(239,68,68,0.5)] animate-pulse'
+        : 'bg-[var(--color-bg-surface)]/70 border-2 border-green-500/60'
         }`}
       style={style}
       onTouchStart={handleTouchStart}
@@ -196,7 +196,7 @@ const FloatingMicButton: FC<{
       onTouchEnd={handleTouchEnd}
       aria-label={isRecording ? t('terminal.releaseToStopRecord') : t('terminal.holdToRecord')}
     >
-      <MicIcon className={`w-5 h-5 ${isRecording ? 'text-red-400' : 'text-white'}`} />
+      <MicIcon className={`w-5 h-5 ${isRecording ? 'text-[var(--color-error)]' : 'text-white'}`} />
     </button>
   );
 };
@@ -226,10 +226,10 @@ function getVoiceButtonTitle(
 
 function getVoiceButtonClass(voiceStatus: VoiceStatus, voiceWarning?: string | null): string {
   switch (voiceStatus) {
-    case 'recording': return 'text-red-400 hover:bg-red-900/30';
+    case 'recording': return 'text-[var(--color-error)] hover:bg-[var(--color-error)]/10';
     case 'ready': return 'text-green-400 hover:bg-green-900/30';
-    case 'error': return voiceWarning ? 'text-yellow-400 hover:bg-slate-700' : 'text-red-400 hover:bg-slate-700';
-    default: return 'text-slate-500 hover:text-slate-300 hover:bg-slate-700';
+    case 'error': return voiceWarning ? 'text-yellow-400 hover:bg-[var(--color-bg-elevated)]' : 'text-[var(--color-error)] hover:bg-[var(--color-bg-elevated)]';
+    default: return 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]';
   }
 }
 
@@ -420,7 +420,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
   return (
     <div
-      className={`border-t border-slate-700 flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-slate-900' : visible ? 'shrink' : 'shrink-0'} ${isFullscreen ? 'absolute inset-0 z-50 border-t-0 bg-slate-900' : ''}`}
+      className={`border-t border-[var(--color-border)] flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-[var(--color-bg-base)]' : visible ? 'shrink' : 'shrink-0'} ${isFullscreen ? 'absolute inset-0 z-50 border-t-0 bg-[var(--color-bg-base)]' : ''}`}
       style={isFullscreen || fillContainer ? undefined : { height: visible ? height : 32, minHeight: visible ? 100 : undefined }}
     >
       {/* Resize handle - hidden in fullscreen */}
@@ -436,13 +436,13 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             onStartResize(e.touches[0].clientY);
           }}
         >
-          <div className="w-10 h-1 rounded-full bg-slate-600 group-hover:bg-blue-500 group-hover:h-1.5 transition-all" />
+          <div className="w-10 h-1 rounded-full bg-[var(--color-border)] group-hover:bg-[var(--color-accent)] group-hover:h-1.5 transition-all" />
         </div>
       )}
       {/* Header with tabs */}
-      <div className="flex items-center bg-slate-800/50 select-none shrink-0 border-b border-slate-700/50">
+      <div className="flex items-center bg-[var(--color-bg-surface)] select-none shrink-0 border-b border-[var(--color-border)]/50">
         <div
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 cursor-pointer hover:bg-slate-700/50 transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] cursor-pointer hover:bg-[var(--color-bg-elevated)]/50 transition-colors"
           onClick={onToggle}
           role="button"
           aria-label={visible ? t('terminal.collapsePanel') : t('terminal.expandPanel')}
@@ -457,7 +457,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
               </span>
             )}
           </span>
-          <ChevronIcon expanded={visible} className="w-3 h-3 text-slate-500" />
+          <ChevronIcon expanded={visible} className="w-3 h-3 text-[var(--color-text-muted)]" />
         </div>
         {/* Project tabs - horizontal scroll */}
         <div className="flex-1 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-600">
@@ -469,10 +469,10 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 <div
                   key={tab.path}
                   className={`group px-2 py-1.5 text-xs font-medium whitespace-nowrap rounded-t transition-colors flex items-center gap-1 cursor-pointer ${isActive
-                    ? 'bg-slate-900 text-blue-400 border-t border-l border-r border-slate-600'
+                    ? 'bg-[var(--color-bg-base)] text-[var(--color-accent)] border-t border-l border-r border-[var(--color-border)]'
                     : isActivated
-                      ? 'text-slate-300 hover:bg-slate-700/50'
-                      : 'text-slate-500 hover:bg-slate-700/50 hover:text-slate-400'
+                      ? 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]/50'
+                      : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-elevated)]/50 hover:text-[var(--color-text-secondary)]'
                     }`}
                   onClick={() => {
                     if (tabLongPressFiredRef.current) return;
@@ -492,11 +492,11 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                   {tab.isRoot && <FolderIcon className="w-3 h-3" />}
                   <span>{tab.name}</span>
                   {tab.isDuplicate && (
-                    <span className="text-[9px] text-slate-500 font-mono">{t('terminal.duplicate')}</span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] font-mono">{t('terminal.duplicate')}</span>
                   )}
                   {isActivated && (
                     <span
-                      className="w-5 h-5 ml-1 flex items-center justify-center rounded-full hover:bg-slate-600 text-slate-500 hover:text-slate-300 transition-colors"
+                      className="w-5 h-5 ml-1 flex items-center justify-center rounded-full hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
                       onClick={(e) => { e.stopPropagation(); onCloseTab(tab.path); }}
                       title={t('terminal.close')}
                       role="button"
@@ -529,7 +529,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
               {onOpenInEditor && activePath && (
                 <button
                   onClick={() => onOpenInEditor(activePath, editorId)}
-                  className="p-1 rounded text-slate-400 hover:text-blue-300 hover:bg-slate-700/60 transition-colors"
+                  className="p-1 rounded text-[var(--color-text-secondary)] hover:text-blue-300 hover:bg-[var(--color-bg-elevated)]/60 transition-colors"
                   title={t('detail.openInEditor')}
                 >
                   <EditorIcon editorId={editorId} className="w-3.5 h-3.5" />
@@ -538,7 +538,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
               {onRevealInFinder && activePath && (
                 <button
                   onClick={() => onRevealInFinder(activePath)}
-                  className="p-1 rounded text-slate-400 hover:text-blue-300 hover:bg-slate-700/60 transition-colors"
+                  className="p-1 rounded text-[var(--color-text-secondary)] hover:text-blue-300 hover:bg-[var(--color-bg-elevated)]/60 transition-colors"
                   title={t('detail.revealInFinder')}
                 >
                   <FolderOpenIcon className="w-3.5 h-3.5" />
@@ -548,7 +548,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 className={`terminal-badge-marquee text-xs px-2.5 py-0.5 rounded-md max-w-[160px] overflow-hidden cursor-pointer transition-colors ${
                   badgeCopied
                     ? 'text-green-200 bg-green-500/20 border border-green-400/40'
-                    : 'text-blue-200 bg-blue-500/20 border border-blue-400/30 hover:bg-blue-400/30 hover:text-blue-100 hover:border-blue-300/50 active:bg-blue-400/40'
+                    : 'text-[var(--color-accent)] bg-[var(--color-accent)]/20 border border-[var(--color-accent)]/30 hover:bg-[var(--color-accent)]/30 hover:text-[var(--color-accent)] hover:border-[var(--color-accent)]/50 active:bg-[var(--color-accent)]/40'
                 }`}
                 onClick={() => {
                   navigator.clipboard.writeText(selectedWorktreeName);
@@ -570,7 +570,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             {activatedTerminals.size >= 2 && (
               <button
                 onClick={(e) => { e.stopPropagation(); onCloseAllTabs(); }}
-                className="p-1.5 hover:bg-slate-700 rounded text-slate-500 hover:text-slate-300 transition-colors"
+                className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
                 title={t('terminal.closeAllTerminals')}
                 aria-label={t('terminal.closeAllTerminals')}
               >
@@ -581,7 +581,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
               <>
                 <button
                   onClick={(e) => { e.stopPropagation(); terminalRefsMap.current.get(activeTerminalTab ?? '')?.scrollToCommand('prev'); }}
-                  className="p-1.5 hover:bg-slate-700 rounded text-slate-500 hover:text-slate-300 transition-colors"
+                  className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
                   title={t('terminal.prevCommand')}
                   aria-label={t('terminal.prevCommand')}
                 >
@@ -589,7 +589,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); terminalRefsMap.current.get(activeTerminalTab ?? '')?.scrollToCommand('next'); }}
-                  className="p-1.5 hover:bg-slate-700 rounded text-slate-500 hover:text-slate-300 transition-colors"
+                  className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
                   title={t('terminal.nextCommand')}
                   aria-label={t('terminal.nextCommand')}
                 >
@@ -600,7 +600,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             <button
               onClick={(e) => { e.stopPropagation(); handleSearchToggle(); }}
               className={`p-1.5 rounded transition-colors ${
-                searchOpen ? 'text-blue-400 bg-blue-900/30' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700'
+                searchOpen ? 'text-[var(--color-accent)] bg-[var(--color-accent)]/10' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
               }`}
               title={t('terminal.search')}
               aria-label={t('terminal.search')}
@@ -634,7 +634,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             {onToggleFullscreen && (
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
-                className="p-1.5 hover:bg-slate-700 rounded text-slate-500 hover:text-slate-300 transition-colors"
+                className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
                 title={isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}
                 aria-label={isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}
               >
@@ -648,7 +648,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             {!isFullscreen && (
               <button
                 onClick={(e) => { e.stopPropagation(); onCollapse(); }}
-                className="p-1.5 hover:bg-slate-700 rounded text-slate-500 hover:text-slate-300 transition-colors"
+                className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
                 title={t('terminal.collapseTerminal')}
                 aria-label={t('terminal.collapsePanel')}
               >
@@ -689,13 +689,13 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
               </div>
             ))}
             {!activeTerminalTab && (
-              <div className="flex items-center justify-center h-full text-slate-500 text-sm">
+              <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-sm">
                 {t('terminal.clickTabToOpen')}
               </div>
             )}
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-sm">
             {t('terminal.clickTabToOpen')}
           </div>
         )}
@@ -715,21 +715,21 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
         {/* 语音错误提示（红色） */}
         {showError && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-red-900/90 border border-red-700/50 rounded-lg text-sm text-red-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-[var(--color-error)]/10 border border-[var(--color-error)]/30 rounded-lg text-sm text-[var(--color-error)] shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
             {showError}
           </div>
         )}
 
         {/* 语音警告提示（黄色，用于无麦克风等非严重问题） */}
         {showWarning && !showError && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-yellow-900/90 border border-yellow-700/50 rounded-lg text-sm text-yellow-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded-lg text-sm text-[var(--color-warning)] shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
             {showWarning}
           </div>
         )}
 
         {/* GPU renderer fallback toast */}
         {showGpuFallback && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-yellow-900/90 border border-yellow-700/50 rounded-lg text-sm text-yellow-200 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded-lg text-sm text-[var(--color-warning)] shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
             {t('terminal.gpuFallback')}
           </div>
         )}
@@ -745,7 +745,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
         {/* ALT+V 提示（非移动端，语音就绪时短暂显示 3 秒）*/}
         {showAltVHint && !IS_MOBILE && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 bg-slate-800/90 border border-slate-600/50 rounded-lg text-xs text-slate-300 shadow-lg pointer-events-none animate-in fade-in duration-200">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 bg-[var(--color-bg-surface)]/90 border border-[var(--color-border)]/50 rounded-lg text-xs text-[var(--color-text-secondary)] shadow-lg pointer-events-none animate-in fade-in duration-200">
             {t('terminal.altVHint')}
           </div>
         )}
@@ -759,12 +759,12 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             {staging && (staging.rawText || staging.interimText) && (
               <div className="w-full max-w-md flex flex-col gap-2">
                 {/* 原始语音 */}
-                <div className="rounded-lg bg-slate-800/80 border border-slate-600/50 p-3">
-                  <div className="text-[10px] text-slate-500 mb-1 font-medium uppercase tracking-wider">{t('voice.rawText')}</div>
-                  <div className="text-sm text-slate-200 leading-relaxed break-all">
+                <div className="rounded-lg bg-[var(--color-bg-surface)]/80 border border-[var(--color-border)]/50 p-3">
+                  <div className="text-[10px] text-[var(--color-text-muted)] mb-1 font-medium uppercase tracking-wider">{t('voice.rawText')}</div>
+                  <div className="text-sm text-[var(--color-text-primary)] leading-relaxed break-all">
                     {staging.rawText}
                     {staging.interimText && (
-                      <span className="text-slate-500 italic">{staging.interimText}</span>
+                      <span className="text-[var(--color-text-muted)] italic">{staging.interimText}</span>
                     )}
                   </div>
                 </div>
@@ -772,22 +772,22 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 {/* AI 整理 */}
                 {(staging.refinedText || staging.isRefining || staging.refineFailed) && (
                   <div className={`rounded-lg p-3 ${staging.refineFailed
-                    ? 'bg-red-900/30 border border-red-700/50'
-                    : 'bg-slate-800/80 border border-blue-500/40'
+                    ? 'bg-[var(--color-error)]/10 border border-[var(--color-error)]/30'
+                    : 'bg-[var(--color-bg-surface)]/80 border border-[var(--color-accent)]/40'
                     }`}>
                     <div className="text-[10px] mb-1 font-medium uppercase tracking-wider flex items-center gap-1">
-                      <span className={staging.refineFailed ? 'text-red-400' : 'text-blue-400'}>
+                      <span className={staging.refineFailed ? 'text-[var(--color-error)]' : 'text-[var(--color-accent)]'}>
                         {t('voice.refinedText')}
                       </span>
                       {staging.isRefining && (
-                        <span className="text-slate-500 animate-pulse">{t('voice.refining')}</span>
+                        <span className="text-[var(--color-text-muted)] animate-pulse">{t('voice.refining')}</span>
                       )}
                     </div>
                     <div className="text-sm leading-relaxed break-all">
                       {staging.refineFailed ? (
-                        <span className="text-red-300/80">{t('voice.refineFailed')}</span>
+                        <span className="text-[var(--color-error)]/80">{t('voice.refineFailed')}</span>
                       ) : (
-                        <span className="text-blue-200">{staging.refinedText}</span>
+                        <span className="text-[var(--color-accent)]">{staging.refinedText}</span>
                       )}
                     </div>
                   </div>
@@ -795,7 +795,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
               </div>
             )}
 
-            <span className="text-sm text-slate-400 select-none">
+            <span className="text-sm text-[var(--color-text-secondary)] select-none">
               {t('terminal.recordingHint')}
             </span>
           </div>
@@ -803,11 +803,11 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
         {/* 移动端 Web 录音指示器 + 暂存区卡片 */}
         {voiceStatus === 'recording' && IS_MOBILE_WEB && (
-          <div className="absolute bottom-20 left-2 right-2 z-15 rounded-xl bg-slate-800/95 border border-slate-600/50 p-3 shadow-2xl backdrop-blur-sm">
+          <div className="absolute bottom-20 left-2 right-2 z-15 rounded-xl bg-[var(--color-bg-surface)]/95 border border-[var(--color-border)]/50 p-3 shadow-2xl backdrop-blur-sm">
             {/* 录音中标题 — 始终显示 */}
             <div className="flex items-center gap-2 mb-1">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-[10px] text-red-400 font-medium uppercase tracking-wider">{t('terminal.recordingHint')}</span>
+              <span className="text-[10px] text-[var(--color-error)] font-medium uppercase tracking-wider">{t('terminal.recordingHint')}</span>
             </div>
 
             {/* 波形 */}
@@ -816,28 +816,28 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
             {/* 暂存区内容（有文字时才显示） */}
             {staging && (staging.rawText || staging.interimText) && (
               <>
-                <div className="text-[10px] text-slate-500 mb-1 mt-2 font-medium uppercase tracking-wider">{t('voice.rawText')}</div>
-                <div className="text-sm text-slate-200 leading-relaxed break-all mb-2">
+                <div className="text-[10px] text-[var(--color-text-muted)] mb-1 mt-2 font-medium uppercase tracking-wider">{t('voice.rawText')}</div>
+                <div className="text-sm text-[var(--color-text-primary)] leading-relaxed break-all mb-2">
                   {staging.rawText}
                   {staging.interimText && (
-                    <span className="text-slate-500 italic">{staging.interimText}</span>
+                    <span className="text-[var(--color-text-muted)] italic">{staging.interimText}</span>
                   )}
                 </div>
                 {(staging.refinedText || staging.isRefining || staging.refineFailed) && (
                   <>
                     <div className="text-[10px] font-medium uppercase tracking-wider flex items-center gap-1 mb-1">
-                      <span className={staging.refineFailed ? 'text-red-400' : 'text-blue-400'}>
+                      <span className={staging.refineFailed ? 'text-[var(--color-error)]' : 'text-[var(--color-accent)]'}>
                         {t('voice.refinedText')}
                       </span>
                       {staging.isRefining && (
-                        <span className="text-slate-500 animate-pulse">{t('voice.refining')}</span>
+                        <span className="text-[var(--color-text-muted)] animate-pulse">{t('voice.refining')}</span>
                       )}
                     </div>
                     <div className="text-sm leading-relaxed break-all">
                       {staging.refineFailed ? (
-                        <span className="text-red-300/80">{t('voice.refineFailed')}</span>
+                        <span className="text-[var(--color-error)]/80">{t('voice.refineFailed')}</span>
                       ) : (
-                        <span className="text-blue-200">{staging.refinedText}</span>
+                        <span className="text-[var(--color-accent)]">{staging.refinedText}</span>
                       )}
                     </div>
                   </>

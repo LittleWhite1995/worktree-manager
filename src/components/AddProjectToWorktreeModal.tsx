@@ -1,5 +1,5 @@
 import { useState, type FC } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -77,12 +77,16 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
           <DialogTitle>{t('addProjectToWorktree.title')}</DialogTitle>
         </DialogHeader>
         <div className="py-4">
-          <p className="text-sm text-slate-400 mb-4">
-            {t('addProjectToWorktree.desc', { name: worktree.display_name || worktree.name })}
+          <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+            <Trans
+              i18nKey="addProjectToWorktree.desc"
+              values={{ name: worktree.display_name || worktree.name }}
+              components={[<strong className="text-[var(--color-text-primary)] font-medium" />]}
+            />
           </p>
 
           {availableProjects.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">
+            <div className="text-center py-8 text-[var(--color-text-muted)]">
               <PlusIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p>{t('addProjectToWorktree.noProjects')}</p>
               <p className="text-xs mt-1">{t('addProjectToWorktree.allProjectsAdded')}</p>
@@ -90,15 +94,15 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">{t('addProjectToWorktree.selectProject')}</label>
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('addProjectToWorktree.selectProject')}</label>
                 <div className="space-y-2">
                   {availableProjects.map(proj => (
                     <div
                       key={proj.name}
                       className={`p-3 rounded-lg border cursor-pointer transition-all ${
                         selectedProject === proj.name
-                          ? "bg-blue-900/20 border-blue-500/50"
-                          : "bg-slate-900/50 border-slate-700 hover:border-slate-600"
+                          ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50"
+                          : "bg-[var(--color-bg-base)]/50 border-[var(--color-border)] hover:border-[var(--color-border)]"
                       }`}
                       onClick={() => handleProjectSelect(proj.name)}
                     >
@@ -106,17 +110,17 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
                         <div className="flex items-center gap-3">
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
                             selectedProject === proj.name
-                              ? "border-blue-500 bg-blue-500"
-                              : "border-slate-500"
+                              ? "border-[var(--color-accent)] bg-[var(--color-accent)]"
+                              : "border-[var(--color-text-muted)]"
                           }`}>
                             {selectedProject === proj.name && (
                               <div className="w-2 h-2 rounded-full bg-white" />
                             )}
                           </div>
-                          <span className="font-medium text-slate-200">{proj.name}</span>
+                          <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
                         </div>
                       </div>
-                      <div className="text-slate-500 text-xs mt-1.5 pl-7">
+                      <div className="text-[var(--color-text-muted)] text-xs mt-1.5 pl-7">
                         {t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}
                       </div>
                     </div>
@@ -126,7 +130,7 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
 
               {selectedProjectConfig && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">{t('addProjectToWorktree.baseBranch')}</label>
+                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('addProjectToWorktree.baseBranch')}</label>
                   <Select value={baseBranch} onValueChange={setBaseBranch}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
