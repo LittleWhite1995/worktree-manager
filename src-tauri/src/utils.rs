@@ -227,16 +227,47 @@ pub(crate) fn run_git_command_with_timeout(
 }
 
 /// Normalize path separators for the current platform.
-/// On Windows, replaces forward slashes with backslashes.
+/// On Windows, replaces forward slashes with backslashes and collapses
+/// consecutive backslashes (e.g. `D:\\\\Folder` → `D:\Folder`),
+/// while preserving UNC prefixes (`\\server\share`).
 pub fn normalize_path(path: &str) -> String {
     #[cfg(target_os = "windows")]
     {
-        path.replace('/', "\\")
+        let p = path.replace('/', "\\");
+        let is_unc = p.starts_with("\\\\");
+        // Collapse all consecutive backslashes into single ones
+        let collapsed = collapse_backslashes(&p);
+        if is_unc && !collapsed.starts_with("\\\\") {
+            // UNC/extended-length path: restore the \\ prefix
+            // After collapse, collapsed starts with single '\', add one more
+            format!("\\{}", collapsed)
+        } else {
+            collapsed
+        }
     }
     #[cfg(not(target_os = "windows"))]
     {
         path.to_string()
     }
+}
+
+/// Replace runs of consecutive backslashes with a single backslash.
+#[cfg(target_os = "windows")]
+fn collapse_backslashes(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut prev_backslash = false;
+    for ch in s.chars() {
+        if ch == '\\' {
+            if !prev_backslash {
+                result.push(ch);
+            }
+            prev_backslash = true;
+        } else {
+            result.push(ch);
+            prev_backslash = false;
+        }
+    }
+    result
 }
 
 pub(crate) fn format_size(bytes: u64) -> String {

@@ -1,5 +1,6 @@
 use crate::pty_manager::requested_shell_path;
 use crate::state::PTY_MANAGER;
+use crate::utils::normalize_path;
 
 #[tauri::command]
 pub(crate) fn pty_create(
@@ -9,6 +10,7 @@ pub(crate) fn pty_create(
     rows: u16,
     shell: Option<String>,
 ) -> Result<(), String> {
+    let cwd = normalize_path(&cwd);
     // Hold the lock for the entire check-close-create sequence to avoid
     // TOCTOU races with concurrent IPC or HTTP requests on the same session.
     let requested_shell = requested_shell_path(shell.as_deref());
@@ -115,6 +117,7 @@ pub(crate) fn pty_exists(session_id: String) -> Result<bool, String> {
 /// and exposed via the HTTP server for remote access mode.
 #[tauri::command]
 pub(crate) fn pty_close_by_path(path_prefix: String) -> Result<Vec<String>, String> {
+    let path_prefix = normalize_path(&path_prefix);
     log::info!("[pty] Closing sessions by path prefix: {}", path_prefix);
     let mut manager = PTY_MANAGER
         .lock()

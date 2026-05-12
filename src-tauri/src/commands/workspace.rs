@@ -14,7 +14,14 @@ use crate::utils::normalize_path;
 #[tauri::command]
 pub(crate) fn list_workspaces() -> Vec<WorkspaceRef> {
     let global = load_global_config();
-    global.workspaces
+    global
+        .workspaces
+        .into_iter()
+        .map(|mut w| {
+            w.path = normalize_path(&w.path);
+            w
+        })
+        .collect()
 }
 
 pub fn get_current_workspace_impl(window_label: &str) -> Option<WorkspaceRef> {
@@ -25,6 +32,10 @@ pub fn get_current_workspace_impl(window_label: &str) -> Option<WorkspaceRef> {
         .iter()
         .find(|w| w.path == current_path)
         .cloned()
+        .map(|mut w| {
+            w.path = normalize_path(&w.path);
+            w
+        })
 }
 
 #[tauri::command]
@@ -34,13 +45,22 @@ pub(crate) fn get_current_workspace(
 ) -> Option<WorkspaceRef> {
     if let Some(path) = workspace_path {
         let global = load_global_config();
-        global.workspaces.iter().find(|w| w.path == path).cloned()
+        global
+            .workspaces
+            .iter()
+            .find(|w| w.path == path)
+            .cloned()
+            .map(|mut w| {
+                w.path = normalize_path(&w.path);
+                w
+            })
     } else {
         get_current_workspace_impl(window.label())
     }
 }
 
 pub fn switch_workspace_impl(window_label: &str, path: String) -> Result<(), String> {
+    let path = normalize_path(&path);
     let mut global = load_global_config();
 
     let previous = global
@@ -102,6 +122,7 @@ pub(crate) fn switch_workspace(
 
 #[tauri::command]
 pub(crate) fn add_workspace(name: String, path: String) -> Result<(), String> {
+    let path = normalize_path(&path);
     log::info!(
         "[workspace] Adding workspace: name='{}', path='{}'",
         name,
@@ -160,6 +181,7 @@ pub(crate) fn add_workspace(name: String, path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub(crate) fn remove_workspace(path: String) -> Result<(), String> {
+    let path = normalize_path(&path);
     log::info!("[workspace] Removing workspace at path: '{}'", path);
     let mut global = load_global_config();
 
@@ -190,6 +212,7 @@ pub(crate) fn remove_workspace(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub(crate) fn create_workspace(name: String, path: String) -> Result<(), String> {
+    let path = normalize_path(&path);
     log::info!(
         "[workspace] Creating new workspace: name='{}', path='{}'",
         name,
@@ -302,6 +325,8 @@ pub(crate) fn get_config_path_info(
 // ==================== HTTP Server 共享接口 ====================
 
 pub fn add_workspace_internal(name: &str, path: &str) -> Result<(), String> {
+    let path = normalize_path(path);
+    let path = path.as_str();
     let mut global = load_global_config();
     if global.workspaces.iter().any(|w| w.path == path) {
         return Err("Workspace with this path already exists".to_string());
@@ -330,6 +355,8 @@ pub fn add_workspace_internal(name: &str, path: &str) -> Result<(), String> {
 }
 
 pub fn remove_workspace_internal(path: &str) -> Result<(), String> {
+    let path = normalize_path(path);
+    let path = path.as_str();
     let mut global = load_global_config();
     global.workspaces.retain(|w| w.path != path);
     if global.current_workspace.as_deref() == Some(path) {
@@ -340,6 +367,8 @@ pub fn remove_workspace_internal(path: &str) -> Result<(), String> {
 }
 
 pub fn create_workspace_internal(name: &str, path: &str) -> Result<(), String> {
+    let path = normalize_path(path);
+    let path = path.as_str();
     let workspace_path = PathBuf::from(path);
     fs::create_dir_all(workspace_path.join("projects"))
         .map_err(|e| format!("Failed to create workspace directory: {}", e))?;
