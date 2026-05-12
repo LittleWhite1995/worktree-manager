@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { callBackend, isTauri } from '../lib/backend';
+import { callBackend, fetchProjectRemote, isTauri } from '../lib/backend';
 import { useCellContext } from '../contexts/CellContext';
 import { getPreferredExternalTerminal, getShellForTerminalLaunch, logTerminalPreferenceDebugInfo } from '../lib/terminalPreferences';
 import type {
@@ -27,6 +27,7 @@ export interface UseWorkspaceReturn {
   setError: (error: string | null) => void;
   loadWorkspaces: () => Promise<void>;
   loadData: (options?: { silent?: boolean }) => Promise<void>;
+  refreshWithFetch: () => Promise<void>;
   switchWorkspace: (path: string) => Promise<void>;
   addWorkspace: (name: string, path: string) => Promise<void>;
   createWorkspace: (name: string, path: string) => Promise<void>;
@@ -144,6 +145,29 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
       }
     }
   }, [explicitPath]);
+
+  // Fetch all project remotes, then reload local state.
+  // Used by sidebar refresh to get up-to-date remote branch info.
+  const refreshWithFetch = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Collect all project paths from current worktrees
+      const projectPaths = worktrees
+        .filter(wt => !wt.is_archived)
+        .flatMap(wt => wt.projects.map(p => p.path));
+      // Also include main workspace projects
+      if (mainWorkspace) {
+        for (const p of mainWorkspace.projects) {
+          if (!projectPaths.includes(p.path)) projectPaths.push(p.path);
+        }
+      }
+      // Fetch all in parallel (ignore individual failures)
+      await Promise.allSettled(projectPaths.map(p => fetchProjectRemote(p)));
+    } catch {
+      // fetch failures are non-fatal
+    }
+    await loadData();
+  }, [worktrees, mainWorkspace, loadData]);
 
   useEffect(() => {
     if (!ready) return;
@@ -348,6 +372,7 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
     setError,
     loadWorkspaces,
     loadData,
+    refreshWithFetch,
     switchWorkspace,
     addWorkspace,
     createWorkspace,

@@ -81,7 +81,19 @@ const AudioWaveform: FC<{ analyserNode: AnalyserNode }> = ({ analyserNode }) => 
 
         ctx.fillStyle = `rgba(${BAR_COLOR_R},${BAR_COLOR_G},${BAR_COLOR_B},${alpha})`;
         ctx.beginPath();
-        ctx.roundRect(x, centerY - barHeight, barWidth, barHeight * 2, barWidth / 2);
+        const bh = barHeight * 2;
+        const r = barWidth / 2;
+        if (ctx.roundRect) {
+          ctx.roundRect(x, centerY - barHeight, barWidth, bh, r);
+        } else {
+          // Fallback for older WebView2 without roundRect support
+          ctx.moveTo(x + r, centerY - barHeight);
+          ctx.arcTo(x + barWidth, centerY - barHeight, x + barWidth, centerY - barHeight + bh, r);
+          ctx.arcTo(x + barWidth, centerY - barHeight + bh, x, centerY - barHeight + bh, r);
+          ctx.arcTo(x, centerY - barHeight + bh, x, centerY - barHeight, r);
+          ctx.arcTo(x, centerY - barHeight, x + barWidth, centerY - barHeight, r);
+          ctx.closePath();
+        }
         ctx.fill();
       }
     };

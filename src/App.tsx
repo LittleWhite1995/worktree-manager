@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import {
   WelcomeView,
   AddWorkspaceModal,
-  CreateWorkspaceModal,
   CreateWorktreeModal,
   AddProjectToWorktreeModal,
   ArchiveConfirmationModal,
@@ -144,7 +143,7 @@ function App() {
       <>
         <WelcomeView
           onAddWorkspace={() => modals.setModal('showAddWorkspaceModal', true)}
-          onCreateWorkspace={() => modals.setModal('showCreateWorkspaceModal', true)}
+          onCreateWorkspace={() => modals.setModal('showAddWorkspaceModal', true)}
         />
         <AddWorkspaceModal
           open={modals.showAddWorkspaceModal}
@@ -155,16 +154,12 @@ function App() {
           onPathChange={actions.setNewWorkspacePath}
           onSubmit={actions.handleAddWorkspace}
           loading={actions.addingWorkspace}
-        />
-        <CreateWorkspaceModal
-          open={modals.showCreateWorkspaceModal}
-          onOpenChange={(v) => modals.setModal('showCreateWorkspaceModal', v)}
-          name={actions.createWorkspaceName}
-          onNameChange={actions.setCreateWorkspaceName}
-          path={actions.createWorkspacePath}
-          onPathChange={actions.setCreateWorkspacePath}
-          onSubmit={actions.handleCreateWorkspace}
-          loading={actions.creatingWorkspace}
+          createName={actions.createWorkspaceName}
+          onCreateNameChange={actions.setCreateWorkspaceName}
+          createPath={actions.createWorkspacePath}
+          onCreatePathChange={actions.setCreateWorkspacePath}
+          onCreateSubmit={actions.handleCreateWorkspace}
+          createLoading={actions.creatingWorkspace}
         />
       </>
     );
