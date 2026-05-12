@@ -14,7 +14,7 @@ dist-ssr
 
 .claude/
 .memory-staging/
-docs/
+docs/superpowers/
 
 # Requirement docs (internal)
 requirement-docs/
