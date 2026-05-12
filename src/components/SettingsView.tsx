@@ -819,17 +819,23 @@ export const SettingsView: FC<SettingsViewProps> = ({
     }
   }, [filterDetectedShells, sanitizeToolPaths]);
 
-  // Load mic devices
-  const loadMicDevices = useCallback(async () => {
+  // Load mic devices.
+  // When requestLabels=false, only enumerate (safe, no permission prompt).
+  // When requestLabels=true, request getUserMedia to get device labels (may trigger permission dialog).
+  const loadMicDevices = useCallback(async (requestLabels = false) => {
     try {
+      if (!navigator.mediaDevices?.enumerateDevices) {
+        setMicDevices([]);
+        return;
+      }
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInputs = devices.filter(d => d.kind === 'audioinput');
-      if (audioInputs.length > 0 && !audioInputs[0].label) {
+      const audioInputs = devices.filter(d => d.kind === 'audioinput' && d.deviceId);
+      if (requestLabels && audioInputs.length > 0 && !audioInputs[0].label) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           stream.getTracks().forEach(t => t.stop());
           const devicesAfter = await navigator.mediaDevices.enumerateDevices();
-          setMicDevices(devicesAfter.filter(d => d.kind === 'audioinput'));
+          setMicDevices(devicesAfter.filter(d => d.kind === 'audioinput' && d.deviceId));
         } catch {
           setMicDevices(audioInputs);
         }
@@ -877,9 +883,9 @@ export const SettingsView: FC<SettingsViewProps> = ({
     } catch { stopMicTest(); }
   }, [selectedMicId, stopMicTest]);
 
-  // Init loaders
+  // Init loaders — no mic permission request on mount (deferred to voice section)
   useEffect(() => {
-    loadMicDevices();
+    loadMicDevices(false);
     getAppVersion().then(setAppVersion).catch(() => setAppVersion('unknown'));
     if (isTauri()) {
       getNgrokToken().then(token => {
@@ -899,6 +905,15 @@ export const SettingsView: FC<SettingsViewProps> = ({
       setVoiceRefineLoaded(true);
     }).catch(() => setVoiceRefineLoaded(true));
   }, [loadMicDevices]);
+
+  // When navigating to voice section, request mic permission to get device labels
+  const micLabelsRequestedRef = useRef(false);
+  useEffect(() => {
+    if (activeSection === 'voice' && !micLabelsRequestedRef.current) {
+      micLabelsRequestedRef.current = true;
+      loadMicDevices(true);
+    }
+  }, [activeSection, loadMicDevices]);
 
   // Auto-select first mic if saved device not found
   useEffect(() => {
@@ -1756,9 +1771,12 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__default__">{t('settings.defaultDevice')}</SelectItem>
-                          {micDevices.map((device) => (
-                            <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || t('settings.micLabel', { id: device.deviceId.slice(0, 8) })}</SelectItem>
-                          ))}
+                          {micDevices.map((device, idx) => {
+                            const id = device.deviceId || `device-${idx}`;
+                            return (
+                              <SelectItem key={id} value={id}>{device.label || t('settings.micLabel', { id: id.slice(0, 8) })}</SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                       <Button variant="secondary" size="sm" onClick={() => { if (micTesting) { stopMicTest(); } else { startMicTest(); } }}>

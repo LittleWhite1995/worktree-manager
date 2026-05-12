@@ -142,7 +142,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
               showArchived={modals.showArchived}
               onToggleArchived={() => modals.toggleModal('showArchived')}
               onContextMenu={actions.handleContextMenu}
-              onRefresh={workspace.loadData}
+              onRefresh={workspace.refreshWithFetch}
               refreshing={workspace.refreshing}
               onOpenSettings={openSettings}
               onOpenCreateModal={actions.openCreateModal}
@@ -199,7 +199,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
                   onAddProjectToWorktree={() => modals.setModal('showAddProjectToWorktreeModal', true)}
                   error={workspace.error}
                   onClearError={() => workspace.setError(null)}
-                  onRefresh={workspace.loadData}
+                  onRefresh={workspace.refreshWithFetch}
                   onSilentRefresh={() => workspace.loadData({ silent: true })}
                   onOpenTerminalPanel={terminalHook.handleTerminalTabClick}
                   occupation={mainOccupation.occupation}
@@ -283,6 +283,12 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
             onPathChange={actions.setNewWorkspacePath}
             onSubmit={actions.handleAddWorkspace}
             loading={actions.addingWorkspace}
+            createName={actions.createWorkspaceName}
+            onCreateNameChange={actions.setCreateWorkspaceName}
+            createPath={actions.createWorkspacePath}
+            onCreatePathChange={actions.setCreateWorkspacePath}
+            onCreateSubmit={actions.handleCreateWorkspace}
+            createLoading={actions.creatingWorkspace}
           />
         )}
 

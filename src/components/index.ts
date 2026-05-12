@@ -5,7 +5,7 @@ export { TerminalPanel } from './TerminalPanel';
 export { SettingsView } from './SettingsView';
 export { WelcomeView } from './WelcomeView';
 export { CreateWorktreeModal } from './CreateWorktreeModal';
-export { AddWorkspaceModal, CreateWorkspaceModal } from './AddWorkspaceModal';
+export { AddWorkspaceModal } from './AddWorkspaceModal';
 export { AddProjectModal } from './AddProjectModal';
 export { AddProjectToWorktreeModal } from './AddProjectToWorktreeModal';
 export { ArchiveConfirmationModal } from './ArchiveConfirmationModal';

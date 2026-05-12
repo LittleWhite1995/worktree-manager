@@ -122,7 +122,14 @@ fn current_app_handle() -> Result<tauri::AppHandle, String> {
 // -- Workspace management (no window context) --
 
 async fn h_list_workspaces() -> Response {
-    let list = crate::load_global_config().workspaces;
+    let list: Vec<_> = crate::load_global_config()
+        .workspaces
+        .into_iter()
+        .map(|mut w| {
+            w.path = crate::normalize_path(&w.path);
+            w
+        })
+        .collect();
     Json(json!(list)).into_response()
 }
 
@@ -153,7 +160,7 @@ async fn h_create_workspace(Json(args): Json<AddWsArgs>) -> Response {
 
 async fn h_set_window_workspace(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
-    let ws_path = args["workspacePath"].as_str().unwrap_or("").to_string();
+    let ws_path = normalize_path(args["workspacePath"].as_str().unwrap_or(""));
     result_ok(set_window_workspace_impl(&sid, ws_path))
 }
 
@@ -164,7 +171,7 @@ async fn h_get_current_workspace(headers: HeaderMap) -> Response {
 
 async fn h_switch_workspace(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
-    let path = args["path"].as_str().unwrap_or("").to_string();
+    let path = normalize_path(args["path"].as_str().unwrap_or(""));
     result_ok(switch_workspace_impl(&sid, path))
 }
 
@@ -185,14 +192,14 @@ async fn h_save_workspace_config(headers: HeaderMap, Json(args): Json<Value>) ->
 }
 
 async fn h_load_workspace_config_by_path(Json(args): Json<Value>) -> Response {
-    let path = args["path"].as_str().unwrap_or("").to_string();
+    let path = normalize_path(args["path"].as_str().unwrap_or(""));
     result_json(crate::commands::workspace::load_workspace_config_by_path(
         path,
     ))
 }
 
 async fn h_save_workspace_config_by_path(Json(args): Json<Value>) -> Response {
-    let path = args["path"].as_str().unwrap_or("").to_string();
+    let path = normalize_path(args["path"].as_str().unwrap_or(""));
     let config: WorkspaceConfig = match serde_json::from_value(args["config"].clone()) {
         Ok(c) => c,
         Err(e) => {
@@ -362,11 +369,12 @@ async fn h_add_existing_project(headers: HeaderMap, Json(args): Json<Value>) -> 
 
 async fn h_import_external_project(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
-    let source_path = args["sourcePath"]
-        .as_str()
-        .or_else(|| args["source_path"].as_str())
-        .unwrap_or("")
-        .to_string();
+    let source_path = normalize_path(
+        args["sourcePath"]
+            .as_str()
+            .or_else(|| args["source_path"].as_str())
+            .unwrap_or(""),
+    );
     result_json(import_external_project_impl(&sid, source_path))
 }
 
@@ -649,7 +657,7 @@ async fn h_check_dashscope_api_key() -> Response {
 // -- Scan --
 
 async fn h_scan_linked_folders(Json(args): Json<Value>) -> Response {
-    let project_path = args["projectPath"].as_str().unwrap_or("").to_string();
+    let project_path = normalize_path(args["projectPath"].as_str().unwrap_or(""));
     result_json(crate::scan_linked_folders_internal(&project_path))
 }
 
@@ -805,7 +813,7 @@ where
 
 async fn h_pty_create(Json(args): Json<Value>) -> Response {
     let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
-    let cwd = args["cwd"].as_str().unwrap_or("").to_string();
+    let cwd = normalize_path(args["cwd"].as_str().unwrap_or(""));
     let cols = args["cols"].as_u64().unwrap_or(80) as u16;
     let rows = args["rows"].as_u64().unwrap_or(24) as u16;
     let shell = args["shell"].as_str().map(|s| s.to_string());
@@ -882,7 +890,7 @@ async fn h_pty_exists(Json(args): Json<Value>) -> Response {
 }
 
 async fn h_pty_close_by_path(Json(args): Json<Value>) -> Response {
-    let path_prefix = args["pathPrefix"].as_str().unwrap_or("").to_string();
+    let path_prefix = normalize_path(args["pathPrefix"].as_str().unwrap_or(""));
     result_json(
         with_pty_manager(move |m| {
             Ok(m.close_sessions_by_path_prefix(&path_prefix, "h_pty_close_by_path: HTTP request"))
@@ -1134,7 +1142,7 @@ async fn h_get_share_info() -> Response {
 
     Json(json!({
         "workspace_name": ws_name,
-        "workspace_path": ws_path,
+        "workspace_path": ws_path.map(|p| normalize_path(&p)),
         "current_worktree": current_worktree,
     }))
     .into_response()
@@ -1178,7 +1186,7 @@ async fn h_get_last_share_password() -> Response {
 // -- Misc --
 
 async fn h_get_terminal_state(Json(args): Json<Value>) -> Response {
-    let ws_path = args["workspacePath"].as_str().unwrap_or("").to_string();
+    let ws_path = normalize_path(args["workspacePath"].as_str().unwrap_or(""));
     let wt_name = args["worktreeName"].as_str().unwrap_or("").to_string();
     let state = crate::commands::window::get_terminal_state_inner(ws_path, wt_name);
     Json(json!(state)).into_response()
@@ -1186,7 +1194,7 @@ async fn h_get_terminal_state(Json(args): Json<Value>) -> Response {
 
 async fn h_open_workspace_window(Json(args): Json<Value>) -> Response {
     // In browser mode, "open new window" just opens a new browser tab
-    let ws_path = args["workspacePath"].as_str().unwrap_or("").to_string();
+    let ws_path = normalize_path(args["workspacePath"].as_str().unwrap_or(""));
     // Return a URL that the frontend can use to open a new tab
     let url = format!("/?workspace={}", urlencoding::encode(&ws_path));
     Json(json!(url)).into_response()

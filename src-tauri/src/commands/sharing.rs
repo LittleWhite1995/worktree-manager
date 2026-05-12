@@ -407,7 +407,10 @@ pub(crate) async fn get_share_state() -> Result<ShareStateInfo, String> {
         active: state.active,
         urls,
         ngrok_url: state.ngrok_url.clone(),
-        workspace_path: state.workspace_path.clone(),
+        workspace_path: state
+            .workspace_path
+            .as_ref()
+            .map(|p| crate::normalize_path(p)),
         current_workspace_name,
     })
 }
