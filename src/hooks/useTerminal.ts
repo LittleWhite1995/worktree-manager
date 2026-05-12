@@ -25,6 +25,7 @@ export interface UseTerminalReturn {
   handleDuplicateTerminal: (path: string) => void;
   handleToggleTerminal: () => void;
   cleanupTerminalsForPath: (pathPrefix: string) => Promise<void>;
+  cleanupTerminalUIForPath: (pathPrefix: string) => void;
   clientId: string;
   markShellIntegrationActive: (path: string) => void;
   updateTerminalCwd: (sessionPath: string, cwd: string) => void;
@@ -587,6 +588,51 @@ export function useTerminal(
     scheduleBroadcast();
   }, [scheduleBroadcast]);
 
+  // UI-only cleanup: clear local terminal state without closing backend PTY sessions.
+  // Used when a grid cell is unmounted — other cells may still share the same PTY sessions.
+  const cleanupTerminalUIForPath = useCallback((pathPrefix: string) => {
+    const matches = (p: string) => p.startsWith(pathPrefix) || p.split('#')[0].startsWith(pathPrefix);
+
+    setMountedTerminals(prev => {
+      const next = new Set(prev);
+      for (const p of prev) if (matches(p)) next.delete(p);
+      return next.size === prev.size ? prev : next;
+    });
+
+    setCwdOverrides(prev => { const next = new Map(prev); for (const [k] of prev) if (matches(k)) next.delete(k); return next.size === prev.size ? prev : next; });
+    setShellIntegrationMap(prev => { const next = new Map(prev); for (const [k] of prev) if (matches(k)) next.delete(k); return next.size === prev.size ? prev : next; });
+
+    const newActivated = new Set(activatedTerminalsRef.current);
+    for (const p of activatedTerminalsRef.current) {
+      if (matches(p)) newActivated.delete(p);
+    }
+    setActivatedTerminals(newActivated);
+    activatedTerminalsRef.current = newActivated;
+
+    const nextActive =
+      activeTerminalTabRef.current && matches(activeTerminalTabRef.current)
+        ? Array.from(newActivated)[0] ?? null
+        : activeTerminalTabRef.current;
+    if (nextActive !== activeTerminalTabRef.current) {
+      setActiveTerminalTab(nextActive);
+      activeTerminalTabRef.current = nextActive;
+    }
+
+    if (newActivated.size === 0 && terminalVisibleRef.current) {
+      setTerminalVisible(false);
+      terminalVisibleRef.current = false;
+    }
+
+    for (const [key, set] of activatedPerWorkspace.current) {
+      if (matches(key)) {
+        activatedPerWorkspace.current.delete(key);
+        activeTabPerWorkspace.current.delete(key);
+      } else {
+        for (const p of set) if (matches(p)) set.delete(p);
+      }
+    }
+  }, []);
+
   return {
     terminalVisible,
     terminalHeight,
@@ -606,6 +652,7 @@ export function useTerminal(
     handleDuplicateTerminal,
     handleToggleTerminal,
     cleanupTerminalsForPath,
+    cleanupTerminalUIForPath,
     clientId: clientIdRef.current,
     markShellIntegrationActive,
     updateTerminalCwd,

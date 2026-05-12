@@ -56,9 +56,12 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
     handleTerminalTabContextMenu,
   } = useAppShellState(t, initialWorkspacePath);
 
-  // Cleanup terminals and release worktree lock when cell is unmounted (closed)
-  const cleanupRef = useRef(terminalHook.cleanupTerminalsForPath);
-  cleanupRef.current = terminalHook.cleanupTerminalsForPath;
+  // Cleanup UI state and release worktree lock when cell is unmounted (closed)
+  // NOTE: We only clear local terminal UI state here — we do NOT close backend PTY
+  // sessions, because other cells may share the same workspace path and PTY sessions.
+  // Backend PTY sessions are cleaned up when worktrees are archived/deleted.
+  const cleanupUIRef = useRef(terminalHook.cleanupTerminalUIForPath);
+  cleanupUIRef.current = terminalHook.cleanupTerminalUIForPath;
   const unlockRef = useRef(workspace.unlockWorktree);
   unlockRef.current = workspace.unlockWorktree;
   const wsPathRef = useRef(workspace.currentWorkspace?.path);
@@ -68,7 +71,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
   useEffect(() => {
     return () => {
       if (wsPathRef.current) {
-        cleanupRef.current(wsPathRef.current);
+        cleanupUIRef.current(wsPathRef.current);
       }
       // Release worktree lock held by this cell
       if (wsPathRef.current && selectedWtRef.current) {

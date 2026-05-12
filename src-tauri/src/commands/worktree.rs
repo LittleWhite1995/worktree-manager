@@ -1046,7 +1046,8 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
     {
         let worktree_path_str = worktree_path.to_string_lossy().to_string();
         if let Ok(mut manager) = PTY_MANAGER.lock() {
-            let closed = manager.close_sessions_by_path_prefix(&worktree_path_str);
+            let closed =
+                manager.close_sessions_by_path_prefix(&worktree_path_str, "archive_worktree");
             if !closed.is_empty() {
                 log::info!(
                     "[worktree] Closed {} PTY sessions for archived worktree: {:?}",
@@ -1550,7 +1551,8 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
     {
         let archive_path_str = archive_path.to_string_lossy().to_string();
         if let Ok(mut manager) = PTY_MANAGER.lock() {
-            let closed = manager.close_sessions_by_path_prefix(&archive_path_str);
+            let closed = manager
+                .close_sessions_by_path_prefix(&archive_path_str, "delete_archived_worktree");
             if !closed.is_empty() {
                 log::info!(
                     "[worktree] Closed {} PTY sessions for deleted worktree",

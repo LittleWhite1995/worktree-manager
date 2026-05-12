@@ -580,7 +580,11 @@ impl PtyManager {
     ) -> Result<(), String> {
         // Properly close existing session if any
         if self.has_session(id) {
-            self.close_session(id)?;
+            log::warn!(
+                "[pty] create_session: session '{}' already exists, closing before re-create",
+                id
+            );
+            self.close_session(id, "create_session: replacing existing")?;
         }
 
         let pty_system = native_pty_system();
@@ -756,14 +760,25 @@ impl PtyManager {
 
         self.sessions
             .insert(id.to_string(), Arc::new(Mutex::new(session)));
+        log::info!(
+            "[pty] Session '{}' created successfully. Total active sessions: {}",
+            id,
+            self.sessions.len()
+        );
         Ok(())
     }
 
     pub fn write_to_session(&self, id: &str, data: &str) -> Result<(), String> {
-        let session = self
-            .sessions
-            .get(id)
-            .ok_or_else(|| "Session not found".to_string())?;
+        let session = self.sessions.get(id).ok_or_else(|| {
+            let active: Vec<&String> = self.sessions.keys().collect();
+            log::warn!(
+                "[pty] write_to_session: session '{}' not found. Active sessions ({}) = {:?}",
+                id,
+                active.len(),
+                active
+            );
+            "Session not found".to_string()
+        })?;
 
         let mut session = session.lock().map_err(|e| format!("Lock error: {}", e))?;
         session
@@ -778,10 +793,16 @@ impl PtyManager {
     }
 
     pub fn read_from_session(&self, id: &str, reader_id: Option<&str>) -> Result<String, String> {
-        let session = self
-            .sessions
-            .get(id)
-            .ok_or_else(|| "Session not found".to_string())?;
+        let session = self.sessions.get(id).ok_or_else(|| {
+            let active: Vec<&String> = self.sessions.keys().collect();
+            log::warn!(
+                "[pty] read_from_session: session '{}' not found. Active sessions ({}) = {:?}",
+                id,
+                active.len(),
+                active
+            );
+            "Session not found".to_string()
+        })?;
 
         let session = session.lock().map_err(|e| format!("Lock error: {}", e))?;
         let reader_key = reader_id.unwrap_or(id);
@@ -806,10 +827,10 @@ impl PtyManager {
     }
 
     pub fn resize_session(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
-        let session = self
-            .sessions
-            .get(id)
-            .ok_or_else(|| "Session not found".to_string())?;
+        let session = self.sessions.get(id).ok_or_else(|| {
+            log::warn!("[pty] resize_session: session '{}' not found", id);
+            "Session not found".to_string()
+        })?;
 
         let session = session.lock().map_err(|e| format!("Lock error: {}", e))?;
         session
@@ -824,11 +845,23 @@ impl PtyManager {
         Ok(())
     }
 
-    pub fn close_session(&mut self, id: &str) -> Result<(), String> {
+    pub fn close_session(&mut self, id: &str, reason: &str) -> Result<(), String> {
         if let Some(session) = self.sessions.remove(id) {
+            log::info!(
+                "[pty] Closing session '{}', reason: '{}'. Remaining sessions: {}",
+                id,
+                reason,
+                self.sessions.len()
+            );
             if let Ok(mut session) = session.lock() {
                 session.kill_child();
             }
+        } else {
+            log::warn!(
+                "[pty] close_session called for '{}' but not found, reason: '{}'",
+                id,
+                reason
+            );
         }
         Ok(())
     }
@@ -863,7 +896,11 @@ impl PtyManager {
         Some((replay, rx))
     }
 
-    pub fn close_sessions_by_path_prefix(&mut self, path_prefix: &str) -> Vec<String> {
+    pub fn close_sessions_by_path_prefix(
+        &mut self,
+        path_prefix: &str,
+        reason: &str,
+    ) -> Vec<String> {
         let normalized_prefix = path_prefix.replace(['/', '#'], "-");
         let sessions_to_close: Vec<String> = self
             .sessions
@@ -871,6 +908,17 @@ impl PtyManager {
             .filter(|id| id.contains(&normalized_prefix))
             .cloned()
             .collect();
+
+        if !sessions_to_close.is_empty() {
+            log::info!(
+                "[pty] Closing {} sessions by path prefix '{}' (normalized: '{}'), reason: '{}', sessions: {:?}",
+                sessions_to_close.len(),
+                path_prefix,
+                normalized_prefix,
+                reason,
+                sessions_to_close
+            );
+        }
 
         for id in &sessions_to_close {
             if let Some(session) = self.sessions.remove(id) {

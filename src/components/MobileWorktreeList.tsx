@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, Lock } from 'lucide-react';
+import { RefreshCw, Lock, Palette } from 'lucide-react';
 import type { WorktreeListItem, WorkspaceRef, MainWorkspaceStatus } from '../types';
+import { useTheme } from '../hooks/useTheme';
 
 interface MobileWorktreeListProps {
     workspaces: WorkspaceRef[];
@@ -29,6 +30,8 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
 }) => {
     const { t } = useTranslation();
     const [refreshing, setRefreshing] = useState(false);
+    const [showThemePicker, setShowThemePicker] = useState(false);
+    const { themeId, setTheme, themes } = useTheme();
 
     // Pull-to-refresh
     const pullStartY = useRef(0);
@@ -95,16 +98,24 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
             {/* Header */}
             <div className="px-4 pt-4 pb-2">
                 <div className="flex items-center justify-between">
-                    <div className="pl-10">
-                        <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                            {currentWorkspace?.name || 'Worktree Manager'}
-                        </h1>
-                        {shareActive && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-success)] mt-0.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                {t('mobile.sharing', '分享中')}
-                            </span>
-                        )}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowThemePicker(v => !v)}
+                            className="w-8 h-8 rounded-full bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 flex items-center justify-center active:bg-[var(--color-bg-elevated)] transition-colors"
+                        >
+                            <Palette className="w-4 h-4 text-[var(--color-text-muted)]" />
+                        </button>
+                        <div>
+                            <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">
+                                {currentWorkspace?.name || 'Worktree Manager'}
+                            </h1>
+                            {shareActive && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-success)] mt-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                    {t('mobile.sharing', '分享中')}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     {onOpenCreateModal && (
                         <button
@@ -122,6 +133,42 @@ export const MobileWorktreeList: FC<MobileWorktreeListProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Theme Picker */}
+            {showThemePicker && (
+                <div className="px-3 pb-2">
+                    <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 rounded-xl p-3 space-y-1.5">
+                        <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1">{t('settings.activeTheme', '主题')}</div>
+                        {themes.map(theme => {
+                            const isActive = themeId === theme.id;
+                            const c = theme.colors;
+                            return (
+                                <button
+                                    key={theme.id}
+                                    onClick={() => { setTheme(theme.id); setShowThemePicker(false); }}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all active:scale-[0.98] ${
+                                        isActive
+                                            ? 'bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/30'
+                                            : 'border border-transparent active:bg-[var(--color-bg-elevated)]/50'
+                                    }`}
+                                >
+                                    <div className="flex gap-1 shrink-0">
+                                        <span className="w-4 h-4 rounded-full border border-white/10" style={{ background: c.bgBase }} />
+                                        <span className="w-4 h-4 rounded-full border border-white/10" style={{ background: c.accent }} />
+                                        <span className="w-4 h-4 rounded-full border border-white/10" style={{ background: c.success }} />
+                                    </div>
+                                    <span className={`text-xs font-medium flex-1 text-left ${isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
+                                        {t(theme.nameKey || theme.id)}
+                                    </span>
+                                    {isActive && (
+                                        <span className="text-[var(--color-accent)] text-xs">✓</span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Active Worktrees */}
             <div className="px-3 space-y-1.5">

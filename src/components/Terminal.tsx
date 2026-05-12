@@ -219,6 +219,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const [initStatus, setInitStatus] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  const [reinitTrigger, setReinitTrigger] = useState(0);
+  const reinitTriggerRef = useRef(0);
   const gotFirstDataRef = useRef(false);
   const mountedRef = useRef(false);
   const shellIntDetectedRef = useRef(false);
@@ -546,6 +548,8 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
         readerIntervalRef.current = window.setTimeout(readLoop, TERMINAL.POLL_INTERVAL_MS);
       };
 
+      let sessionNotFoundCount = 0;
+
       const readLoop = async () => {
         try {
           const data = await callBackend<string>('pty_read', {
@@ -553,7 +557,26 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
             ...(clientId ? { clientId } : {}),
           });
           handleIncomingData(data);
-        } catch { /* noop */ }
+          sessionNotFoundCount = 0;
+        } catch (err) {
+          if (typeof err === 'string' && err.includes('Session not found') ||
+              err instanceof Error && err.message.includes('Session not found')) {
+            sessionNotFoundCount++;
+            if (sessionNotFoundCount >= 3) {
+              console.warn('[terminal] PTY session lost, stopping poll and triggering re-init');
+              if (readerIntervalRef.current !== null) {
+                clearTimeout(readerIntervalRef.current);
+                readerIntervalRef.current = null;
+              }
+              desktopTransportRef.current = null;
+              // Reset initialized flag so the visibility useEffect re-triggers initPty
+              initializedRef.current = false;
+              reinitTriggerRef.current++;
+              setReinitTrigger(r => r + 1);
+              return;
+            }
+          }
+        }
 
         if (readerIntervalRef.current !== null) {
           scheduleNext();
@@ -921,11 +944,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     }
   }, [clientId, handleIncomingData, sendPastedText, startReading]);
 
-  // Create PTY session on first visibility
+  // Create PTY session on first visibility, or re-create after session loss
   useEffect(() => {
     if (!adapterRef.current || !visible || initializedRef.current) return;
     initPty();
-  }, [visible, initPty]);
+  }, [visible, initPty, reinitTrigger]);
 
 
   const stopReading = useCallback(() => {
