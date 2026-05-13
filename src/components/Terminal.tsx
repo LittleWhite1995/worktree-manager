@@ -1161,7 +1161,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
               className="fixed inset-0 z-50"
               onClick={handleCloseDebugInfo}
             />
-            <div className="absolute z-[60] top-2 left-2 w-[80vw] max-w-[80vw] max-h-[80vh] bg-[var(--color-bg-base)]/95 border border-amber-600/50 rounded-lg shadow-xl select-text flex flex-col">
+            <div className="absolute z-[60] top-2 left-2 right-2 max-h-[80vh] bg-[var(--color-bg-base)]/95 border border-amber-600/50 rounded-lg shadow-xl select-text flex flex-col">
               <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--color-border)]/80">
                 <span className="text-xs font-bold text-[var(--color-warning)] uppercase tracking-wider">Terminal Debug Info</span>
                 <div className="flex items-center gap-2">

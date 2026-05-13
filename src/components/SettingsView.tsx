@@ -1636,7 +1636,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       type="button"
                       className="text-[var(--color-text-secondary)] hover:text-[var(--color-success)] transition-colors shrink-0"
                       title={t('settings.addCustomEditor', '添加')}
-                      onClick={() => {
+                      onClick={async () => {
                         const nameInput = document.getElementById('custom-editor-name') as HTMLInputElement;
                         const pathInput = document.getElementById('custom-editor-path') as HTMLInputElement;
                         let name = nameInput?.value?.trim();
@@ -1656,19 +1656,22 @@ export const SettingsView: FC<SettingsViewProps> = ({
                           customs.push({ id, name, path });
                         }
                         localStorage.setItem('custom_editors', JSON.stringify(customs));
-                        const pendingIcon = pathInput?.dataset?.pendingIcon;
-                        if (pendingIcon) {
+                        let iconData = pathInput?.dataset?.pendingIcon;
+                        if (!iconData) {
+                          iconData = await getAppIcon(path).catch(() => null) ?? undefined;
+                        }
+                        if (iconData) {
                           const icons: Record<string, string> = JSON.parse(localStorage.getItem('editor_icons') || '{}');
-                          icons[id] = pendingIcon;
+                          icons[id] = iconData;
                           localStorage.setItem('editor_icons', JSON.stringify(icons));
-                          delete pathInput.dataset.pendingIcon;
+                          if (pathInput?.dataset?.pendingIcon) delete pathInput.dataset.pendingIcon;
                         }
                         const detected: Array<{ id: string; name: string; icon?: string }> = JSON.parse(localStorage.getItem('detected_editors') || '[]');
                         const detIdx = detected.findIndex(e => e.id === id);
                         if (detIdx >= 0) {
-                          detected[detIdx] = { id, name, icon: pendingIcon };
+                          detected[detIdx] = { id, name, icon: iconData };
                         } else {
-                          detected.push({ id, name, icon: pendingIcon });
+                          detected.push({ id, name, icon: iconData });
                         }
                         localStorage.setItem('detected_editors', JSON.stringify(detected));
                         const tp = JSON.parse(localStorage.getItem('tool_paths') || '{}');
@@ -1676,7 +1679,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         localStorage.setItem('tool_paths', JSON.stringify(tp));
                         window.dispatchEvent(new Event('editors-detected'));
                         setDetectedTools(prev => {
-                          const newEditor = { id, name, path, icon: pendingIcon || undefined };
+                          const newEditor = { id, name, path, icon: iconData || undefined };
                           if (!prev) return { git: [], terminals: [], shells: [], editors: [newEditor] };
                           const idx = prev.editors.findIndex(e => e.id === id);
                           if (idx >= 0) {
