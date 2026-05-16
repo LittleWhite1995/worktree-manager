@@ -330,27 +330,39 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
           <div className="flex items-center justify-between">
             <h1 className="text-base font-semibold text-[var(--color-text-primary)]">Worktrees</h1>
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onRefresh}
-                title={t('sidebar.refresh')}
-                aria-label={t('sidebar.refreshWorktrees')}
-                className="h-8 w-8"
-              >
-                <RefreshIcon className={`w-4 h-4${refreshing ? ' animate-spin' : ''}`} />
-              </Button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={onRefresh}
+                      aria-label={t('sidebar.refreshWorktrees')}
+                      className="h-8 w-8"
+                    >
+                      <RefreshIcon className={`w-4 h-4${refreshing ? ' animate-spin' : ''}`} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t('sidebar.refresh')}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               {onToggleCollapsed && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onToggleCollapsed}
-                  title={t('share.collapseSidebar')}
-                  aria-label={t('share.collapseSidebar')}
-                  className="h-8 w-8"
-                >
-                  <SidebarCollapseIcon className="w-4 h-4" />
-                </Button>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onToggleCollapsed}
+                        aria-label={t('share.collapseSidebar')}
+                        className="h-8 w-8"
+                      >
+                        <SidebarCollapseIcon className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('share.collapseSidebar')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           </div>
@@ -528,18 +540,24 @@ const WorkspaceSwitcher: FC<{
                 </div>
               </button>
               {onOpenInNewWindow && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenInNewWindow(workspace.path);
-                    onShowWorkspaceMenu(false);
-                  }}
-                  className="px-2 flex items-center text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-elevated)] rounded-r-sm transition-colors shrink-0 border-l border-[var(--color-border)]"
-                  title={t('sidebar.openInNewWindow')}
-                  aria-label={`${t('sidebar.openInNewWindow')} ${workspace.name}`}
-                >
-                  <ExternalLinkIcon className="w-3.5 h-3.5" />
-                </button>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenInNewWindow(workspace.path);
+                          onShowWorkspaceMenu(false);
+                        }}
+                        className="px-2 flex items-center text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-elevated)] rounded-r-sm transition-colors shrink-0 border-l border-[var(--color-border)]"
+                        aria-label={`${t('sidebar.openInNewWindow')} ${workspace.name}`}
+                      >
+                        <ExternalLinkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('sidebar.openInNewWindow')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           );
@@ -583,19 +601,25 @@ const MainWorkspaceCard: FC<{
           )}
         </div>
         {showCreateButton && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenCreateModal();
-            }}
-            title={t('sidebar.newWorktree')}
-            aria-label={t('sidebar.newWorktree')}
-            className="h-7 w-7"
-          >
-            <PlusIcon className="w-4 h-4" />
-          </Button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenCreateModal();
+                  }}
+                  aria-label={t('sidebar.newWorktree')}
+                  className="h-7 w-7"
+                >
+                  <PlusIcon className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t('sidebar.newWorktree')}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
       <div className="text-[var(--color-text-muted)] text-xs mt-1 truncate pl-6 select-text">{path}</div>

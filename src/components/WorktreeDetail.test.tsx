@@ -22,6 +22,11 @@ vi.mock('./ChangedFilesPanel', () => ({
   ChangedFilesPanel: () => <div data-testid="changed-files-panel" />,
 }));
 
+vi.mock('./Toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+  ToastProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 describe('WorktreeDetail', () => {
   it('hides the changed files review tab and does not navigate when clicking uncommitted changes', () => {
     render(

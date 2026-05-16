@@ -24,6 +24,7 @@ import {
   Check,
   CheckCircle,
   FileText,
+  File,
   ExternalLink,
   Maximize2,
   Minimize2,
@@ -207,6 +208,10 @@ export const CodeIcon: FC<IconProps> = ({ className = "w-4 h-4" }) => (
 
 export const FolderOpenIcon: FC<IconProps> = ({ className = "w-4 h-4" }) => (
   <FolderOpen className={className} />
+);
+
+export const FileIcon: FC<IconProps> = ({ className = "w-4 h-4" }) => (
+  <File className={className} />
 );
 
 /** IDE-specific icon: uses system-extracted app icon if available, falls back to simple-icons library. */

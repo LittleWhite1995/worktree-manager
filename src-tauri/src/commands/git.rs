@@ -586,10 +586,11 @@ pub(crate) async fn merge_to_base_branch(
 pub(crate) async fn get_branch_diff_stats(
     path: String,
     base_branch: String,
+    test_branch: Option<String>,
 ) -> Result<git_ops::BranchDiffStats, String> {
     let result = tokio::task::spawn_blocking(move || {
         let normalized = normalize_path(&path);
-        git_ops::get_branch_diff_stats(Path::new(&normalized), &base_branch)
+        git_ops::get_branch_diff_stats(Path::new(&normalized), &base_branch, test_branch.as_deref())
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?;
@@ -761,4 +762,117 @@ pub fn switch_branch_internal(request: &SwitchBranchRequest) -> Result<(), Strin
         .output();
     log::info!("[git] Successfully switched to branch '{}'", request.branch);
     Ok(())
+}
+
+// ==================== Sync All Projects to BASE ====================
+
+#[derive(Debug, serde::Serialize, Clone)]
+pub struct SyncBaseResult {
+    pub path: String,
+    pub project_name: String,
+    pub status: String, // "success" | "skipped" | "failed"
+    pub message: String,
+}
+
+pub(crate) fn sync_all_projects_to_base_impl(
+    window_label: &str,
+    project_paths: Vec<String>,
+) -> Result<Vec<SyncBaseResult>, String> {
+    let (_, config) = get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+
+    let projects_config: Vec<(String, String)> = config
+        .projects
+        .iter()
+        .map(|p| (p.name.clone(), p.base_branch.clone()))
+        .collect();
+
+    log::info!(
+        "[sync-base] Syncing {} projects to their base branches (concurrent)",
+        project_paths.len()
+    );
+
+    let results: Vec<SyncBaseResult> = std::thread::scope(|s| {
+        let mut handles = Vec::new();
+
+        for project_path in &project_paths {
+            let path = PathBuf::from(project_path.clone());
+            let project_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(project_path.as_str())
+                .to_string();
+            let base_branch = projects_config
+                .iter()
+                .find(|(name, _)| name == &project_name)
+                .map(|(_, b)| b.clone())
+                .unwrap_or_else(|| "main".to_string());
+
+            let handle =
+                s.spawn(move || sync_single_project_to_base(&path, &project_name, &base_branch));
+            handles.push(handle);
+        }
+
+        let mut results = Vec::new();
+        for handle in handles {
+            results.push(handle.join().unwrap());
+        }
+        results
+    });
+
+    log::info!(
+        "[sync-base] Done. Results: {} success, {} skipped, {} failed",
+        results.iter().filter(|r| r.status == "success").count(),
+        results.iter().filter(|r| r.status == "skipped").count(),
+        results.iter().filter(|r| r.status == "failed").count(),
+    );
+
+    Ok(results)
+}
+
+fn sync_single_project_to_base(
+    path: &Path,
+    project_name: &str,
+    base_branch: &str,
+) -> SyncBaseResult {
+    let path_str = path.to_string_lossy().to_string();
+
+    if !path.exists() {
+        log::error!("[sync-base] Project path does not exist: {}", path_str);
+        return SyncBaseResult {
+            path: path_str,
+            project_name: project_name.to_string(),
+            status: "failed".to_string(),
+            message: "Project path does not exist".to_string(),
+        };
+    }
+
+    match git_ops::sync_with_base_branch(path, base_branch) {
+        Ok(msg) => {
+            log::info!("[sync-base] {}: success - {}", project_name, msg);
+            SyncBaseResult {
+                path: path_str,
+                project_name: project_name.to_string(),
+                status: "success".to_string(),
+                message: msg,
+            }
+        }
+        Err(e) => {
+            log::error!("[sync-base] {}: failed - {}", project_name, e);
+            SyncBaseResult {
+                path: path_str,
+                project_name: project_name.to_string(),
+                status: "failed".to_string(),
+                message: e,
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn sync_all_projects_to_base(
+    window: tauri::Window,
+    project_paths: Vec<String>,
+) -> Result<Vec<SyncBaseResult>, String> {
+    let label = window.label().to_string();
+    blocking(move || sync_all_projects_to_base_impl(&label, project_paths)).await
 }

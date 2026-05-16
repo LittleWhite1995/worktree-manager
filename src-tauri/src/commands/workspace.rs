@@ -6,7 +6,9 @@ use crate::config::{
     load_global_config, save_global_config_internal, save_workspace_config_internal,
 };
 use crate::state::{WINDOW_WORKSPACES, WORKSPACE_CONFIG_CACHE};
-use crate::types::{default_linked_workspace_items, WorkspaceConfig, WorkspaceRef};
+use crate::types::{
+    default_linked_workspace_items, default_uat_branch, WorkspaceConfig, WorkspaceRef,
+};
 use crate::utils::normalize_path;
 
 // ==================== Tauri 命令：Workspace 管理 ====================
@@ -143,6 +145,17 @@ pub(crate) fn add_workspace(name: String, path: String) -> Result<(), String> {
         return Err("Path does not exist".to_string());
     }
 
+    // 自动创建 projects/ 目录（如果不存在）
+    let projects_dir = workspace_path.join("projects");
+    if !projects_dir.exists() {
+        fs::create_dir_all(&projects_dir)
+            .map_err(|e| format!("Failed to create projects directory: {}", e))?;
+        log::info!(
+            "[workspace] Auto-created projects/ directory at {:?}",
+            projects_dir
+        );
+    }
+
     // 添加到列表
     global.workspaces.push(WorkspaceRef {
         name: name.clone(),
@@ -235,6 +248,8 @@ pub(crate) fn create_workspace(name: String, path: String) -> Result<(), String>
         projects: vec![],
         linked_workspace_items: default_linked_workspace_items(),
         vault_linked_workspace_items: vec![],
+        uat_branch: default_uat_branch(),
+        archived_worktrees: vec![],
     };
     save_workspace_config_internal(&path, &ws_config)?;
 
@@ -335,6 +350,14 @@ pub fn add_workspace_internal(name: &str, path: &str) -> Result<(), String> {
     if !workspace_path.exists() {
         return Err("Path does not exist".to_string());
     }
+
+    // 自动创建 projects/ 目录（如果不存在）
+    let projects_dir = workspace_path.join("projects");
+    if !projects_dir.exists() {
+        fs::create_dir_all(&projects_dir)
+            .map_err(|e| format!("Failed to create projects directory: {}", e))?;
+    }
+
     global.workspaces.push(WorkspaceRef {
         name: name.to_string(),
         path: path.to_string(),
@@ -380,6 +403,8 @@ pub fn create_workspace_internal(name: &str, path: &str) -> Result<(), String> {
         projects: vec![],
         linked_workspace_items: default_linked_workspace_items(),
         vault_linked_workspace_items: vec![],
+        uat_branch: default_uat_branch(),
+        archived_worktrees: vec![],
     };
     save_workspace_config_internal(path, &ws_config)?;
     add_workspace_internal(name, path)?;

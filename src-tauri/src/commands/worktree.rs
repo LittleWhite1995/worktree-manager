@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use crate::commands::window::broadcast_lock_state;
 use crate::config::{
     clear_occupation_state, get_window_workspace_config, load_occupation_state,
-    save_occupation_state,
+    save_occupation_state, save_workspace_config_internal,
 };
 use crate::git_ops::{get_branch_status, get_worktree_info_for_branches};
-use crate::state::PTY_MANAGER;
+use crate::state::{PTY_MANAGER, WINDOW_WORKSPACES};
 use crate::types::{
     AddProjectToWorktreeRequest, CreateProjectRequest, CreateWorktreeRequest, DeployProjectError,
     DeployToMainResult, LockedProcessInfo, MainProjectStatus, MainWorkspaceOccupation,
@@ -504,7 +504,7 @@ fn scan_worktrees_dir(
             continue;
         }
 
-        let is_archived = name.ends_with(".archive");
+        let is_archived = config.archived_worktrees.contains(&name);
 
         if is_archived && !include_archived {
             continue;
@@ -571,12 +571,8 @@ fn scan_worktrees_dir(
             }
         }
 
-        // Look up display name from mapping (strip .archive suffix for lookup)
-        let lookup_key = if is_archived {
-            name.trim_end_matches(".archive")
-        } else {
-            &name
-        };
+        // Look up display name from mapping
+        let lookup_key = &name;
         let display_name = mapping.get(lookup_key).cloned();
 
         result.push(WorktreeListItem {
@@ -1025,9 +1021,6 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
     let root = PathBuf::from(&workspace_path);
     let worktree_path = root.join(&config.worktrees_dir).join(&name);
 
-    let archive_name = format!("{}.archive", name);
-    let archive_path = root.join(&config.worktrees_dir).join(&archive_name);
-
     if !worktree_path.exists() {
         return Err("Worktree does not exist".to_string());
     }
@@ -1119,23 +1112,17 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
         }
     }
 
-    // Step 4: Rename directory to .archive
-    log::info!(
-        "[worktree] Step 4/4: Renaming directory to '{}'",
-        archive_name
-    );
-    // If archive directory already exists (e.g. from a previous failed attempt), remove it first
-    if archive_path.exists() {
-        log::warn!(
-            "[worktree] Archive directory already exists, removing: {:?}",
-            archive_path
-        );
-        fs::remove_dir_all(&archive_path)
-            .map_err(|e| friendly_fs_error("无法清理已有的归档目录", &e))?;
+    // Step 4: Mark as archived in config (no folder rename)
+    log::info!("[worktree] Step 4/4: Marking worktree as archived in config");
+    let mut config = config;
+    if !config.archived_worktrees.contains(&name) {
+        config.archived_worktrees.push(name.clone());
     }
-
-    std::fs::rename(&worktree_path, &archive_path)
-        .map_err(|e| friendly_fs_error("归档 Worktree 失败", &e))?;
+    save_workspace_config_internal(&workspace_path, &config)?;
+    log::info!(
+        "[worktree] Marked worktree '{}' as archived in config",
+        name
+    );
 
     log::info!("[worktree] Successfully archived worktree '{}'", name);
     Ok(())
@@ -1275,44 +1262,22 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
         get_window_workspace_config(window_label).ok_or("No workspace selected")?;
 
     let root = PathBuf::from(&workspace_path);
-    let archive_path = root.join(&config.worktrees_dir).join(&name);
+    let worktree_path = root.join(&config.worktrees_dir).join(&name);
 
-    let restored_name = name.strip_suffix(".archive").unwrap_or(&name);
-    let worktree_path = root.join(&config.worktrees_dir).join(restored_name);
-
-    if !archive_path.exists() {
+    if !worktree_path.exists() {
         return Err("Archived worktree does not exist".to_string());
     }
 
     log::info!(
         "[worktree] Restoring worktree '{}' from archive in workspace '{}'",
-        restored_name,
+        name,
         workspace_path
     );
 
-    // Step 1: Rename archive directory to restored path
+    // Step 1: Re-register git worktrees for each project
     log::info!(
-        "[worktree] Step 1/3: Renaming archive directory to '{}'",
-        restored_name
-    );
-    // If target directory already exists, remove it first
-    if worktree_path.exists() {
-        log::warn!(
-            "[worktree] Target directory already exists, removing: {:?}",
-            worktree_path
-        );
-        fs::remove_dir_all(&worktree_path)
-            .map_err(|e| friendly_fs_error("无法清理已有目录", &e))?;
-    }
-
-    // Rename archive directory to restored path
-    std::fs::rename(&archive_path, &worktree_path)
-        .map_err(|e| friendly_fs_error("恢复 Worktree 失败", &e))?;
-
-    // Step 2: Re-register git worktrees for each project
-    log::info!(
-        "[worktree] Step 2/3: Re-registering git worktrees for '{}'",
-        restored_name
+        "[worktree] Step 1/2: Re-registering git worktrees for '{}'",
+        name
     );
     let projects_path = worktree_path.join("projects");
     if projects_path.exists() {
@@ -1343,7 +1308,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                 let wt_proj_path = projects_path.join(&proj_name);
 
                 // Check if branch exists
-                let branch_name = restored_name;
+                let branch_name = &name;
                 let branch_check = git_command()
                     .args([
                         "-C",
@@ -1480,7 +1445,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
         }
     }
 
-    // Step 3: Restore workspace-level symlinks
+    // Step 2: Restore workspace-level symlinks
     // Merge linked_workspace_items + vault_linked_workspace_items, deduplicated
     let mut all_linked: Vec<String> = config.linked_workspace_items.clone();
     for item in &config.vault_linked_workspace_items {
@@ -1489,7 +1454,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
         }
     }
     log::info!(
-        "[worktree] Step 3/3: Restoring workspace-level symlinks ({} items)",
+        "[worktree] Step 2/2: Restoring workspace-level symlinks ({} items)",
         all_linked.len()
     );
     for item_name in &all_linked {
@@ -1500,7 +1465,16 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
         }
     }
 
-    log::info!("Successfully restored worktree '{}'", restored_name);
+    // Step 3: Remove from archived list in config
+    let mut config = config;
+    config.archived_worktrees.retain(|n| n != &name);
+    save_workspace_config_internal(&workspace_path, &config)?;
+    log::info!(
+        "[worktree] Removed worktree '{}' from archived list in config",
+        name
+    );
+
+    log::info!("Successfully restored worktree '{}'", name);
     Ok(())
 }
 
@@ -1517,18 +1491,18 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
         get_window_workspace_config(window_label).ok_or("No workspace selected")?;
 
     let root = PathBuf::from(&workspace_path);
-    let archive_path = root.join(&config.worktrees_dir).join(&name);
+    let worktree_path = root.join(&config.worktrees_dir).join(&name);
 
     // Validate it's an archived worktree
-    if !name.ends_with(".archive") {
+    if !config.archived_worktrees.contains(&name) {
         return Err("Can only delete archived worktrees".to_string());
     }
 
-    if !archive_path.exists() {
+    if !worktree_path.exists() {
         return Err("Archived worktree does not exist".to_string());
     }
 
-    let folder_key = name.strip_suffix(".archive").unwrap_or(&name);
+    let folder_key = &name;
     // Check mapping for the actual branch name (may differ from folder name if aliased)
     let mapping_path = root.join(&config.worktrees_dir).join("mapping.json");
     let mapping = load_worktree_mapping(&mapping_path);
@@ -1549,10 +1523,10 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
         name
     );
     {
-        let archive_path_str = archive_path.to_string_lossy().to_string();
+        let worktree_path_str = worktree_path.to_string_lossy().to_string();
         if let Ok(mut manager) = PTY_MANAGER.lock() {
             let closed = manager
-                .close_sessions_by_path_prefix(&archive_path_str, "delete_archived_worktree");
+                .close_sessions_by_path_prefix(&worktree_path_str, "delete_archived_worktree");
             if !closed.is_empty() {
                 log::info!(
                     "[worktree] Closed {} PTY sessions for deleted worktree",
@@ -1608,9 +1582,9 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
     // Step 3: Remove the directory
     log::info!(
         "[worktree] Step 3/3: Removing directory {}",
-        archive_path.display()
+        worktree_path.display()
     );
-    fs::remove_dir_all(&archive_path)
+    fs::remove_dir_all(&worktree_path)
         .map_err(|e| friendly_fs_error("删除归档 Worktree 失败", &e))?;
 
     // Clean up mapping entry if exists
@@ -1620,6 +1594,15 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
         save_worktree_mapping(&mapping_path, &mapping);
         log::info!("[worktree] Removed mapping entry for '{}'", folder_key);
     }
+
+    // Step 4: Remove from archived list in config
+    let mut config = config;
+    config.archived_worktrees.retain(|n| n != &name);
+    save_workspace_config_internal(&workspace_path, &config)?;
+    log::info!(
+        "[worktree] Removed worktree '{}' from archived list in config",
+        name
+    );
 
     log::info!(
         "[worktree] Successfully deleted archived worktree '{}'",
@@ -2313,7 +2296,25 @@ pub fn get_main_occupation_impl(
     let (workspace_path, _config) =
         get_window_workspace_config(window_label).ok_or("No workspace selected")?;
 
-    Ok(load_occupation_state(&workspace_path))
+    let occupation = load_occupation_state(&workspace_path);
+
+    // Auto-cleanup: if occupation exists but no window is using this workspace, clear it
+    if occupation.is_some() {
+        let windows = WINDOW_WORKSPACES.lock().unwrap();
+        let is_in_use = windows.values().any(|p| *p == workspace_path);
+        drop(windows);
+
+        if !is_in_use {
+            log::info!(
+                "[worktree] Auto-clearing stale occupation state for workspace '{}' (no window using it)",
+                workspace_path
+            );
+            let _ = clear_occupation_state(&workspace_path);
+            return Ok(None);
+        }
+    }
+
+    Ok(occupation)
 }
 
 #[tauri::command]

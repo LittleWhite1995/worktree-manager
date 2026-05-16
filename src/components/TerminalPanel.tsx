@@ -20,6 +20,12 @@ import {
 import type { VoiceStatus, StagingState } from '../hooks/useVoiceInput';
 import type { TerminalTab } from '../types';
 import { isTauri } from '@/lib/backend';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 const IS_MOBILE = typeof window !== 'undefined' && 'ontouchstart' in window;
 const IS_MOBILE_WEB = IS_MOBILE && !isTauri();
@@ -507,17 +513,23 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                     <span className="text-[9px] text-[var(--color-text-muted)] font-mono">{t('terminal.duplicate')}</span>
                   )}
                   {isActivated && (
-                    <span
-                      className="w-5 h-5 ml-1 flex items-center justify-center rounded-full hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                      onClick={(e) => { e.stopPropagation(); onCloseTab(tab.path); }}
-                      title={t('terminal.close')}
-                      role="button"
-                      aria-label={t('terminal.closeTerminalTab', { name: tab.name })}
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCloseTab(tab.path); } }}
-                    >
-                      <CloseIcon className="w-2.5 h-2.5" />
-                    </span>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            className="w-5 h-5 ml-1 flex items-center justify-center rounded-full hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                            onClick={(e) => { e.stopPropagation(); onCloseTab(tab.path); }}
+                            role="button"
+                            aria-label={t('terminal.closeTerminalTab', { name: tab.name })}
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCloseTab(tab.path); } }}
+                          >
+                            <CloseIcon className="w-2.5 h-2.5" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">{t('terminal.close')}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </div>
               );
@@ -539,22 +551,34 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
           return (
             <div className="flex items-center gap-1 shrink-0 mr-1">
               {onOpenInEditor && activePath && (
-                <button
-                  onClick={() => onOpenInEditor(activePath, editorId)}
-                  className="p-1 rounded text-[var(--color-text-secondary)] hover:text-blue-300 hover:bg-[var(--color-bg-elevated)]/60 transition-colors"
-                  title={t('detail.openInEditor')}
-                >
-                  <EditorIcon editorId={editorId} className="w-3.5 h-3.5" />
-                </button>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => onOpenInEditor(activePath, editorId)}
+                        className="p-1 rounded text-[var(--color-text-secondary)] hover:text-blue-300 hover:bg-[var(--color-bg-elevated)]/60 transition-colors"
+                      >
+                        <EditorIcon editorId={editorId} className="w-3.5 h-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('detail.openInEditor')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               {onRevealInFinder && activePath && (
-                <button
-                  onClick={() => onRevealInFinder(activePath)}
-                  className="p-1 rounded text-[var(--color-text-secondary)] hover:text-blue-300 hover:bg-[var(--color-bg-elevated)]/60 transition-colors"
-                  title={t('detail.revealInFinder')}
-                >
-                  <FolderOpenIcon className="w-3.5 h-3.5" />
-                </button>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => onRevealInFinder(activePath)}
+                        className="p-1 rounded text-[var(--color-text-secondary)] hover:text-blue-300 hover:bg-[var(--color-bg-elevated)]/60 transition-colors"
+                      >
+                        <FolderOpenIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('detail.revealInFinder')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               <button
                 className={`terminal-badge-marquee text-xs px-2.5 py-0.5 rounded-md max-w-[160px] overflow-hidden cursor-pointer transition-colors ${
@@ -580,92 +604,134 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
         {visible && (
           <div className="flex items-center mx-1">
             {activatedTerminals.size >= 2 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onCloseAllTabs(); }}
-                className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                title={t('terminal.closeAllTerminals')}
-                aria-label={t('terminal.closeAllTerminals')}
-              >
-                <CloseIcon className="w-3.5 h-3.5" />
-              </button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onCloseAllTabs(); }}
+                      className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                      aria-label={t('terminal.closeAllTerminals')}
+                    >
+                      <CloseIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t('terminal.closeAllTerminals')}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             {hasShellIntegration && (
               <>
-                <button
-                  onClick={(e) => { e.stopPropagation(); terminalRefsMap.current.get(activeTerminalTab ?? '')?.scrollToCommand('prev'); }}
-                  className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                  title={t('terminal.prevCommand')}
-                  aria-label={t('terminal.prevCommand')}
-                >
-                  <ChevronUp className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); terminalRefsMap.current.get(activeTerminalTab ?? '')?.scrollToCommand('next'); }}
-                  className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                  title={t('terminal.nextCommand')}
-                  aria-label={t('terminal.nextCommand')}
-                >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); terminalRefsMap.current.get(activeTerminalTab ?? '')?.scrollToCommand('prev'); }}
+                        className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                        aria-label={t('terminal.prevCommand')}
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('terminal.prevCommand')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); terminalRefsMap.current.get(activeTerminalTab ?? '')?.scrollToCommand('next'); }}
+                        className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                        aria-label={t('terminal.nextCommand')}
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('terminal.nextCommand')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </>
             )}
-            <button
-              onClick={(e) => { e.stopPropagation(); handleSearchToggle(); }}
-              className={`p-1.5 rounded transition-colors ${
-                searchOpen ? 'text-[var(--color-accent)] bg-[var(--color-accent)]/10' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
-              }`}
-              title={t('terminal.search')}
-              aria-label={t('terminal.search')}
-            >
-              <Search className="w-3.5 h-3.5" />
-            </button>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleSearchToggle(); }}
+                    className={`p-1.5 rounded transition-colors ${
+                      searchOpen ? 'text-[var(--color-accent)] bg-[var(--color-accent)]/10' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
+                    }`}
+                    aria-label={t('terminal.search')}
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{t('terminal.search')}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {onToggleVoice && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  console.log('[voice-ui] tab-bar mic clicked, voiceStatus:', voiceStatus);
-                  if (voiceStatus === 'recording') {
-                    onStopRecording?.();
-                  } else {
-                    onToggleVoice?.();
-                  }
-                }}
-                className={`p-1.5 rounded transition-colors relative ${getVoiceButtonClass(voiceStatus, voiceWarning)}`}
-                title={getVoiceButtonTitle(voiceStatus, isKeyHeld, voiceError, t, voiceWarning)}
-                aria-label={t('terminal.voiceOff')}
-              >
-                <MicIcon className="w-3.5 h-3.5" />
-                {voiceStatus === 'recording' && (
-                  <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full animate-pulse bg-red-500" />
-                )}
-                {voiceStatus === 'ready' && (
-                  <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-green-500" />
-                )}
-              </button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        console.log('[voice-ui] tab-bar mic clicked, voiceStatus:', voiceStatus);
+                        if (voiceStatus === 'recording') {
+                          onStopRecording?.();
+                        } else {
+                          onToggleVoice?.();
+                        }
+                      }}
+                      className={`p-1.5 rounded transition-colors relative ${getVoiceButtonClass(voiceStatus, voiceWarning)}`}
+                      aria-label={t('terminal.voiceOff')}
+                    >
+                      <MicIcon className="w-3.5 h-3.5" />
+                      {voiceStatus === 'recording' && (
+                        <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full animate-pulse bg-red-500" />
+                      )}
+                      {voiceStatus === 'ready' && (
+                        <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-green-500" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{getVoiceButtonTitle(voiceStatus, isKeyHeld, voiceError, t, voiceWarning)}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             {onToggleFullscreen && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
-                className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                title={isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}
-                aria-label={isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}
-              >
-                {isFullscreen ? (
-                  <RestoreIcon className="w-3.5 h-3.5" />
-                ) : (
-                  <MaximizeIcon className="w-3.5 h-3.5" />
-                )}
-              </button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
+                      className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                      aria-label={isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}
+                    >
+                      {isFullscreen ? (
+                        <RestoreIcon className="w-3.5 h-3.5" />
+                      ) : (
+                        <MaximizeIcon className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             {!isFullscreen && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onCollapse(); }}
-                className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                title={t('terminal.collapseTerminal')}
-                aria-label={t('terminal.collapsePanel')}
-              >
-                <ChevronDownIcon className="w-3.5 h-3.5" />
-              </button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onCollapse(); }}
+                      className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                      aria-label={t('terminal.collapsePanel')}
+                    >
+                      <ChevronDownIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t('terminal.collapseTerminal')}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         )}

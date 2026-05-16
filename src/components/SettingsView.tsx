@@ -17,6 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Palette, Check } from 'lucide-react';
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
@@ -269,18 +275,24 @@ const VaultSettingsSection: FC = () => {
               <label className="block text-xs text-[var(--color-text-muted)] mb-1">
                 {t('settings.vaultPath', '路径')}
               </label>
-              <button
-                className="text-sm text-[var(--color-text-secondary)] font-mono break-all text-left hover:text-[var(--color-accent)] transition-colors flex items-center gap-1"
-                onClick={() => {
-                  if (status.vault_path) {
-                    callBackend('reveal_in_finder', { path: status.vault_path }).catch(() => {});
-                  }
-                }}
-                title={t('settings.vaultOpenPath', '在文件夹中打开')}
-              >
-                <FolderOpen className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
-                {status.vault_path}
-              </button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="text-sm text-[var(--color-text-secondary)] font-mono break-all text-left hover:text-[var(--color-accent)] transition-colors flex items-center gap-1"
+                      onClick={() => {
+                        if (status.vault_path) {
+                          callBackend('reveal_in_finder', { path: status.vault_path }).catch(() => {});
+                        }
+                      }}
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
+                      {status.vault_path}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t('settings.vaultOpenPath', '在文件夹中打开')}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Synced items toggle */}
@@ -1319,10 +1331,16 @@ export const SettingsView: FC<SettingsViewProps> = ({
                                 />
                               </div>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => removeProject(index)}
-                              className="h-6 w-6 text-[var(--color-error)]/60 hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 shrink-0"
-                              title={t('settings.deleteProject')}
-                            ><TrashIcon className="w-3.5 h-3.5" /></Button>
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" onClick={() => removeProject(index)}
+                                    className="h-6 w-6 text-[var(--color-error)]/60 hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 shrink-0"
+                                  ><TrashIcon className="w-3.5 h-3.5" /></Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">{t('settings.deleteProject')}</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                           {/* Linked Folders */}
                           <div className="border-t border-[var(--color-border)]/30 pt-2 ml-8">
@@ -1563,27 +1581,33 @@ export const SettingsView: FC<SettingsViewProps> = ({
                           onChange={(e) => saveToolPaths({ ...toolPaths, [pathKey]: e.target.value })}
                           className="h-7 text-xs font-mono flex-1"
                         />
-                        <button
-                          type="button"
-                          className="text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors shrink-0"
-                          title={t('common.delete', '删除')}
-                          onClick={() => {
-                            const cached: Array<{ id: string; name: string; icon?: string }> = JSON.parse(localStorage.getItem('detected_editors') || '[]');
-                            localStorage.setItem('detected_editors', JSON.stringify(cached.filter(e => e.id !== editor.id)));
-                            const customs: Array<{ id: string; name: string; path: string }> = JSON.parse(localStorage.getItem('custom_editors') || '[]');
-                            localStorage.setItem('custom_editors', JSON.stringify(customs.filter(e => e.id !== editor.id)));
-                            const icons: Record<string, string> = JSON.parse(localStorage.getItem('editor_icons') || '{}');
-                            delete icons[editor.id];
-                            localStorage.setItem('editor_icons', JSON.stringify(icons));
-                            const tp = { ...toolPaths };
-                            delete tp[pathKey];
-                            saveToolPaths(tp);
-                            setDetectedTools(prev => prev ? { ...prev, editors: prev.editors.filter(e => e.id !== editor.id) } : prev);
-                            window.dispatchEvent(new Event('editors-detected'));
-                          }}
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
+                        <TooltipProvider delayDuration={300}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors shrink-0"
+                                onClick={() => {
+                                  const cached: Array<{ id: string; name: string; icon?: string }> = JSON.parse(localStorage.getItem('detected_editors') || '[]');
+                                  localStorage.setItem('detected_editors', JSON.stringify(cached.filter(e => e.id !== editor.id)));
+                                  const customs: Array<{ id: string; name: string; path: string }> = JSON.parse(localStorage.getItem('custom_editors') || '[]');
+                                  localStorage.setItem('custom_editors', JSON.stringify(customs.filter(e => e.id !== editor.id)));
+                                  const icons: Record<string, string> = JSON.parse(localStorage.getItem('editor_icons') || '{}');
+                                  delete icons[editor.id];
+                                  localStorage.setItem('editor_icons', JSON.stringify(icons));
+                                  const tp = { ...toolPaths };
+                                  delete tp[pathKey];
+                                  saveToolPaths(tp);
+                                  setDetectedTools(prev => prev ? { ...prev, editors: prev.editors.filter(e => e.id !== editor.id) } : prev);
+                                  window.dispatchEvent(new Event('editors-detected'));
+                                }}
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">{t('common.delete', '删除')}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     );
                   })}
@@ -1603,98 +1627,110 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         className="h-7 text-xs font-mono flex-1"
                       />
                       {isTauri() && (
-                        <button
-                          type="button"
-                          className="h-7 px-2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors shrink-0 flex items-center border border-[var(--color-border)] rounded-md"
-                          title={t('settings.browseForApp', '选择应用')}
-                          onClick={async () => {
-                            const { open } = await import('@tauri-apps/plugin-dialog');
-                            const isWindows = navigator.platform.toLowerCase().includes('win');
-                            const selected = await open({
-                              multiple: false,
-                              filters: isWindows
-                                ? [{ name: 'Executable', extensions: ['exe'] }]
-                                : [{ name: 'Application', extensions: ['app'] }],
-                            }).catch(() => null);
-                            if (!selected || typeof selected !== 'string') return;
-                            const pathInput = document.getElementById('custom-editor-path') as HTMLInputElement;
-                            if (pathInput) pathInput.value = selected;
-                            const nameInput = document.getElementById('custom-editor-name') as HTMLInputElement;
-                            if (nameInput && !nameInput.value.trim()) {
-                              const basename = selected.split(/[/\\]/).pop()?.replace(/\.(app|exe)$/i, '') ?? '';
-                              nameInput.value = basename;
-                            }
-                            const icon = await getAppIcon(selected).catch(() => null);
-                            if (pathInput && icon) pathInput.dataset.pendingIcon = icon;
-                          }}
-                        >
-                          <FolderOpen className="w-3.5 h-3.5" />
-                        </button>
+                        <TooltipProvider delayDuration={300}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="h-7 px-2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors shrink-0 flex items-center border border-[var(--color-border)] rounded-md"
+                                onClick={async () => {
+                                  const { open } = await import('@tauri-apps/plugin-dialog');
+                                  const isWindows = navigator.platform.toLowerCase().includes('win');
+                                  const selected = await open({
+                                    multiple: false,
+                                    filters: isWindows
+                                      ? [{ name: 'Executable', extensions: ['exe'] }]
+                                      : [{ name: 'Application', extensions: ['app'] }],
+                                  }).catch(() => null);
+                                  if (!selected || typeof selected !== 'string') return;
+                                  const pathInput = document.getElementById('custom-editor-path') as HTMLInputElement;
+                                  if (pathInput) pathInput.value = selected;
+                                  const nameInput = document.getElementById('custom-editor-name') as HTMLInputElement;
+                                  if (nameInput && !nameInput.value.trim()) {
+                                    const basename = selected.split(/[/\\]/).pop()?.replace(/\.(app|exe)$/i, '') ?? '';
+                                    nameInput.value = basename;
+                                  }
+                                  const icon = await getAppIcon(selected).catch(() => null);
+                                  if (pathInput && icon) pathInput.dataset.pendingIcon = icon;
+                                }}
+                              >
+                                <FolderOpen className="w-3.5 h-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">{t('settings.browseForApp', '选择应用')}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className="text-[var(--color-text-secondary)] hover:text-[var(--color-success)] transition-colors shrink-0"
-                      title={t('settings.addCustomEditor', '添加')}
-                      onClick={async () => {
-                        const nameInput = document.getElementById('custom-editor-name') as HTMLInputElement;
-                        const pathInput = document.getElementById('custom-editor-path') as HTMLInputElement;
-                        let name = nameInput?.value?.trim();
-                        const path = pathInput?.value?.trim();
-                        if (!path) return;
-                        if (!name) {
-                          name = path.split(/[/\\]/).pop()?.replace(/\.(app|exe)$/i, '') ?? '';
-                          if (!name) return;
-                          if (nameInput) nameInput.value = name;
-                        }
-                        const id = `custom-${name.toLowerCase().replace(/\s+/g, '-')}`;
-                        const customs: Array<{ id: string; name: string; path: string }> = JSON.parse(localStorage.getItem('custom_editors') || '[]');
-                        const existingIdx = customs.findIndex(c => c.id === id);
-                        if (existingIdx >= 0) {
-                          customs[existingIdx] = { id, name, path };
-                        } else {
-                          customs.push({ id, name, path });
-                        }
-                        localStorage.setItem('custom_editors', JSON.stringify(customs));
-                        let iconData = pathInput?.dataset?.pendingIcon;
-                        if (!iconData) {
-                          iconData = await getAppIcon(path).catch(() => null) ?? undefined;
-                        }
-                        if (iconData) {
-                          const icons: Record<string, string> = JSON.parse(localStorage.getItem('editor_icons') || '{}');
-                          icons[id] = iconData;
-                          localStorage.setItem('editor_icons', JSON.stringify(icons));
-                          if (pathInput?.dataset?.pendingIcon) delete pathInput.dataset.pendingIcon;
-                        }
-                        const detected: Array<{ id: string; name: string; icon?: string }> = JSON.parse(localStorage.getItem('detected_editors') || '[]');
-                        const detIdx = detected.findIndex(e => e.id === id);
-                        if (detIdx >= 0) {
-                          detected[detIdx] = { id, name, icon: iconData };
-                        } else {
-                          detected.push({ id, name, icon: iconData });
-                        }
-                        localStorage.setItem('detected_editors', JSON.stringify(detected));
-                        const tp = JSON.parse(localStorage.getItem('tool_paths') || '{}');
-                        tp[`editor_${id}`] = path;
-                        localStorage.setItem('tool_paths', JSON.stringify(tp));
-                        window.dispatchEvent(new Event('editors-detected'));
-                        setDetectedTools(prev => {
-                          const newEditor = { id, name, path, icon: iconData || undefined };
-                          if (!prev) return { git: [], terminals: [], shells: [], editors: [newEditor] };
-                          const idx = prev.editors.findIndex(e => e.id === id);
-                          if (idx >= 0) {
-                            const editors = [...prev.editors];
-                            editors[idx] = newEditor;
-                            return { ...prev, editors };
-                          }
-                          return { ...prev, editors: [...prev.editors, newEditor] };
-                        });
-                        nameInput.value = '';
-                        pathInput.value = '';
-                      }}
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                    </button>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-[var(--color-text-secondary)] hover:text-[var(--color-success)] transition-colors shrink-0"
+                            onClick={async () => {
+                              const nameInput = document.getElementById('custom-editor-name') as HTMLInputElement;
+                              const pathInput = document.getElementById('custom-editor-path') as HTMLInputElement;
+                              let name = nameInput?.value?.trim();
+                              const path = pathInput?.value?.trim();
+                              if (!path) return;
+                              if (!name) {
+                                name = path.split(/[/\\]/).pop()?.replace(/\.(app|exe)$/i, '') ?? '';
+                                if (!name) return;
+                                if (nameInput) nameInput.value = name;
+                              }
+                              const id = `custom-${name.toLowerCase().replace(/\s+/g, '-')}`;
+                              const customs: Array<{ id: string; name: string; path: string }> = JSON.parse(localStorage.getItem('custom_editors') || '[]');
+                              const existingIdx = customs.findIndex(c => c.id === id);
+                              if (existingIdx >= 0) {
+                                customs[existingIdx] = { id, name, path };
+                              } else {
+                                customs.push({ id, name, path });
+                              }
+                              localStorage.setItem('custom_editors', JSON.stringify(customs));
+                              let iconData = pathInput?.dataset?.pendingIcon;
+                              if (!iconData) {
+                                iconData = await getAppIcon(path).catch(() => null) ?? undefined;
+                              }
+                              if (iconData) {
+                                const icons: Record<string, string> = JSON.parse(localStorage.getItem('editor_icons') || '{}');
+                                icons[id] = iconData;
+                                localStorage.setItem('editor_icons', JSON.stringify(icons));
+                                if (pathInput?.dataset?.pendingIcon) delete pathInput.dataset.pendingIcon;
+                              }
+                              const detected: Array<{ id: string; name: string; icon?: string }> = JSON.parse(localStorage.getItem('detected_editors') || '[]');
+                              const detIdx = detected.findIndex(e => e.id === id);
+                              if (detIdx >= 0) {
+                                detected[detIdx] = { id, name, icon: iconData };
+                              } else {
+                                detected.push({ id, name, icon: iconData });
+                              }
+                              localStorage.setItem('detected_editors', JSON.stringify(detected));
+                              const tp = JSON.parse(localStorage.getItem('tool_paths') || '{}');
+                              tp[`editor_${id}`] = path;
+                              localStorage.setItem('tool_paths', JSON.stringify(tp));
+                              window.dispatchEvent(new Event('editors-detected'));
+                              setDetectedTools(prev => {
+                                const newEditor = { id, name, path, icon: iconData || undefined };
+                                if (!prev) return { git: [], terminals: [], shells: [], editors: [newEditor] };
+                                const idx = prev.editors.findIndex(e => e.id === id);
+                                if (idx >= 0) {
+                                  const editors = [...prev.editors];
+                                  editors[idx] = newEditor;
+                                  return { ...prev, editors };
+                                }
+                                return { ...prev, editors: [...prev.editors, newEditor] };
+                              });
+                              nameInput.value = '';
+                              pathInput.value = '';
+                            }}
+                          >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">{t('settings.addCustomEditor', '添加')}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
 
@@ -1906,15 +1942,21 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       <label className="block text-sm text-[var(--color-text-secondary)]">{t('settings.prefixTemplates', '前缀模板（最多3个）')}</label>
                       {prefixTemplates.map((tpl, i) => (
                         <div key={i} className="flex gap-2 items-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDefaultPrefixIndex(i)}
-                            className={`px-1.5 ${defaultPrefixIndex === i ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
-                            title={t('settings.setDefault', '设为默认')}
-                          >
-                            <Star className={`w-4 h-4 ${defaultPrefixIndex === i ? 'fill-amber-400' : ''}`} />
-                          </Button>
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDefaultPrefixIndex(i)}
+                                  className={`px-1.5 ${defaultPrefixIndex === i ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+                                >
+                                  <Star className={`w-4 h-4 ${defaultPrefixIndex === i ? 'fill-amber-400' : ''}`} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">{t('settings.setDefault', '设为默认')}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Input type="text" value={tpl}
                             onChange={(e) => {
                               const next = [...prefixTemplates];

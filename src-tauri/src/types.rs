@@ -237,15 +237,18 @@ pub struct WorkspaceConfig {
     pub linked_workspace_items: Vec<String>, // 要链接到每个 worktree 的全局文件/文件夹
     #[serde(default)]
     pub vault_linked_workspace_items: Vec<String>, // vault 挂载时自动填充，也需链接到 worktree
+    #[serde(default = "default_uat_branch")]
+    pub uat_branch: String, // UAT 分支名，默认 "uat"
+    #[serde(default)]
+    pub archived_worktrees: Vec<String>, // archived worktree names
+}
+
+pub fn default_uat_branch() -> String {
+    "uat".to_string()
 }
 
 pub fn default_linked_workspace_items() -> Vec<String> {
-    vec![
-        ".claude".to_string(),
-        "CLAUDE.md".to_string(),
-        "AGENTS.md".to_string(),
-        "requirement-docs".to_string(),
-    ]
+    vec![]
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -272,6 +275,8 @@ impl Default for WorkspaceConfig {
             projects: vec![],
             linked_workspace_items: default_linked_workspace_items(),
             vault_linked_workspace_items: vec![],
+            uat_branch: default_uat_branch(),
+            archived_worktrees: vec![],
         }
     }
 }

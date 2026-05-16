@@ -195,6 +195,7 @@ pub fn run() {
             get_remote_branches,
             get_git_diff,
             commit_all,
+            sync_all_projects_to_base,
             get_changed_files,
             get_file_diff,
             generate_commit_message,

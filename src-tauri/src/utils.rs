@@ -410,8 +410,7 @@ pub(crate) fn scan_dir_for_linkable_folders(
             continue;
         }
 
-        // Recurse into other directories
-        scan_dir_for_linkable_folders(base, &entry_path, results);
+        // Only scan depth=1: do not recurse into subdirectories like src/, vendor/, etc.
     }
 }
 

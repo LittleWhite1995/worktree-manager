@@ -18,6 +18,12 @@ import {
 } from "./index";
 import { useAppShellState } from "../hooks/useAppShellState";
 import { isTauri } from "../lib/backend";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export interface WorkspaceCellProps {
   initialWorkspacePath: string;
@@ -82,20 +88,26 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
 
   return (
     <ToastProvider>
-      <div className="relative h-full w-full flex flex-col overflow-hidden">
+      <div className="relative h-full w-full flex flex-col overflow-hidden" style={{ containerType: 'inline-size' }}>
         {/* Close button */}
         {closable && onClose && (
-          <button
-            onClick={onClose}
-            className="absolute top-1 right-1 z-30 w-4 h-4 rounded-sm flex items-center justify-center
-                       text-[var(--color-text-muted)] bg-[var(--color-bg-surface)]/60 opacity-0 group-hover/cell:opacity-100
-                       hover:!bg-red-600 hover:!text-white transition-all"
-            title={t('grid.closeCell')}
-          >
-            <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M1 1l6 6M7 1l-6 6" />
-            </svg>
-          </button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onClose}
+                  className="absolute top-1 right-1 z-30 w-4 h-4 rounded-sm flex items-center justify-center
+                             text-[var(--color-text-muted)] bg-[var(--color-bg-surface)]/60 opacity-0 group-hover/cell:opacity-100
+                             hover:!bg-red-600 hover:!text-white transition-all"
+                >
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M1 1l6 6M7 1l-6 6" />
+                  </svg>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t('grid.closeCell')}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
 
         {/* Settings View (desktop) */}

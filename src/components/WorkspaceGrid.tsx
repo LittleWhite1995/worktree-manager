@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { CellContext } from '../contexts/CellContext';
 import { WorkspaceCell } from './WorkspaceCell';
 import { PlusIcon } from './Icons';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface GridCellState {
   id: string;  // Stable identity derived from key — never reassigned
@@ -253,19 +259,25 @@ export function WorkspaceGrid({ currentWorkspacePath }: WorkspaceGridProps) {
       {/* FAB + split triggers */}
       {showFab && (canAddAnyCol || canAddRow) && (
         <>
-          <button
-            onClick={() => setShowSplitMenu(prev => !prev)}
-            style={{ bottom: 4, right: 4, width: 25, height: 25 }}
-            className={`absolute z-[60] rounded-full flex items-center justify-center
-                       shadow-lg transition-all duration-200 cursor-pointer
-                       ${showSplitMenu
-                         ? 'bg-[var(--color-accent)] text-[var(--color-accent-fg)] rotate-45'
-                         : 'bg-[var(--color-accent)] text-[var(--color-text-primary)] hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-fg)]'
-                       }`}
-            title={t('grid.splitView')}
-          >
-            <PlusIcon className="w-2.5 h-2.5" />
-          </button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setShowSplitMenu(prev => !prev)}
+                  style={{ bottom: 4, right: 4, width: 25, height: 25 }}
+                  className={`absolute z-[60] rounded-full flex items-center justify-center
+                             shadow-lg transition-all duration-200 cursor-pointer
+                             ${showSplitMenu
+                               ? 'bg-[var(--color-accent)] text-[var(--color-accent-fg)] rotate-45'
+                               : 'bg-[var(--color-accent)] text-[var(--color-text-primary)] hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-fg)]'
+                             }`}
+                >
+                  <PlusIcon className="w-2.5 h-2.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('grid.splitView')}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {showSplitMenu && (
             <>
