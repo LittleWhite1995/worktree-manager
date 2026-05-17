@@ -5,6 +5,7 @@ import { TERMINAL, clampTerminalHeight } from '../constants';
 import { callBackend, closePtySessionsByPath, isTauri, broadcastTerminalState as broadcastTerminalStateBackend, getTerminalState } from '../lib/backend';
 import { getWebSocketManager } from '../lib/websocket';
 import { listen } from '@tauri-apps/api/event';
+import { basename } from '@/lib/utils';
 
 export interface UseTerminalReturn {
   terminalVisible: boolean;
@@ -130,7 +131,7 @@ export function useTerminal(
       const suffix = path.split('#')[1];
       const baseTab = baseTabs.find(t => t.path === basePath);
       return {
-        name: baseTab ? `${baseTab.name}-${suffix}` : path.split('/').pop() || 'Terminal',
+        name: baseTab ? `${baseTab.name}-${suffix}` : basename(path),
         path,
         isRoot: false,
         isDuplicate: true
