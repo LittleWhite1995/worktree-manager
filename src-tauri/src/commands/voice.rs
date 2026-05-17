@@ -74,6 +74,45 @@ pub(crate) fn check_dashscope_api_key() -> bool {
         .unwrap_or(false)
 }
 
+// ==================== Commit AI API Key Commands ====================
+
+#[allow(dead_code)]
+pub(crate) fn get_commit_ai_api_key_inner() -> Result<Option<String>, String> {
+    let config = load_global_config();
+    Ok(config.commit_ai_api_key)
+}
+
+#[allow(dead_code)]
+pub(crate) fn set_commit_ai_api_key_inner(key: String) -> Result<(), String> {
+    let mut config = load_global_config();
+    config.commit_ai_api_key = if key.is_empty() { None } else { Some(key) };
+    save_global_config_internal(&config)?;
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) async fn get_commit_ai_api_key() -> Result<Option<String>, String> {
+    get_commit_ai_api_key_inner()
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) async fn set_commit_ai_api_key(key: String) -> Result<(), String> {
+    set_commit_ai_api_key_inner(key)
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) fn check_commit_ai_api_key() -> bool {
+    let config = crate::config::load_global_config();
+    config
+        .commit_ai_api_key
+        .as_ref()
+        .map(|k| !k.is_empty())
+        .unwrap_or(false)
+}
+
 // ==================== Dashscope Base URL Commands ====================
 
 const DEFAULT_DASHSCOPE_WS_URL: &str = "wss://dashscope.aliyuncs.com/api-ws/v1/inference/";
