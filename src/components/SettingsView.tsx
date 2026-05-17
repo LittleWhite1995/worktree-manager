@@ -23,7 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Palette, Check } from 'lucide-react';
+import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Palette, Check, Brain } from 'lucide-react';
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
 import { BranchCombobox } from './BranchCombobox';
@@ -136,6 +136,118 @@ const VaultItemTree: FC<VaultItemTreeProps> = ({
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+
+// ==================== WorkspaceVaultSection ====================
+const WorkspaceVaultSection: FC = () => {
+  const { t } = useTranslation();
+  const [vaultStatus, setVaultStatus] = useState<VaultStatus | null>(null);
+  const [inputPath, setInputPath] = useState('');
+  const [linking, setLinking] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const s = await getVaultStatus();
+      setVaultStatus(s);
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const handleConnect = async (selectedPath: string) => {
+    if (!selectedPath.trim()) return;
+    setError(null);
+    setLinking(true);
+    try {
+      const result = await vaultLink(selectedPath.trim());
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setVaultStatus({
+          connected: result.connected,
+          vault_path: selectedPath.trim(),
+          synced_items: result.synced_items,
+        });
+        setInputPath('');
+        if (result.warning) setError(result.warning);
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const handleSelectFolder = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: t('settings.vaultSelectTitle', '选择知识库目录'),
+      });
+      if (selected) {
+        setInputPath(selected);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  if (loading) {
+    return <div className="text-xs text-[var(--color-text-muted)]">{t('common.loading', '...')}</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-xs">
+        <span className={`${vaultStatus?.connected ? 'text-[var(--color-success)]' : 'text-[var(--color-text-muted)]'}`}>
+          {vaultStatus?.connected ? '✅ ' + t('settings.vaultConnected', '已连接') : '❌ ' + t('settings.vaultNotConnected', '未连接')}
+        </span>
+      </div>
+      {vaultStatus?.connected && vaultStatus.vault_path && (
+        <div className="mt-1">
+          <VaultItemTree
+            vaultPath={vaultStatus.vault_path}
+            relativePath=""
+            itemName={t('settings.vaultTitle', '知识库')}
+            itemType="directory"
+            depth={0}
+          />
+        </div>
+      )}
+      {!vaultStatus?.connected && (
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            value={inputPath}
+            onChange={(e) => setInputPath(e.target.value)}
+            placeholder={t('settings.vaultInputPlaceholder', '/path/to/vault')}
+            className="flex-1 h-8 text-sm"
+          />
+          <Button variant="secondary" size="sm" onClick={handleSelectFolder}>
+            <FolderOpen className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            disabled={linking || !inputPath.trim()}
+            onClick={() => handleConnect(inputPath)}
+          >
+            {linking ? t('common.loading', '连接中...') : t('settings.vaultConnect', '连接')}
+          </Button>
+        </div>
+      )}
+      {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
     </div>
   );
 };
@@ -1195,6 +1307,15 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     </div>
                     <p className="text-[10px] text-[var(--color-text-muted)] mt-1">{t('settings.linkedWorktreeItemsHint')}</p>
                   </div>
+                </div>
+
+                {/* 知识库 */}
+                <div className="border border-[var(--color-border)]/50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Brain className="w-4 h-4 text-[var(--color-accent)]" />
+                    <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">{t('settings.vaultNav', '知识库')}</h3>
+                  </div>
+                  <WorkspaceVaultSection />
                 </div>
 
                 {/* Projects Config */}
