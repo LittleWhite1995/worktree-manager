@@ -681,15 +681,24 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
+    // Initial measurement using requestAnimationFrame to avoid layout thrashing
+    const rafId = requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0) {
+        setContentWidth(rect.width);
+      }
+    });
+    // ResizeObserver for subsequent changes
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setContentWidth(entry.contentRect.width);
       }
     });
     observer.observe(el);
-    // Initial measurement
-    setContentWidth(el.getBoundingClientRect().width);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {
