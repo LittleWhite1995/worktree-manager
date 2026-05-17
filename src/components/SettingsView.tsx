@@ -149,6 +149,7 @@ const WorkspaceVaultSection: FC = () => {
   const [linking, setLinking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showItems, setShowItems] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -197,10 +198,50 @@ const WorkspaceVaultSection: FC = () => {
         title: t('settings.vaultSelectTitle', '选择知识库目录'),
       });
       if (selected) {
-        setInputPath(selected);
+        await handleConnect(selected as string);
+      }
+    } catch {
+      // Dialog not available in browser mode
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!vaultStatus?.vault_path) return;
+    setError(null);
+    setLinking(true);
+    try {
+      const result = await vaultLink(vaultStatus.vault_path);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setVaultStatus({
+          connected: result.connected,
+          vault_path: vaultStatus.vault_path,
+          synced_items: result.synced_items,
+        });
+        if (result.warning) setError(result.warning);
       }
     } catch (e) {
       setError(String(e));
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const handleDisconnect = async (keepSymlinks = false) => {
+    const msg = keepSymlinks
+      ? t('settings.vaultSoftDisconnectConfirm', '断开但保留本地软链接？')
+      : t('settings.vaultDisconnectConfirm', '确定要断开 Vault 吗？这将移除所有软链接。');
+    if (!window.confirm(msg)) return;
+    setError(null);
+    setLinking(true);
+    try {
+      await vaultLink(null, keepSymlinks);
+      setVaultStatus({ connected: false, vault_path: null, synced_items: [] });
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLinking(false);
     }
   };
 
@@ -210,24 +251,73 @@ const WorkspaceVaultSection: FC = () => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs">
-        <span className={`${vaultStatus?.connected ? 'text-[var(--color-success)]' : 'text-[var(--color-text-muted)]'}`}>
-          {vaultStatus?.connected ? '✅ ' + t('settings.vaultConnected', '已连接') : '❌ ' + t('settings.vaultNotConnected', '未连接')}
-        </span>
-      </div>
-      {vaultStatus?.connected && vaultStatus.vault_path && (
-        <div className="mt-1">
-          <VaultItemTree
-            vaultPath={vaultStatus.vault_path}
-            relativePath=""
-            itemName={t('settings.vaultTitle', '知识库')}
-            itemType="directory"
-            depth={0}
-          />
-        </div>
-      )}
-      {!vaultStatus?.connected && (
+      {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
+      {vaultStatus?.connected ? (
+        <>
+          {/* Connected state */}
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              {t('settings.vaultConnected', '已连接')}
+            </span>
+          </div>
+          {vaultStatus.vault_path && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-[var(--color-text-muted)] font-mono truncate max-w-[200px]" title={vaultStatus.vault_path}>
+                {vaultStatus.vault_path}
+              </span>
+            </div>
+          )}
+          {/* Synced items toggle */}
+          <div>
+            <button
+              className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+              onClick={() => setShowItems(!showItems)}
+            >
+              <span className="w-3 h-3 inline-flex items-center justify-center text-[10px]">
+                {showItems ? '\u25BC' : '\u25B6'}
+              </span>
+              {t('settings.vaultSyncedItems', '已同步项')}
+              <span className="text-[var(--color-text-muted)]">({vaultStatus.synced_items.length})</span>
+            </button>
+            {showItems && vaultStatus.vault_path && (
+              <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto pr-1">
+                {vaultStatus.synced_items.map((item) => (
+                  <VaultItemTree
+                    key={item.name}
+                    vaultPath={vaultStatus.vault_path!}
+                    relativePath={item.name}
+                    itemName={item.name}
+                    itemType={item.item_type}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Actions */}
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={linking} onClick={handleRefresh}>
+              <RefreshCw className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="secondary" size="sm" disabled={linking} onClick={handleSelectFolder}>
+              {t('settings.vaultChange', '更换')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={linking}
+              onClick={() => handleDisconnect(false)}
+              className="text-[var(--color-error)] hover:text-[var(--color-error)]"
+            >
+              {t('settings.vaultDisconnect', '断开')}
+            </Button>
+          </div>
+        </>
+      ) : (
+        /* Not connected */
         <div className="flex gap-2">
+          <div className="w-2 h-2 rounded-full bg-[var(--color-text-muted)] mt-2 shrink-0" />
+          <span className="text-xs text-[var(--color-text-muted)] mr-2">{t('settings.vaultNotConnected', '未连接')}</span>
           <Input
             type="text"
             value={inputPath}
@@ -243,11 +333,10 @@ const WorkspaceVaultSection: FC = () => {
             disabled={linking || !inputPath.trim()}
             onClick={() => handleConnect(inputPath)}
           >
-            {linking ? t('common.loading', '连接中...') : t('settings.vaultConnect', '连接')}
+            {linking ? t('common.loading', '...') : t('settings.vaultConnect', '连接')}
           </Button>
         </div>
       )}
-      {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
     </div>
   );
 };
