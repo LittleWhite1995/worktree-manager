@@ -28,7 +28,7 @@ import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
 import { BranchCombobox } from './BranchCombobox';
 import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild } from '../types';
-import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect } from '../lib/backend';
+import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect, getCommitAiApiKey, setCommitAiApiKey as saveCommitAiApiKey } from '../lib/backend';
 import type { CloudStatus, PairingStatus } from '../lib/backend';
 
 const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
@@ -691,6 +691,14 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const [voiceRefineEnabled, setVoiceRefineEnabled] = useState(true);
   const [voiceRefineLoaded, setVoiceRefineLoaded] = useState(false);
 
+  // Commit AI key state
+  const [commitAiKey, setCommitAiKey] = useState('');
+  const [commitAiKeyLoaded, setCommitAiKeyLoaded] = useState(false);
+  const [commitAiSaving, setCommitAiSaving] = useState(false);
+  const [commitAiSaved, setCommitAiSaved] = useState(false);
+  const [commitAiError, setCommitAiError] = useState<string | null>(null);
+  const [commitAiEnabled, setCommitAiEnabled] = useState(true);
+
   // Cloud connection state
   const [cloudStatus, setCloudStatus] = useState<CloudStatus | null>(null)
   const [pairingCode, setPairingCode] = useState<string | null>(null)
@@ -980,6 +988,13 @@ export const SettingsView: FC<SettingsViewProps> = ({
         setShellIntegrationLoaded(true);
       })
       .catch(() => setShellIntegrationLoaded(true));
+
+    getCommitAiApiKey()
+      .then(key => {
+        setCommitAiKey(key || '');
+        setCommitAiKeyLoaded(true);
+      })
+      .catch(() => setCommitAiKeyLoaded(true));
   }, []);
 
   // ==================== Cloud connection handlers ====================
@@ -1907,6 +1922,61 @@ export const SettingsView: FC<SettingsViewProps> = ({
               <div>
                 <h2 className="text-lg font-medium mb-4">{t('settings.commitTitle', '提交设置')}</h2>
                 <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 rounded-lg p-4 space-y-4">
+                  {/* AI 助手 */}
+                  <div>
+                    <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-4">{t('settings.commitAiTitle', 'AI 助手')}</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-sm text-[var(--color-text-secondary)]">{t('settings.commitAiLabel', 'AI 生成 commit message')}</label>
+                          <p className="text-xs text-[var(--color-text-muted)]">{t('settings.commitAiDesc', '根据 diff 自动生成提交信息')}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { const newVal = !commitAiEnabled; setCommitAiEnabled(newVal); }}
+                          disabled={!commitAiKeyLoaded}
+                          className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${commitAiEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-muted)]'}`}
+                        >
+                          <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${commitAiEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.commitAiKeyLabel', 'Dashscope API Key')}</label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="password"
+                            value={commitAiKey}
+                            onChange={(e) => setCommitAiKey(e.target.value)}
+                            placeholder={t('settings.commitAiKeyPlaceholder', 'sk-...')}
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={commitAiSaving}
+                            onClick={async () => {
+                              setCommitAiSaving(true);
+                              setCommitAiError(null);
+                              try {
+                                await saveCommitAiApiKey(commitAiKey.trim());
+                                setCommitAiSaved(true);
+                                setTimeout(() => setCommitAiSaved(false), 2000);
+                              } catch (e) {
+                                setCommitAiError(String(e));
+                              } finally {
+                                setCommitAiSaving(false);
+                              }
+                            }}
+                          >
+                            {commitAiSaving ? t('common.saving') : commitAiSaved ? t('settings.savedSuccess') : t('common.save')}
+                          </Button>
+                        </div>
+                        {commitAiError && <p className="text-sm text-[var(--color-error)] mt-1">{commitAiError}</p>}
+                        <p className="text-xs text-[var(--color-text-muted)] mt-1">{t('settings.commitAiKeyHint', '需要独立的 Dashscope API Key，与语音 Key 分离')}</p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* 前缀开关 */}
                   <div className="flex items-center justify-between">
                     <div>
