@@ -617,6 +617,18 @@ export async function checkDashscopeApiKey(): Promise<boolean> {
   return callBackend<boolean>('check_dashscope_api_key');
 }
 
+export async function getCommitAiApiKey(): Promise<string> {
+  return callBackend<string>('get_commit_ai_api_key') as Promise<string>;
+}
+
+export async function setCommitAiApiKey(key: string): Promise<void> {
+  return callBackend<void>('set_commit_ai_api_key', { key });
+}
+
+export async function checkCommitAiApiKey(): Promise<boolean> {
+  return callBackend<boolean>('check_commit_ai_api_key');
+}
+
 // ---------------------------------------------------------------------------
 // Commit Prefix & Git User Config API
 // ---------------------------------------------------------------------------
