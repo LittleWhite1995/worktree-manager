@@ -1,6 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+global.ResizeObserver = ResizeObserverMock;
+
 import { WorktreeDetail } from './WorktreeDetail';
 
 vi.mock('react-i18next', () => ({
@@ -20,6 +27,11 @@ vi.mock('./GitOperations', () => ({
 
 vi.mock('./ChangedFilesPanel', () => ({
   ChangedFilesPanel: () => <div data-testid="changed-files-panel" />,
+}));
+
+vi.mock('./Toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+  ToastProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 describe('WorktreeDetail', () => {

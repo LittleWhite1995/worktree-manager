@@ -399,8 +399,13 @@ async fn h_switch_branch(Json(args): Json<Value>) -> Response {
 async fn h_get_branch_diff_stats(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
     let base_branch = args["baseBranch"].as_str().unwrap_or("").to_string();
+    let test_branch = args["testBranch"].as_str().map(|s| s.to_string());
     let normalized = normalize_path(&path);
-    let stats = git_ops::get_branch_diff_stats(std::path::Path::new(&normalized), &base_branch);
+    let stats = git_ops::get_branch_diff_stats(
+        std::path::Path::new(&normalized),
+        &base_branch,
+        test_branch.as_deref(),
+    );
     Json(json!(stats)).into_response()
 }
 
@@ -450,6 +455,24 @@ async fn h_sync_with_base_branch(Json(args): Json<Value>) -> Response {
     let normalized = normalize_path(&path);
     let result = tokio::task::spawn_blocking(move || {
         git_ops::sync_with_base_branch(std::path::Path::new(&normalized), &base_branch)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))
+    .and_then(|r| r);
+    result_json(result)
+}
+
+async fn h_sync_all_projects_to_base(Json(args): Json<Value>) -> Response {
+    let project_paths: Vec<String> = args["projectPaths"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let result = tokio::task::spawn_blocking(move || {
+        crate::commands::git::sync_all_projects_to_base_impl("http", project_paths)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))

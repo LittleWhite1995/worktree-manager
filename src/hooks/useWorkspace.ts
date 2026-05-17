@@ -321,6 +321,7 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
       await loadData();
     } catch (e) {
       setError(String(e));
+      throw e; // Re-throw so caller can handle
     }
   }, [loadData]);
 

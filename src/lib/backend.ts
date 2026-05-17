@@ -418,6 +418,8 @@ export interface BranchDiffStats {
   ahead: number;
   behind: number;
   changed_files: number;
+  unpushed_commits: number;
+  ahead_of_test: number;
 }
 
 /** Sync with base branch (pull from base branch) */
@@ -441,8 +443,8 @@ export async function mergeToBaseBranch(path: string, baseBranch: string): Promi
 }
 
 /** Get branch diff statistics */
-export async function getBranchDiffStats(path: string, baseBranch: string): Promise<BranchDiffStats> {
-  return callBackend<BranchDiffStats>('get_branch_diff_stats', { path, baseBranch });
+export async function getBranchDiffStats(path: string, baseBranch: string, testBranch?: string): Promise<BranchDiffStats> {
+  return callBackend<BranchDiffStats>('get_branch_diff_stats', { path, baseBranch, testBranch });
 }
 
 /** Create a pull request using gh CLI */
@@ -481,6 +483,18 @@ export async function getRemoteBranches(path: string): Promise<string[]> {
 /** Get git diff for AI commit message generation */
 export async function getGitDiff(path: string): Promise<string> {
   return callBackend<string>('get_git_diff', { path });
+}
+
+export interface SyncBaseResult {
+  path: string;
+  project_name: string;
+  status: string; // "success" | "skipped" | "failed"
+  message: string;
+}
+
+/** Sync all projects to UAT branch (concurrent) */
+export async function syncAllProjectsToBase(projectPaths: string[]): Promise<SyncBaseResult[]> {
+  return callBackend<SyncBaseResult[]>('sync_all_projects_to_base', { projectPaths });
 }
 
 /** Stage all changes and commit with message */

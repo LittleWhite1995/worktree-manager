@@ -2,13 +2,6 @@ import type { FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { FolderIcon, PlusIcon, WorkspaceIcon } from './Icons';
 
 interface WelcomeViewProps {
@@ -18,27 +11,21 @@ interface WelcomeViewProps {
 
 export const WelcomeView: FC<WelcomeViewProps> = ({ onAddWorkspace, onCreateWorkspace }) => {
   const { t, i18n } = useTranslation();
+  const toggleLang = () => {
+    const next = i18n.language.startsWith('zh') ? 'en-US' : 'zh-CN';
+    i18n.changeLanguage(next);
+    localStorage.setItem('i18n-lang', next);
+  };
   return (
     <div className="min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-primary)] flex items-center justify-center relative">
-      {/* Language Selector */}
-      <div className="absolute top-4 right-4">
-        <Select
-          value={i18n.language}
-          onValueChange={(lng) => {
-            i18n.changeLanguage(lng);
-            localStorage.setItem('i18n-lang', lng);
-          }}
-        >
-          <SelectTrigger className="w-auto gap-1.5 h-8 px-2.5 text-xs text-[var(--color-text-secondary)] border-[var(--color-border)] bg-[var(--color-bg-surface)] hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-text-primary)]">
-            <Globe className="w-3.5 h-3.5" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="zh-CN">中文</SelectItem>
-            <SelectItem value="en-US">English</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Language Toggle */}
+      <button
+        onClick={toggleLang}
+        className="absolute top-4 right-4 flex items-center gap-1.5 h-8 px-2.5 text-xs text-[var(--color-text-secondary)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-text-primary)] rounded-md transition-colors"
+      >
+        <Globe className="w-3.5 h-3.5" />
+        <span>{i18n.language.startsWith('zh') ? '中文' : 'English'}</span>
+      </button>
       <div className="max-w-lg w-full mx-auto text-center p-8">
         <div className="mb-8">
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-[var(--color-accent)] flex items-center justify-center shadow-lg animate-subtle-pulse">

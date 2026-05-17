@@ -2,6 +2,12 @@ import { useState, useRef, useEffect, useCallback, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronUp, ChevronDown, X, CaseSensitive, Regex } from 'lucide-react';
 import type { SearchOptions } from '../terminal';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface TerminalSearchBarProps {
   onFindNext: (query: string, options: SearchOptions) => boolean;
@@ -95,54 +101,84 @@ export const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
       {query && !hasResults && (
         <span className="text-[10px] text-[var(--color-error)] whitespace-nowrap">{t('terminal.noResults')}</span>
       )}
-      <button
-        onClick={() => setCaseSensitive(!caseSensitive)}
-        className={`p-1 rounded transition-colors ${
-          caseSensitive ? 'text-[var(--color-accent)] bg-[var(--color-accent)]/20' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
-        }`}
-        title={t('terminal.caseSensitive')}
-        aria-label={t('terminal.caseSensitive')}
-        aria-pressed={caseSensitive}
-      >
-        <CaseSensitive className="w-3.5 h-3.5" />
-      </button>
-      <button
-        onClick={() => setUseRegex(!useRegex)}
-        className={`p-1 rounded transition-colors ${
-          useRegex ? 'text-[var(--color-accent)] bg-[var(--color-accent)]/20' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
-        }`}
-        title={t('terminal.useRegex')}
-        aria-label={t('terminal.useRegex')}
-        aria-pressed={useRegex}
-      >
-        <Regex className="w-3.5 h-3.5" />
-      </button>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setCaseSensitive(!caseSensitive)}
+              className={`p-1 rounded transition-colors ${
+                caseSensitive ? 'text-[var(--color-accent)] bg-[var(--color-accent)]/20' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
+              }`}
+              aria-label={t('terminal.caseSensitive')}
+              aria-pressed={caseSensitive}
+            >
+              <CaseSensitive className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t('terminal.caseSensitive')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setUseRegex(!useRegex)}
+              className={`p-1 rounded transition-colors ${
+                useRegex ? 'text-[var(--color-accent)] bg-[var(--color-accent)]/20' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
+              }`}
+              aria-label={t('terminal.useRegex')}
+              aria-pressed={useRegex}
+            >
+              <Regex className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t('terminal.useRegex')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <div className="w-px h-4 bg-[var(--color-bg-elevated)] mx-0.5" />
-      <button
-        onClick={() => doFindPrevious(query, options)}
-        className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
-        title={t('terminal.prevResult')}
-        aria-label={t('terminal.prevResult')}
-      >
-        <ChevronUp className="w-3.5 h-3.5" />
-      </button>
-      <button
-        onClick={() => doFindNext(query, options)}
-        className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
-        title={t('terminal.nextResult')}
-        aria-label={t('terminal.nextResult')}
-      >
-        <ChevronDown className="w-3.5 h-3.5" />
-      </button>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => doFindPrevious(query, options)}
+              className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
+              aria-label={t('terminal.prevResult')}
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t('terminal.prevResult')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => doFindNext(query, options)}
+              className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
+              aria-label={t('terminal.nextResult')}
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t('terminal.nextResult')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <div className="w-px h-4 bg-[var(--color-bg-elevated)] mx-0.5" />
-      <button
-        onClick={onClose}
-        className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
-        title={t('terminal.closeSearch')}
-        aria-label={t('terminal.closeSearch')}
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={onClose}
+              className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
+              aria-label={t('terminal.closeSearch')}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t('terminal.closeSearch')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 };

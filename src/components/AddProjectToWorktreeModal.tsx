@@ -95,7 +95,7 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('addProjectToWorktree.selectProject')}</label>
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
                   {availableProjects.map(proj => (
                     <div
                       key={proj.name}

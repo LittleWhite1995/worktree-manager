@@ -20,6 +20,8 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "check-i18n": "node scripts/check-i18n.mjs",
+    "clean": "rm -rf dist .vite node_modules/.vite",
+    "dev-run": "npm run clean && npm run build && npm run tauri dev",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },

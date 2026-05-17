@@ -17,6 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 import {
   RefreshIcon,
@@ -74,6 +80,7 @@ interface GitOperationsProps {
   onSilentRefresh?: () => void;
   onOpenTerminal?: (path: string) => void;
   autoRefreshSlot?: number;
+  onStatsChanged?: (stats: BranchDiffStats) => void;
 }
 
 export const GitOperations: FC<GitOperationsProps> = ({
@@ -88,6 +95,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
   onSilentRefresh,
   onOpenTerminal,
   autoRefreshSlot,
+  onStatsChanged,
 }) => {
   const { t } = useTranslation();
   const [stats, setStats] = useState<BranchDiffStats | null>(null);
@@ -166,7 +174,10 @@ export const GitOperations: FC<GitOperationsProps> = ({
       setErrorPersistent(false);
     }
     try {
-      setStats(await getBranchDiffStats(projectPath, baseBranch));
+      const result = await getBranchDiffStats(projectPath, baseBranch, testBranch);
+      console.log('[GitOps] diff stats:', { projectPath, baseBranch, testBranch, result });
+      setStats(result);
+      onStatsChanged?.(result);
     } catch (err) {
       if (!silent) {
         setError(err instanceof Error ? err.message : String(err));
@@ -176,7 +187,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [projectPath, baseBranch]);
+  }, [projectPath, baseBranch, testBranch]);
 
   const checkBranches = useCallback(async () => {
     try {
@@ -555,43 +566,75 @@ export const GitOperations: FC<GitOperationsProps> = ({
           </Button>
         </div>
 
+        <TooltipProvider delayDuration={300}>
         <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => runGitAction('mergeTest', () => mergeToTestBranch(projectPath, testBranch))}
-            disabled={loading || testBranchExists === false || actionsDisabled}
-            className="text-xs min-w-0"
-            title={testBranchExists === false ? t('git.remoteBranchNotExists', { branch: testBranch }) : ''}
-          >
-            <GitMergeIcon className="w-3 h-3 mr-1 shrink-0" />
-            <span className="truncate">{activeAction === 'mergeTest' ? t('git.merging') : t('git.mergeToBranch', { branch: testBranch })}</span>
-          </Button>
+          {(() => {
+            const mergeTestTip = testBranchExists === false ? t('git.remoteBranchNotExists', { branch: testBranch }) : (stats?.ahead_of_test ?? 0) >= 100 ? t('git.tooManyCommitsToMerge', { branch: testBranch, count: stats?.ahead_of_test ?? 0 }) : '';
+            const mergeTestBtn = (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => runGitAction('mergeTest', () => mergeToTestBranch(projectPath, testBranch))}
+                disabled={loading || testBranchExists === false || actionsDisabled || (stats?.ahead_of_test ?? 0) >= 100}
+                className="text-xs min-w-0 w-full"
+              >
+                <GitMergeIcon className="w-3 h-3 mr-1 shrink-0" />
+                <span className="truncate">{activeAction === 'mergeTest' ? t('git.merging') : t('git.mergeToBranch', { branch: testBranch })}</span>
+              </Button>
+            );
+            return mergeTestTip ? (
+              <Tooltip>
+                <TooltipTrigger asChild><span>{mergeTestBtn}</span></TooltipTrigger>
+                <TooltipContent side="bottom"><p>{mergeTestTip}</p></TooltipContent>
+              </Tooltip>
+            ) : mergeTestBtn;
+          })()}
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleMergeBaseClick}
-            disabled={loading || baseBranchExists === false || actionsDisabled}
-            className="text-xs min-w-0 border-orange-800/40 hover:bg-orange-900/20 hover:border-orange-700/50"
-            title={baseBranchExists === false ? t('git.remoteBranchNotExists', { branch: baseBranch }) : ''}
-          >
-            <GitMergeIcon className="w-3 h-3 mr-1 shrink-0 text-orange-400" />
-            <span className="truncate text-orange-300">{activeAction === 'mergeBase' ? t('git.merging') : t('git.mergeToBranch', { branch: baseBranch })}</span>
-          </Button>
+          {(() => {
+            const mergeBaseTip = baseBranchExists === false ? t('git.remoteBranchNotExists', { branch: baseBranch }) : (stats?.ahead ?? 0) >= 100 ? t('git.tooManyCommitsToMerge', { branch: baseBranch, count: stats?.ahead ?? 0 }) : '';
+            const mergeBaseBtn = (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleMergeBaseClick}
+                disabled={loading || baseBranchExists === false || actionsDisabled || (stats?.ahead ?? 0) >= 100}
+                className="text-xs min-w-0 w-full border-orange-800/40 hover:bg-orange-900/20 hover:border-orange-700/50"
+              >
+                <GitMergeIcon className="w-3 h-3 mr-1 shrink-0 text-orange-400" />
+                <span className="truncate text-orange-300">{activeAction === 'mergeBase' ? t('git.merging') : t('git.mergeToBranch', { branch: baseBranch })}</span>
+              </Button>
+            );
+            return mergeBaseTip ? (
+              <Tooltip>
+                <TooltipTrigger asChild><span>{mergeBaseBtn}</span></TooltipTrigger>
+                <TooltipContent side="bottom"><p>{mergeBaseTip}</p></TooltipContent>
+              </Tooltip>
+            ) : mergeBaseBtn;
+          })()}
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowPRModal(true)}
-            disabled={loading || baseBranchExists === false || actionsDisabled}
-            className="text-xs min-w-0"
-            title={baseBranchExists === false ? t('git.remoteBranchNotExists', { branch: baseBranch }) : ''}
-          >
-            <GitPullRequestIcon className="w-3 h-3 mr-1 shrink-0" />
-            <span className="truncate">{t('git.createPR')}</span>
-          </Button>
+          {(() => {
+            const prTip = baseBranchExists === false ? t('git.remoteBranchNotExists', { branch: baseBranch }) : '';
+            const prBtn = (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowPRModal(true)}
+                disabled={loading || baseBranchExists === false || actionsDisabled}
+                className="text-xs min-w-0 w-full"
+              >
+                <GitPullRequestIcon className="w-3 h-3 mr-1 shrink-0" />
+                <span className="truncate">{t('git.createPR')}</span>
+              </Button>
+            );
+            return prTip ? (
+              <Tooltip>
+                <TooltipTrigger asChild><span>{prBtn}</span></TooltipTrigger>
+                <TooltipContent side="bottom"><p>{prTip}</p></TooltipContent>
+              </Tooltip>
+            ) : prBtn;
+          })()}
         </div>
+        </TooltipProvider>
       </div>
 
       {fetchingSyncing && (

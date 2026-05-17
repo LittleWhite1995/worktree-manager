@@ -10,6 +10,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Rocket,
   CheckCircle,
   AlertTriangle,
@@ -295,24 +301,30 @@ const MirrorListPanel: FC<MirrorListPanelProps> = ({
                     {testingMirrors.has(r.url) ? (
                       <Loader2 className="w-3 h-3 text-[var(--color-success)] animate-spin" />
                     ) : (
-                      <button
-                        type="button"
-                        className="text-[var(--color-text-muted)] hover:text-[var(--color-success)] transition-colors"
-                        title={t('updater.retest')}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTestingMirrors((prev) => new Set(prev).add(r.url));
-                          onSpeedTestSingle(r.url).finally(() =>
-                            setTestingMirrors((prev) => {
-                              const next = new Set(prev);
-                              next.delete(r.url);
-                              return next;
-                            }),
-                          );
-                        }}
-                      >
-                        <Gauge className="w-3 h-3" />
-                      </button>
+                      <TooltipProvider delayDuration={300}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="text-[var(--color-text-muted)] hover:text-[var(--color-success)] transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTestingMirrors((prev) => new Set(prev).add(r.url));
+                                onSpeedTestSingle(r.url).finally(() =>
+                                  setTestingMirrors((prev) => {
+                                    const next = new Set(prev);
+                                    next.delete(r.url);
+                                    return next;
+                                  }),
+                                );
+                              }}
+                            >
+                              <Gauge className="w-3 h-3" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{t('updater.retest')}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </>
                 ) : (

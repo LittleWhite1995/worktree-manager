@@ -22,14 +22,15 @@ import {
   TerminalAppIcon,
   ChevronDownIcon,
   RefreshIcon,
+  SyncIcon,
   PlusIcon,
-  ExternalLinkIcon,
   CopyIcon,
   CheckIcon,
   TrashIcon,
   FolderOpenIcon,
   GithubIcon,
   EditorIcon,
+  FileIcon,
 } from './Icons';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -42,14 +43,14 @@ import Editor from '@monaco-editor/react';
 import {
   clearLogs,
   getLogs,
-  getUnreadErrorCount,
   markAsRead,
 } from '@/lib/operationLog';
 import type { LogEntry } from '@/lib/operationLog';
 import { GitOperations } from './GitOperations';
-import { IdePickerContextMenu, TerminalPickerPopover } from './ContextMenus';
+import { useToast } from './Toast';
+import { IdePickerContextMenu } from './ContextMenus';
 import { EDITORS } from '../constants';
-import { isTauri, openLink, getVaultStatus } from '@/lib/backend';
+import { isTauri, openLink, getVaultStatus, syncAllProjectsToBase, type BranchDiffStats } from '@/lib/backend';
 import type {
   WorktreeListItem,
   MainWorkspaceStatus,
@@ -138,27 +139,33 @@ const IdeIconButton: FC<IdeIconButtonProps> = ({
 
   return (
     <>
-      <Button
-        ref={buttonRef}
-        variant="ghost"
-        size="icon"
-        onClick={() => onOpen(projectPath, defaultEditorId)}
-        onMouseDown={(e) => {
-          if (e.button !== 2) return;
-          e.preventDefault();
-          e.stopPropagation();
-          setAnchorRect(buttonRef.current?.getBoundingClientRect() ?? null);
-        }}
-        onContextMenu={(e) => e.preventDefault()}
-        title={t('detail.openInEditorLabel', { editor: currentEditor?.name ?? defaultEditorId })}
-        aria-label={t('detail.openInEditorProject', {
-          editor: currentEditor?.name ?? defaultEditorId,
-          name: projectName,
-        })}
-        className="h-7 w-7"
-      >
-        <EditorIcon editorId={defaultEditorId} className="w-4.5 h-4.5" />
-      </Button>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              ref={buttonRef}
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpen(projectPath, defaultEditorId)}
+              onMouseDown={(e) => {
+                if (e.button !== 2) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setAnchorRect(buttonRef.current?.getBoundingClientRect() ?? null);
+              }}
+              onContextMenu={(e) => e.preventDefault()}
+              aria-label={t('detail.openInEditorProject', {
+                editor: currentEditor?.name ?? defaultEditorId,
+                name: projectName,
+              })}
+              className="h-7 w-7"
+            >
+              <EditorIcon editorId={defaultEditorId} className="w-4.5 h-4.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t('detail.openInEditorLabel', { editor: currentEditor?.name ?? defaultEditorId })}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       {anchorRect && (
         <IdePickerContextMenu
           anchorRect={anchorRect}
@@ -188,43 +195,94 @@ const TerminalIconButton: FC<TerminalIconButtonProps> = ({
 }) => {
   const { t } = useTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [showTerminalMenu, setShowTerminalMenu] = useState(false);
   const defaultTerminalId = useMemo(() => {
     try { return (JSON.parse(localStorage.getItem('tool_paths') || '{}') as Record<string, string>).terminal; }
     catch { return undefined; }
   }, []);
 
+  const handleSetDefaultTerminal = (terminalId: string) => {
+    try {
+      const toolPaths = JSON.parse(localStorage.getItem('tool_paths') || '{}');
+      toolPaths.terminal = terminalId;
+      localStorage.setItem('tool_paths', JSON.stringify(toolPaths));
+    } catch { /* ignore */ }
+  };
+
   return (
-    <>
-      <Button
-        ref={buttonRef}
-        variant="ghost"
-        size="icon"
-        onClick={() => onOpen(projectPath)}
-        onMouseDown={(e) => {
-          if (e.button !== 2) return;
-          e.preventDefault();
-          e.stopPropagation();
-          if (terminals.length > 0) {
-            setAnchorRect(buttonRef.current?.getBoundingClientRect() ?? null);
-          }
-        }}
-        onContextMenu={(e) => e.preventDefault()}
-        title={t('detail.openExternalTerminal')}
-        aria-label={t('detail.openExternalTerminalProject', { name: projectName })}
-        className="h-7 w-7"
-      >
-        <TerminalAppIcon terminalId={defaultTerminalId ?? ''} className="w-4.5 h-4.5" />
-      </Button>
-      {anchorRect && (
-        <TerminalPickerPopover
-          anchorRect={anchorRect}
-          terminals={terminals}
-          onSelect={(terminalId) => onOpen(projectPath, terminalId)}
-          onClose={() => setAnchorRect(null)}
-        />
-      )}
-    </>
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center">
+            <Button
+              ref={buttonRef}
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpen(projectPath)}
+              onContextMenu={(e) => e.preventDefault()}
+              aria-label={t('detail.openExternalTerminalProject', { name: projectName })}
+              className="h-7 w-7"
+            >
+              <TerminalAppIcon terminalId={defaultTerminalId ?? ''} className="w-4.5 h-4.5" />
+            </Button>
+            {terminals.length > 0 && (
+              <DropdownMenu open={showTerminalMenu} onOpenChange={setShowTerminalMenu}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-l-none px-1"
+                  >
+                    <ChevronDownIcon className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {terminals.map(terminal => (
+                    <div
+                      key={terminal.id}
+                      className="flex items-center rounded-sm text-sm hover:bg-[var(--color-bg-elevated)] transition-colors"
+                    >
+                      {/* Radio: set as default, does NOT open terminal */}
+                      <button
+                        className="px-2 py-1.5 flex items-center justify-center hover:bg-[var(--color-bg-elevated)] transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSetDefaultTerminal(terminal.id);
+                        }}
+                      >
+                        <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          terminal.id === defaultTerminalId
+                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]'
+                            : 'border-[var(--color-text-muted)]'
+                        }`}>
+                          {terminal.id === defaultTerminalId && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          )}
+                        </div>
+                      </button>
+                      {/* Divider */}
+                      <div className="w-px h-5 bg-[var(--color-border)]" />
+                      {/* Terminal name: open terminal, does NOT set as default */}
+                      <button
+                        className="flex-1 min-w-0 text-left px-2 py-1.5 flex items-center gap-2 hover:bg-[var(--color-bg-elevated)] transition-colors rounded-r-sm"
+                        onClick={() => {
+                          onOpen(projectPath, terminal.id);
+                          setShowTerminalMenu(false);
+                        }}
+                      >
+                        <TerminalAppIcon terminalId={terminal.id} className="w-4 h-4 shrink-0" />
+                        <span className="flex-1 truncate">{terminal.name}</span>
+                      </button>
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{t('detail.openExternalTerminal')}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
@@ -236,51 +294,95 @@ const TerminalSplitButton: FC<{
   onOpen: (path: string, terminalId?: string) => void;
 }> = ({ path, terminals, onOpen }) => {
   const { t } = useTranslation();
+  const [showTerminalMenu, setShowTerminalMenu] = useState(false);
   const defaultTerminalId = useMemo(() => {
     try { return (JSON.parse(localStorage.getItem('tool_paths') || '{}') as Record<string, string>).terminal; }
     catch { return undefined; }
   }, []);
-  const chevronRef = useRef<HTMLButtonElement>(null);
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+
+  const handleSetDefaultTerminal = (terminalId: string) => {
+    try {
+      const toolPaths = JSON.parse(localStorage.getItem('tool_paths') || '{}');
+      toolPaths.terminal = terminalId;
+      localStorage.setItem('tool_paths', JSON.stringify(toolPaths));
+    } catch { /* ignore */ }
+  };
 
   return (
-    <>
-      <div className="flex items-center">
-        <Button
-          variant="secondary"
-          className={`px-2.5 gap-1.5${terminals.length > 0 ? ' rounded-r-none border-r-0' : ''}`}
-          onClick={() => onOpen(path)}
-          title={t('detail.externalTerminal')}
-        >
-          <TerminalAppIcon terminalId={defaultTerminalId ?? ''} className="w-5 h-5" />
-        </Button>
-        {terminals.length > 0 && (
-          <Button
-            ref={chevronRef}
-            variant="secondary"
-            className="px-1.5 rounded-l-none"
-            onClick={() => setAnchorRect(chevronRef.current?.getBoundingClientRect() ?? null)}
-            title={t('detail.selectTerminal', 'Select terminal')}
-          >
-            <ChevronDownIcon className="w-3.5 h-3.5" />
-          </Button>
-        )}
-      </div>
-      {anchorRect && (
-        <TerminalPickerPopover
-          anchorRect={anchorRect}
-          terminals={terminals}
-          onSelect={(terminalId) => onOpen(path, terminalId)}
-          onClose={() => setAnchorRect(null)}
-        />
-      )}
-    </>
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center">
+            <Button
+              variant="secondary"
+              className={`px-2.5 gap-1.5${terminals.length > 0 ? ' rounded-r-none border-r-0' : ''}`}
+              onClick={() => onOpen(path)}
+            >
+              <TerminalAppIcon terminalId={defaultTerminalId ?? ''} className="w-5 h-5" />
+            </Button>
+            {terminals.length > 0 && (
+              <DropdownMenu open={showTerminalMenu} onOpenChange={setShowTerminalMenu}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    className="px-1.5 rounded-l-none"
+                  >
+                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {terminals.map(terminal => (
+                    <div
+                      key={terminal.id}
+                      className="flex items-center rounded-sm text-sm hover:bg-[var(--color-bg-elevated)] transition-colors"
+                    >
+                      {/* Radio: set as default, does NOT open terminal */}
+                      <button
+                        className="px-2 py-1.5 flex items-center justify-center hover:bg-[var(--color-bg-elevated)] transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSetDefaultTerminal(terminal.id);
+                        }}
+                      >
+                        <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          terminal.id === defaultTerminalId
+                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]'
+                            : 'border-[var(--color-text-muted)]'
+                        }`}>
+                          {terminal.id === defaultTerminalId && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          )}
+                        </div>
+                      </button>
+                      {/* Divider */}
+                      <div className="w-px h-5 bg-[var(--color-border)]" />
+                      {/* Terminal name: open terminal, does NOT set as default */}
+                      <button
+                        className="flex-1 min-w-0 text-left px-2 py-1.5 flex items-center gap-2 hover:bg-[var(--color-bg-elevated)] transition-colors rounded-r-sm"
+                        onClick={() => {
+                          onOpen(path, terminal.id);
+                          setShowTerminalMenu(false);
+                        }}
+                      >
+                        <TerminalAppIcon terminalId={terminal.id} className="w-4 h-4 shrink-0" />
+                        <span className="flex-1 truncate">{terminal.name}</span>
+                      </button>
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{t('detail.externalTerminal')}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
 // --- LogsDialog ---
 
-const LogsDialog: FC<{
+export const LogsDialog: FC<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectPaths: string[];
@@ -322,19 +424,25 @@ const LogsDialog: FC<{
             <DialogTitle className="text-sm font-medium">
               {title}
             </DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-[var(--color-text-secondary)] hover:text-[var(--color-error)] hover:bg-transparent"
-              title={t('logs.clear')}
-              onClick={() => {
-                projectPaths.forEach((path) => clearLogs(path));
-                setLogs([]);
-                onOpenChange(false);
-              }}
-            >
-              <TrashIcon className="w-3.5 h-3.5" />
-            </Button>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-[var(--color-text-secondary)] hover:text-[var(--color-error)] hover:bg-transparent"
+                    onClick={() => {
+                      projectPaths.forEach((path) => clearLogs(path));
+                      setLogs([]);
+                      onOpenChange(false);
+                    }}
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{t('logs.clear')}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </DialogHeader>
         <div style={{ height: '60vh' }}>
@@ -493,6 +601,16 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   onRefreshAfterDeploy,
 }) => {
   const { t } = useTranslation();
+  // Live stats from GitOperations, keyed by project path
+  const [projectStats, setProjectStats] = useState<Record<string, BranchDiffStats>>({});
+  const handleStatsChanged = useCallback((path: string, stats: BranchDiffStats) => {
+    setProjectStats(prev => {
+      const existing = prev[path];
+      if (existing && existing.ahead === stats.ahead && existing.behind === stats.behind && existing.changed_files === stats.changed_files) return prev;
+      return { ...prev, [path]: stats };
+    });
+  }, []);
+
   // Dynamic editor list from system detection (auto-detected on startup)
   const readDetectedEditors = useCallback((): Array<{ id: string; name: string }> => {
     try {
@@ -550,14 +668,29 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     return detectedEditors[0]?.id || selectedEditor;
   }, [selectedEditor, detectedEditors]);
 
-  const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
+  const [switchingBranch, setSwitchingBranch] = useState<string[]>([]);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [exitError, setExitError] = useState<string | null>(null);
   const [removingProject, setRemovingProject] = useState<string | null>(null);
   const [confirmRemoveProject, setConfirmRemoveProject] = useState<string | null>(null);
-  const [showWorktreeLogs, setShowWorktreeLogs] = useState(false);
-  const [showMainLogs, setShowMainLogs] = useState(false);
   const [vaultStatus, setVaultStatus] = useState<VaultStatus | null>(null);
+  // Track actual content width for responsive grid (accounts for sidebar)
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState(0);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContentWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    // Initial measurement
+    setContentWidth(el.getBoundingClientRect().width);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (mainWorkspace) {
@@ -585,6 +718,103 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     }
   }, [onExitOccupation, onRefreshAfterDeploy]);
 
+  const { toast } = useToast();
+
+  // Determine which tab should be highlighted: highlight the branch with the most projects (plurality wins)
+  const wsProjects = mainWorkspace?.projects ?? [];
+  const { activeBranchTab, branchCounts } = useMemo(() => {
+    const counts = { base: 0, test: 0, head: 0 };
+    for (const p of wsProjects) {
+      if (p.current_branch === 'HEAD') counts.head++;
+      else if (p.current_branch === p.base_branch) counts.base++;
+      else if (p.current_branch === p.test_branch) counts.test++;
+    }
+    const sorted = (['base', 'test', 'head'] as const)
+      .map(t => ({ tab: t, count: counts[t] }))
+      .sort((a, b) => b.count - a.count);
+    const active = (sorted[0].count > 0 && sorted[0].count > sorted[1].count) ? sorted[0].tab : null;
+    return { activeBranchTab: active as 'base' | 'test' | 'head' | null, branchCounts: counts };
+  }, [wsProjects]);
+
+  // Batch switch all projects to BASE/TEST/HEAD (concurrent)
+  const switchAllProjects = useCallback(async (target: 'base' | 'test' | 'head') => {
+    const projs = mainWorkspace?.projects ?? [];
+    if (projs.length === 0) return;
+
+    const targets = projs
+      .map(proj => {
+        let targetBranch: string;
+        if (target === 'base') {
+          targetBranch = proj.base_branch;
+        } else if (target === 'test') {
+          if (!proj.test_branch) {
+            toast('warning', t('detail.projectNoTestBranch', { name: proj.name }));
+            return null;
+          }
+          targetBranch = proj.test_branch;
+        } else {
+          targetBranch = 'HEAD';
+        }
+        if (proj.current_branch === targetBranch) return null;
+        return { proj, targetBranch };
+      })
+      .filter(Boolean) as { proj: typeof projs[0]; targetBranch: string }[];
+
+    setSwitchingBranch(targets.map(t => t.proj.name));
+
+    await Promise.all(
+      targets.map(async ({ proj, targetBranch }) => {
+        try {
+          await onSwitchBranch(proj.path, targetBranch);
+        } catch (e: any) {
+          toast('error', t('detail.switchBranchFailed', { name: proj.name, branch: targetBranch, error: String(e?.message || e) }));
+        }
+      })
+    );
+
+    setSwitchingBranch([]);
+    onRefresh?.();
+  }, [mainWorkspace?.projects, onSwitchBranch, toast, t, onRefresh]);
+
+  // Sync all projects to BASE (concurrent)
+  const [syncingBase, setSyncingBase] = useState(false);
+  const handleSyncAllBase = useCallback(async () => {
+    const projects = mainWorkspace?.projects ?? [];
+    if (projects.length === 0) return;
+    setSyncingBase(true);
+    try {
+      const results = await syncAllProjectsToBase(projects.map(p => p.path));
+      let successCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+      for (const r of results) {
+        if (r.status === 'success') {
+          successCount++;
+          toast('success', `${r.project_name}: ${r.message}`);
+        } else if (r.status === 'skipped') {
+          skippedCount++;
+          toast('warning', `${r.project_name}: ${r.message}`);
+        } else {
+          failedCount++;
+          toast('error', `${r.project_name}: ${r.message}`);
+        }
+      }
+      // Summary toast
+      const summaryParts = [];
+      if (successCount > 0) summaryParts.push(t('detail.syncBaseSuccess', { count: successCount }));
+      if (skippedCount > 0) summaryParts.push(t('detail.syncBaseSkipped', { count: skippedCount }));
+      if (failedCount > 0) summaryParts.push(t('detail.syncBaseFailed', { count: failedCount }));
+      if (summaryParts.length > 0) {
+        toast('info', summaryParts.join(', '));
+      }
+    } catch (e: any) {
+      toast('error', String(e?.message || e));
+    } finally {
+      setSyncingBase(false);
+      onRefresh?.();
+    }
+  }, [mainWorkspace?.projects, toast, t, onRefresh]);
+
   if (!selectedWorktree && !mainWorkspace) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center py-20">
@@ -610,7 +840,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   // Main Workspace View
   if (!selectedWorktree && mainWorkspace) {
     return (
-      <div>
+      <div ref={contentRef}>
         {error && (
           <div className="mb-4 p-4 bg-[var(--color-error)]/10 border border-[var(--color-error)]/20 rounded-lg">
             <div className="text-[var(--color-error)] text-sm select-text">{error}</div>
@@ -659,35 +889,40 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
           </div>
           {isTauri() && (
             <div className="flex gap-2 items-center shrink-0 ml-3">
-              {(() => {
-                const count = (mainWorkspace.projects ?? []).reduce(
-                  (acc, p) => acc + getUnreadErrorCount(p.path),
-                  0,
-                );
-                return (
-                  <div className="relative">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs"
-                      onClick={() => setShowMainLogs(true)}
-                    >
-                      {t('logs.button')}
-                    </Button>
-                    {count > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-[var(--color-error)] text-[var(--color-error-fg)] text-[10px] rounded-full w-4 h-4 flex items-center justify-center leading-none">
-                        {count > 9 ? '9+' : count}
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
-              <LogsDialog
-                open={showMainLogs}
-                onOpenChange={setShowMainLogs}
-                projectPaths={(mainWorkspace.projects ?? []).map((p) => p.path)}
-                title={t('logs.title', { name: mainWorkspace.name })}
-              />
+              <div className="inline-flex items-center rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated)] overflow-hidden">
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50"
+                        disabled={syncingBase}
+                        onClick={handleSyncAllBase}
+                      >
+                        {syncingBase ? <SyncIcon className="w-3.5 h-3.5 animate-spin" /> : <SyncIcon className="w-3.5 h-3.5" />}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('detail.syncAllBaseTip')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {(['base', 'test', 'head'] as const).map((tab) => (
+                  <TooltipProvider key={tab} delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className={`px-3 py-1.5 text-xs font-medium transition-colors ${activeBranchTab === tab && branchCounts[tab] > 0 ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]'} ${tab !== 'head' ? 'border-l border-[var(--color-border)]' : ''}`}
+                          disabled={switchingBranch.length > 0}
+                          onClick={() => switchAllProjects(tab)}
+                        >
+                          {tab.toUpperCase()}{branchCounts[tab] > 0 && <span className="ml-1 opacity-70">({branchCounts[tab]})</span>}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        {t(tab === 'base' ? 'detail.switchAllToBaseTip' : tab === 'test' ? 'detail.switchAllToTestTip' : 'detail.switchAllToHeadTip')}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ))}
+              </div>
               {onAddProject && (
                 <Button onClick={onAddProject} variant="default">
                   <PlusIcon className="w-4 h-4 mr-1.5" />
@@ -695,13 +930,19 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                 </Button>
               )}
               <div className="inline-flex rounded-md">
-                <Button
-                  className="rounded-r-none border-r border-[var(--color-accent)]/50 px-2.5"
-                  onClick={() => onOpenInEditor(mainWorkspace.path)}
-                  title={selectedEditorName}
-                >
-                  <EditorIcon editorId={selectedEditor} className="w-5 h-5" />
-                </Button>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        className="rounded-r-none border-r border-[var(--color-accent)]/50 px-2.5"
+                        onClick={() => onOpenInEditor(mainWorkspace.path)}
+                      >
+                        <EditorIcon editorId={selectedEditor} className="w-5 h-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{selectedEditorName}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <DropdownMenu open={showEditorMenu} onOpenChange={onShowEditorMenu}>
                   <DropdownMenuTrigger asChild>
                     <Button className="rounded-l-none px-2 min-w-0">
@@ -712,30 +953,38 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                     {detectedEditors.map(editor => (
                       <div
                         key={editor.id}
-                        className="flex items-stretch rounded-sm text-sm"
+                        className="flex items-center rounded-sm text-sm hover:bg-[var(--color-bg-elevated)] transition-colors"
                       >
+                        {/* Radio: set as default, does NOT open IDE */}
                         <button
-                          className="flex-1 min-w-0 text-left px-2 py-1.5 rounded-l-sm hover:bg-[var(--color-bg-elevated)] transition-colors flex items-center gap-1.5"
-                          onClick={() => {
+                          className="px-2 py-1.5 flex items-center justify-center hover:bg-[var(--color-bg-elevated)] transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             onSelectEditor(editor.id);
-                            onShowEditorMenu(false);
                           }}
                         >
-                          <EditorIcon editorId={editor.id} className="w-4 h-4" />
-                          {editor.name}
-                          {editor.id === selectedEditor && (
-                            <CheckIcon className="w-3 h-3 text-[var(--color-success)]" />
-                          )}
+                          <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                            editor.id === selectedEditor
+                              ? 'border-[var(--color-accent)] bg-[var(--color-accent)]'
+                              : 'border-[var(--color-text-muted)]'
+                          }`}>
+                            {editor.id === selectedEditor && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                            )}
+                          </div>
                         </button>
+                        {/* Divider */}
+                        <div className="w-px h-5 bg-[var(--color-border)]" />
+                        {/* Editor name: open IDE, does NOT set as default */}
                         <button
-                          className="px-2 flex items-center text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-elevated)] rounded-r-sm transition-colors shrink-0 border-l border-[var(--color-border)]"
-                          title={t('detail.openWithEditor', { editor: editor.name })}
+                          className="flex-1 min-w-0 text-left px-2 py-1.5 flex items-center gap-2 hover:bg-[var(--color-bg-elevated)] transition-colors rounded-r-sm"
                           onClick={() => {
                             onOpenInEditor(mainWorkspace.path, editor.id);
                             onShowEditorMenu(false);
                           }}
                         >
-                          <ExternalLinkIcon className="w-3.5 h-3.5" />
+                          <EditorIcon editorId={editor.id} className="w-4 h-4 shrink-0" />
+                          <span className="flex-1 truncate">{editor.name}</span>
                         </button>
                       </div>
                     ))}
@@ -771,9 +1020,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--color-bg-elevated)] text-xs text-[var(--color-text-secondary)]"
                   title={item.item_type === 'directory' ? t('detail.folder', '文件夹') : t('detail.file', '文件')}
                 >
-                  <span className={item.item_type === 'directory' ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}>
-                    {item.item_type === 'directory' ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}
-                  </span>
+                  {item.item_type === 'directory'
+                    ? <FolderIcon className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                    : <FileIcon className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                  }
                   {item.name}
                 </span>
               ))}
@@ -784,7 +1034,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
         <>
             {occupation ? (
               /* Deployed state: show only deployed projects in worktree-style cards */
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 @[600px]:grid-cols-2 gap-3">
                 {mainWorkspace.projects
                   .filter(proj => occupation.original_branches[proj.name])
                   .map(proj => {
@@ -859,17 +1109,17 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
               </div>
             ) : (
               /* Normal state: show all projects in grid layout */
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: contentWidth >= 1440 ? 'repeat(2, 1fr)' : '1fr', gap: '0.75rem' }}>
                 {mainWorkspace.projects.map(proj => {
                   const projectPath = proj.path;
-                  const isSwitching = switchingBranch === proj.name;
+                  const isSwitching = switchingBranch.includes(proj.name);
 
                   const handleSwitchBranch = async (branch: string) => {
-                    setSwitchingBranch(proj.name);
+                    setSwitchingBranch([proj.name]);
                     try {
                       await onSwitchBranch(projectPath, branch);
                     } finally {
-                      setSwitchingBranch(null);
+                      setSwitchingBranch([]);
                     }
                   };
 
@@ -879,14 +1129,20 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                         <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
                         <div className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
                           {isTauri() && (
-                            <button
-                              onClick={() => onRevealInFinder(projectPath)}
-                              className="p-1 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-                              title={t('detail.openInFinderLabel')}
-                              aria-label={t('detail.openInFinderProject', { name: proj.name })}
-                            >
-                              <FolderIcon className="w-3.5 h-3.5" />
-                            </button>
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => onRevealInFinder(projectPath)}
+                                    className="p-1 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                                    aria-label={t('detail.openInFinderProject', { name: proj.name })}
+                                  >
+                                    <FolderIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">{t('detail.openInFinderLabel')}</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                           {isTauri() && (
                             <IdeIconButton
@@ -906,14 +1162,20 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                             />
                           )}
                           {onRemoveProject && (
-                            <button
-                              onClick={() => setConfirmRemoveProject(proj.name)}
-                              className="p-1 hover:bg-[var(--color-error)]/20 rounded text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
-                              title={t('detail.removeProject', 'Remove from workspace')}
-                              aria-label={t('detail.removeProjectLabel', { name: proj.name })}
-                            >
-                              <TrashIcon className="w-3.5 h-3.5" />
-                            </button>
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => setConfirmRemoveProject(proj.name)}
+                                    className="p-1 hover:bg-[var(--color-error)]/20 rounded text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
+                                    aria-label={t('detail.removeProjectLabel', { name: proj.name })}
+                                  >
+                                    <TrashIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">{t('detail.removeProject', 'Remove from workspace')}</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                           {proj.has_uncommitted && <WarningIcon className="w-4 h-4 text-[var(--color-warning)]" />}
                         </div>
@@ -945,16 +1207,22 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                             {proj.current_branch === proj.test_branch && <CheckIcon className="w-3 h-3 mr-1 text-[var(--color-success)]" />}
                             TEST
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            disabled={isSwitching}
-                            onClick={() => handleSwitchBranch('HEAD')}
-                            title={t('detail.switchToHead')}
-                          >
-                            HEAD
-                          </Button>
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  disabled={isSwitching}
+                                  onClick={() => handleSwitchBranch('HEAD')}
+                                >
+                                  HEAD
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">{t('detail.switchToHead')}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </div>
                       {/* Status badges — hide 'not merged to test' for main workspace */}
@@ -1047,7 +1315,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   // Worktree View
   if (selectedWorktree) {
     return (
-      <div>
+      <div ref={contentRef}>
         {error && (
           <div className="mb-4 p-4 bg-[var(--color-error)]/10 border border-[var(--color-error)]/20 rounded-lg">
             <div className="text-[var(--color-error)] text-sm select-text">{error}</div>
@@ -1076,43 +1344,20 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
               <>
                 {isTauri() && (
                   <>
-                    {(() => {
-                      const count = (selectedWorktree.projects ?? []).reduce(
-                        (acc, p) => acc + getUnreadErrorCount(p.path),
-                        0,
-                      );
-                      return (
-                        <div className="relative">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => setShowWorktreeLogs(true)}
-                          >
-                            {t('logs.button')}
-                          </Button>
-                          {count > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-[var(--color-error)] text-[var(--color-error-fg)] text-[10px] rounded-full w-4 h-4 flex items-center justify-center leading-none">
-                              {count > 9 ? '9+' : count}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    <LogsDialog
-                      open={showWorktreeLogs}
-                      onOpenChange={setShowWorktreeLogs}
-                      projectPaths={(selectedWorktree.projects ?? []).map((p) => p.path)}
-                      title={t('logs.title', { name: selectedWorktree.display_name || selectedWorktree.name })}
-                    />
                     <div className="inline-flex rounded-md">
-                      <Button
-                        className="rounded-r-none border-r border-[var(--color-accent)]/50 px-2.5"
-                        onClick={() => onOpenInEditor(selectedWorktree.path)}
-                        title={selectedEditorName}
-                      >
-                        <EditorIcon editorId={selectedEditor} className="w-5 h-5" />
-                      </Button>
+                      <TooltipProvider delayDuration={300}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              className="rounded-r-none border-r border-[var(--color-accent)]/50 px-2.5"
+                              onClick={() => onOpenInEditor(selectedWorktree.path)}
+                            >
+                              <EditorIcon editorId={selectedEditor} className="w-5 h-5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">{selectedEditorName}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <DropdownMenu open={showEditorMenu} onOpenChange={onShowEditorMenu}>
                         <DropdownMenuTrigger asChild>
                           <Button className="rounded-l-none px-2 min-w-0">
@@ -1123,30 +1368,43 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           {detectedEditors.map(editor => (
                             <div
                               key={editor.id}
-                              className="flex items-stretch rounded-sm text-sm"
+                              className="flex items-center rounded-sm text-sm hover:bg-[var(--color-bg-elevated)] transition-colors"
                             >
+                              {/* Radio: set as default, does NOT open IDE */}
                               <button
-                                className="flex-1 min-w-0 text-left px-2 py-1.5 rounded-l-sm hover:bg-[var(--color-bg-elevated)] transition-colors flex items-center gap-1.5"
-                                onClick={() => {
+                                className="px-2 py-1.5 flex items-center justify-center hover:bg-[var(--color-bg-elevated)] transition-colors"
+                                onPointerDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
                                   onSelectEditor(editor.id);
-                                  onShowEditorMenu(false);
                                 }}
                               >
-                                <EditorIcon editorId={editor.id} className="w-4 h-4" />
-                                {editor.name}
-                                {editor.id === selectedEditor && (
-                                  <CheckIcon className="w-3 h-3 text-[var(--color-success)]" />
-                                )}
+                                <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                  editor.id === selectedEditor
+                                    ? 'border-[var(--color-accent)] bg-[var(--color-accent)]'
+                                    : 'border-[var(--color-text-muted)]'
+                                }`}>
+                                  {editor.id === selectedEditor && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                                  )}
+                                </div>
                               </button>
+                              {/* Divider */}
+                              <div className="w-px h-5 bg-[var(--color-border)]" />
+                              {/* Editor name: open IDE, does NOT set as default */}
                               <button
-                                className="px-2 flex items-center text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-elevated)] rounded-r-sm transition-colors shrink-0 border-l border-[var(--color-border)]"
-                                title={t('detail.openWithEditor', { editor: editor.name })}
+                                className="flex-1 min-w-0 text-left px-2 py-1.5 flex items-center gap-2 hover:bg-[var(--color-bg-elevated)] transition-colors rounded-r-sm"
                                 onClick={() => {
                                   onOpenInEditor(selectedWorktree.path, editor.id);
                                   onShowEditorMenu(false);
                                 }}
                               >
-                                <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                <EditorIcon editorId={editor.id} className="w-4 h-4 shrink-0" />
+                                <span className="flex-1 truncate">{editor.name}</span>
                               </button>
                             </div>
                           ))}
@@ -1176,9 +1434,20 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
           </div>
         </div>
 
-        <div className="space-y-2">
-            {selectedWorktree.projects.map((proj, index) => (
-              <div key={proj.name} className={`bg-[var(--color-bg-surface)] border border-[var(--color-border)] border-l-2 ${statusBorderColor[getProjectStatus(proj)]} rounded-lg p-4 group hover:border-t-[var(--color-border)] hover:border-r-[var(--color-border)] hover:border-b-[var(--color-border)] hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
+        <div style={{ display: 'grid', gridTemplateColumns: contentWidth >= 1440 ? 'repeat(2, 1fr)' : '1fr', gap: '0.75rem' }}>
+            {selectedWorktree.projects.map((proj, index) => {
+              const liveStats = projectStats[proj.path];
+              const liveProj = liveStats ? {
+                ...proj,
+                ahead_of_base: liveStats.ahead,
+                behind_base: liveStats.behind,
+                has_uncommitted: liveStats.changed_files > 0,
+                uncommitted_count: liveStats.changed_files,
+                unpushed_commits: liveStats.unpushed_commits,
+                ahead_of_test: liveStats.ahead_of_test,
+              } : proj;
+              return (
+              <div key={proj.name} className={`bg-[var(--color-bg-surface)] border border-[var(--color-border)] border-l-2 ${statusBorderColor[getProjectStatus(liveProj)]} rounded-lg p-4 group hover:border-t-[var(--color-border)] hover:border-r-[var(--color-border)] hover:border-b-[var(--color-border)] hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div>
@@ -1186,12 +1455,39 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                       <div className="flex items-center gap-1.5 text-[var(--color-text-secondary)] text-sm mt-0.5">
                         <GitBranchIcon className="w-3.5 h-3.5" />
                         <span className="select-text">{proj.current_branch}</span>
+                        {proj.current_branch !== selectedWorktree.display_name && (
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={async () => {
+                                    setSwitchingBranch([proj.name]);
+                                    try {
+                                      await onSwitchBranch(proj.path, selectedWorktree.display_name!);
+                                    } catch (e: any) {
+                                      toast('error', t('detail.switchBranchFailed', { name: proj.name, branch: selectedWorktree.display_name, error: String(e?.message || e) }));
+                                    } finally {
+                                      setSwitchingBranch([]);
+                                    }
+                                  }}
+                                  disabled={switchingBranch.length > 0}
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition-colors"
+                                >
+                                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
+                                  {t('detail.returnToBranchShort')}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">{t('detail.returnToBranch', { branch: selectedWorktree.display_name })}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        {switchingBranch.includes(proj.name) && <RefreshIcon className="w-3 h-3 animate-spin ml-1" />}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <StatusBadges project={proj} />
+                      <StatusBadges project={liveProj} />
                       <div className="text-xs text-[var(--color-text-muted)] mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
                     </div>
                     {isTauri() && (
@@ -1203,27 +1499,39 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           defaultEditorId={getProjectEditor(proj.name)}
                           onOpen={(path, editorId) => onOpenInEditor(path, editorId as any)}
                         />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onRevealInFinder(proj.path)}
-                          title={t('detail.revealInFinder')}
-                          className="h-7 w-7"
-                        >
-                          <FolderOpenIcon className="w-4.5 h-4.5" />
-                        </Button>
+                        <TooltipProvider delayDuration={300}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onRevealInFinder(proj.path)}
+                                className="h-7 w-7"
+                              >
+                                <FolderOpenIcon className="w-4.5 h-4.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">{t('detail.revealInFinder')}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         {(() => {
                           const webUrl = gitUrlToWebUrl(proj.remote_url);
                           return webUrl ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openLink(webUrl)}
-                              title={t('detail.openRemoteRepo', 'Open in Browser')}
-                              className="h-7 w-7"
-                            >
-                              <GithubIcon className="w-4.5 h-4.5" />
-                            </Button>
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openLink(webUrl)}
+                                    className="h-7 w-7"
+                                  >
+                                    <GithubIcon className="w-4.5 h-4.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">{t('detail.openRemoteRepo', 'Open in Browser')}</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           ) : null;
                         })()}
                         <TerminalIconButton
@@ -1248,10 +1556,12 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                     onSilentRefresh={onSilentRefresh}
                     onOpenTerminal={onOpenTerminalPanel}
                     autoRefreshSlot={selectedWorktree.is_archived ? undefined : index}
+                    onStatsChanged={(stats) => handleStatsChanged(proj.path, stats)}
                   />
                 </div>
               </div>
-            ))}
+              );
+            })}
             {isTauri() && !selectedWorktree.is_archived && onAddProjectToWorktree && (
               <button
                 onClick={onAddProjectToWorktree}

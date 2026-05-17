@@ -256,7 +256,6 @@ export const ShareBar: FC<ShareBarProps> = ({
                 size="icon"
                 onClick={handleOpenShareDialog}
                 className="h-6 w-6 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                title={t('share.changePort')}
               >
                 <SettingsIcon className="w-3 h-3" />
               </Button>
@@ -344,14 +343,20 @@ const ShareConfigDialog: FC<{
                 max={65535}
                 className="flex-1"
               />
-              <Button
-                variant="secondary"
-                size="icon"
-                onClick={onRandomPort}
-                title={t('share.randomPort')}
-              >
-                🎲
-              </Button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={onRandomPort}
+                    >
+                      🎲
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{t('share.randomPort')}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             {portError && (
               <p className="text-sm text-[var(--color-error)] mt-1">{portError}</p>
@@ -541,15 +546,21 @@ const LanUrls: FC<{
               </Tooltip>
             </TooltipProvider>
             {index === 0 && hiddenCount > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onToggleExpanded}
-                className="h-5 w-5 text-[var(--color-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20"
-                title={expanded ? '收起' : t('share.showMoreIps', { count: hiddenCount })}
-              >
-                <span className="text-[10px] font-semibold">{expanded ? '−' : `+${hiddenCount}`}</span>
-              </Button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={onToggleExpanded}
+                      className="h-5 w-5 text-[var(--color-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20"
+                    >
+                      <span className="text-[10px] font-semibold">{expanded ? '−' : `+${hiddenCount}`}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{expanded ? '收起' : t('share.showMoreIps', { count: hiddenCount })}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>
@@ -594,29 +605,41 @@ const PasswordRow: FC<{
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
         {passwordDirty ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onConfirmPassword}
-            className="h-5 w-5 text-emerald-400 hover:text-emerald-300"
-            title={t('share.confirmPasswordUpdate')}
-          >
-            <CheckCircleIcon className="w-3 h-3" />
-          </Button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onConfirmPassword}
+                  className="h-5 w-5 text-emerald-400 hover:text-emerald-300"
+                >
+                  <CheckCircleIcon className="w-3 h-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('share.confirmPasswordUpdate')}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : passwordConfirmed ? (
           <span className="h-5 w-5 flex items-center justify-center text-emerald-400">
             <CheckCircleIcon className="w-3 h-3" />
           </span>
         ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigator.clipboard.writeText(password)}
-            className="h-5 w-5"
-            title={t('share.copyPassword')}
-          >
-            <CopyIcon className="w-3 h-3" />
-          </Button>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigator.clipboard.writeText(password)}
+                  className="h-5 w-5"
+                >
+                  <CopyIcon className="w-3 h-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('share.copyPassword')}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
     </div>
@@ -646,15 +669,21 @@ const ConnectedClients: FC<{
             {client.ws_connected && (
               <span className="text-[9px] text-[var(--color-accent)]/70 shrink-0">WS</span>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onKick(client.session_id)}
-              className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-100 hover:bg-[var(--color-error)]/20 hover:text-[var(--color-error)]"
-              title={t('share.kickClient')}
-            >
-              <span className="text-[10px]">x</span>
-            </Button>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onKick(client.session_id)}
+                    className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-100 hover:bg-[var(--color-error)]/20 hover:text-[var(--color-error)]"
+                  >
+                    <span className="text-[10px]">x</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{t('share.kickClient')}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         ))}
       </div>

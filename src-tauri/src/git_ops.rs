@@ -412,6 +412,8 @@ pub struct BranchDiffStats {
     pub ahead: usize,
     pub behind: usize,
     pub changed_files: usize,
+    pub unpushed_commits: usize,
+    pub ahead_of_test: usize,
 }
 
 /// Sync with base branch (pull from base branch)
@@ -970,7 +972,19 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 }
 
 /// Get branch diff statistics
-pub fn get_branch_diff_stats(path: &Path, base_branch: &str) -> BranchDiffStats {
+pub fn get_branch_diff_stats(
+    path: &Path,
+    base_branch: &str,
+    test_branch: Option<&str>,
+) -> BranchDiffStats {
+    // Normalize empty string to None
+    let test_branch = test_branch.filter(|s| !s.is_empty());
+    log::info!(
+        "[diff-stats] path={}, base_branch={}, test_branch={:?}",
+        path.display(),
+        base_branch,
+        test_branch
+    );
     let repo = match Repository::open(path) {
         Ok(r) => r,
         Err(_) => {
@@ -978,6 +992,8 @@ pub fn get_branch_diff_stats(path: &Path, base_branch: &str) -> BranchDiffStats 
                 ahead: 0,
                 behind: 0,
                 changed_files: 0,
+                unpushed_commits: 0,
+                ahead_of_test: 0,
             }
         }
     };
@@ -986,9 +1002,11 @@ pub fn get_branch_diff_stats(path: &Path, base_branch: &str) -> BranchDiffStats 
         ahead: 0,
         behind: 0,
         changed_files: 0,
+        unpushed_commits: 0,
+        ahead_of_test: 0,
     };
 
-    // Get ahead/behind count
+    // Get ahead/behind count relative to base branch
     if let Ok(base_ref) = repo.find_reference(&format!("refs/remotes/origin/{}", base_branch)) {
         if let Ok(head) = repo.head() {
             if let (Ok(base_oid), Ok(head_oid)) =
@@ -1000,6 +1018,49 @@ pub fn get_branch_diff_stats(path: &Path, base_branch: &str) -> BranchDiffStats 
                 }
             }
         }
+    }
+
+    // Get unpushed commits (HEAD vs origin/<current_branch>)
+    if let Ok(head) = repo.head() {
+        if let Some(current_branch) = head.shorthand() {
+            let remote_ref_name = format!("refs/remotes/origin/{}", current_branch);
+            if let Ok(remote_ref) = repo.find_reference(&remote_ref_name) {
+                if let (Some(head_oid), Some(remote_oid)) = (head.target(), remote_ref.target()) {
+                    if let Ok((ahead, _)) = repo.graph_ahead_behind(head_oid, remote_oid) {
+                        stats.unpushed_commits = ahead;
+                    }
+                }
+            } else {
+                // Remote branch doesn't exist — all commits ahead of base are unpushed
+                stats.unpushed_commits = stats.ahead;
+            }
+        }
+    }
+
+    // Get ahead count relative to test branch
+    if let Some(test) = test_branch {
+        let test_ref_name = format!("refs/remotes/origin/{}", test);
+        match repo.find_reference(&test_ref_name) {
+            Ok(test_ref) => {
+                if let Ok(head) = repo.head() {
+                    if let (Some(head_oid), Some(test_oid)) = (head.target(), test_ref.target()) {
+                        if let Ok((ahead, _)) = repo.graph_ahead_behind(head_oid, test_oid) {
+                            stats.ahead_of_test = ahead;
+                            log::info!("[diff-stats] ahead_of_test={} (vs {})", ahead, test);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                log::warn!(
+                    "[diff-stats] Cannot find test branch ref '{}': {}",
+                    test_ref_name,
+                    e
+                );
+            }
+        }
+    } else {
+        log::info!("[diff-stats] No test_branch provided, skipping ahead_of_test");
     }
 
     // Get changed files count
