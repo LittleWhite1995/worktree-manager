@@ -306,6 +306,15 @@ const WorkspaceVaultSection: FC = () => {
               variant="ghost"
               size="sm"
               disabled={linking}
+              onClick={() => handleDisconnect(true)}
+              className="text-orange-400 hover:text-orange-300"
+            >
+              {t('settings.vaultSoftDisconnect', '断开(保留链接)')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={linking}
               onClick={() => handleDisconnect(false)}
               className="text-[var(--color-error)] hover:text-[var(--color-error)]"
             >
