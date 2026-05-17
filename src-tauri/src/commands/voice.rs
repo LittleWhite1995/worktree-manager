@@ -551,12 +551,24 @@ pub(crate) async fn call_ai_chat(
 
     // Fallback: local Dashscope
     let config = crate::config::load_global_config();
-    let api_key = config
-        .dashscope_api_key
-        .ok_or("未配置 AI 能力（无云端连接且无本地 API Key）")?;
-    let base_url = config
-        .dashscope_base_url
-        .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
+    // Use commit_ai_api_key for commit_ai purpose, dashscope_api_key for others
+    let (api_key, base_url) = if purpose == "commit_ai" {
+        let key = config
+            .commit_ai_api_key
+            .ok_or("未配置 Commit AI API Key，请在设置中配置")?;
+        let url = config
+            .dashscope_base_url
+            .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
+        (key, url)
+    } else {
+        let key = config
+            .dashscope_api_key
+            .ok_or("未配置 AI 能力（无云端连接且无本地 API Key）")?;
+        let url = config
+            .dashscope_base_url
+            .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
+        (key, url)
+    };
 
     let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
     let body = serde_json::json!({
@@ -665,7 +677,7 @@ pub(crate) async fn generate_commit_message(diff: String) -> Result<String, Stri
         serde_json::json!({"role": "user", "content": trimmed}),
     ];
 
-    let result = call_ai_chat(messages, None, 0.3, "chat").await?;
+    let result = call_ai_chat(messages, None, 0.3, "commit_ai").await?;
     Ok(if result.is_empty() {
         "chore: update".to_string()
     } else {
