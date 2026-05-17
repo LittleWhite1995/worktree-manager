@@ -46,7 +46,7 @@ import {
   getGitDiff,
   commitAll,
   generateCommitMessage,
-  checkDashscopeApiKey,
+  checkCommitAiApiKey,
   getCommitPrefixConfig,
   setCommitPrefixConfig,
   getGitUserGlobalConfig,
@@ -362,7 +362,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
       console.log('[commit] computedPrefix:', computedPrefix);
       setPrefix(computedPrefix);
 
-      const hasKey = await checkDashscopeApiKey();
+      const hasKey = await checkCommitAiApiKey();
       if (hasKey) {
         const diff = await getGitDiff(projectPath);
         const msg = await generateCommitMessage(diff);
@@ -388,7 +388,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
   const handleRegenerateMessage = async () => {
     setGeneratingMessage(true);
     try {
-      const hasKey = await checkDashscopeApiKey();
+      const hasKey = await checkCommitAiApiKey();
       if (!hasKey) return;
       const diff = await getGitDiff(projectPath);
       const msg = await generateCommitMessage(diff);
