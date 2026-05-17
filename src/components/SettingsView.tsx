@@ -254,6 +254,8 @@ const WorkspaceVaultSection: FC = () => {
 
 
 // ==================== VaultSettingsSection ====================
+// @ts-expect-error VaultSettingsSection kept for future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const VaultSettingsSection: FC = () => {
   const { t } = useTranslation();
   const [status, setStatus] = useState<VaultStatus | null>(null);
@@ -512,7 +514,7 @@ interface SettingsViewProps {
   onRemoveWorkspace?: (path: string) => void;
 }
 
-type SettingsSection = 'workspaces' | 'appearance' | 'vault' | 'tools' | 'share' | 'commit' | 'voice' | 'cloud' | 'about';
+type SettingsSection = 'workspaces' | 'appearance' | 'tools' | 'share' | 'commit' | 'voice' | 'cloud' | 'about';
 
 // ==================== AppearanceSettingsSection ====================
 const THEME_I18N_KEY: Record<string, string> = {
@@ -1155,8 +1157,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const menuItems = [
     { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" /> },
     { id: 'appearance' as SettingsSection, label: t('settings.appearance'), icon: <Palette className="w-3.5 h-3.5" /> },
-    { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <FolderOpen className="w-3.5 h-3.5 text-[var(--color-warning)]" /> },
-    { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
+        { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
     ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" /> }] : []),
     { id: 'commit' as SettingsSection, label: t('settings.commitNav', '提交设置'), icon: <FileText className="w-3.5 h-3.5" /> },
     { id: 'voice' as SettingsSection, label: t('settings.voiceNav'), icon: <Mic className="w-3.5 h-3.5" /> },
@@ -1573,11 +1574,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
               <AppearanceSettingsSection />
             )}
 
-            {/* ==================== Vault Section ==================== */}
-            {activeSection === 'vault' && (
-              <VaultSettingsSection />
-            )}
-
+            
             {/* ==================== Tools Section ==================== */}
             {activeSection === 'tools' && (
               <div className="space-y-4">
