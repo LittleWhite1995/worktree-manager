@@ -507,6 +507,8 @@
   "settings.vaultConnect": "挂载",
   "settings.devToolsDesc": "按 F12 打开开发者工具",
   "settings.vaultInputPlaceholder": "或粘贴 Vault 目录路径...",
+  "settings.vaultGuideLine1": "知识库用于挂载 Obsidian Vault，将笔记文件夹关联到工作区。",
+  "settings.vaultGuideLine2": "挂载后可在工作区快速访问笔记内容，支持软链接和同步项管理。",
   "settings.vaultRefresh": "刷新",
   "settings.vaultDisconnectConfirm": "确定要断开 Vault 吗？这将移除所有软链接。",
   "settings.vaultSoftDisconnect": "断开(保留链接)",

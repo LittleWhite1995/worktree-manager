@@ -1414,6 +1414,15 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     <Brain className="w-4 h-4 text-[var(--color-accent)]" />
                     <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">{t('settings.vaultNav', '知识库')}</h3>
                   </div>
+                  <div className="bg-[var(--color-bg-base)] border border-[var(--color-border)]/30 rounded p-3 mb-3">
+                    <div className="flex items-start gap-2">
+                      <Info className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0 mt-0.5" />
+                      <div className="text-xs text-[var(--color-text-secondary)] space-y-1">
+                        <p>{t('settings.vaultGuideLine1', '知识库用于挂载 Obsidian Vault，将笔记文件夹关联到工作区。')}</p>
+                        <p>{t('settings.vaultGuideLine2', '挂载后可在工作区快速访问笔记内容，支持软链接和同步项管理。')}</p>
+                      </div>
+                    </div>
+                  </div>
                   <WorkspaceVaultSection />
                 </div>
 

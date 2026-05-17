@@ -516,6 +516,8 @@
   "settings.vaultConnect": "Connect",
   "settings.devToolsDesc": "Press F12 to open developer tools",
   "settings.vaultInputPlaceholder": "Or paste Vault directory path...",
+  "settings.vaultGuideLine1": "The Knowledge Base mounts an Obsidian Vault, linking your note folders to the workspace.",
+  "settings.vaultGuideLine2": "Once mounted, you can quickly access notes in the workspace with symlink and sync management support.",
   "settings.vaultRefresh": "Refresh",
   "settings.vaultDisconnectConfirm": "Are you sure you want to disconnect the Vault? This will remove all symlinks.",
   "settings.vaultSoftDisconnect": "Disconnect (keep links)",
