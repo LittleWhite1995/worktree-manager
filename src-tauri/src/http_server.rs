@@ -677,6 +677,19 @@ async fn h_check_dashscope_api_key() -> Response {
     Json(json!(crate::commands::voice::check_dashscope_api_key())).into_response()
 }
 
+async fn h_get_commit_ai_api_key() -> Response {
+    result_json(crate::commands::voice::get_commit_ai_api_key().await)
+}
+
+async fn h_set_commit_ai_api_key(Json(args): Json<Value>) -> Response {
+    let key = args["key"].as_str().unwrap_or("").to_string();
+    result_json(crate::commands::voice::set_commit_ai_api_key(key).await)
+}
+
+async fn h_check_commit_ai_api_key() -> Response {
+    Json(json!(crate::commands::voice::check_commit_ai_api_key())).into_response()
+}
+
 // -- Scan --
 
 async fn h_scan_linked_folders(Json(args): Json<Value>) -> Response {
