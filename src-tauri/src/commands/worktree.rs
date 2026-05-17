@@ -2111,6 +2111,26 @@ pub fn deploy_to_main_impl(
     // Only persist occupation state if at least one project deployed successfully
     if !switched_projects.is_empty() {
         save_occupation_state(&workspace_path, &occupation)?;
+
+        // Clean up PTY sessions for switched main workspace projects
+        if let Ok(mut manager) = PTY_MANAGER.lock() {
+            for proj_name in &switched_projects {
+                let proj_path = main_projects_path.join(proj_name);
+                if let Some(path_str) = proj_path.to_str() {
+                    let closed = manager.close_sessions_by_path_prefix(
+                        path_str,
+                        "deploy_to_main: project switched to different branch",
+                    );
+                    if !closed.is_empty() {
+                        log::info!(
+                            "[deploy] Closed {} PTY sessions for project '{}'",
+                            closed.len(),
+                            proj_name
+                        );
+                    }
+                }
+            }
+        }
     }
 
     log::info!(
@@ -2271,6 +2291,26 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
 
     // Clear occupation state
     clear_occupation_state(&workspace_path)?;
+
+    // Clean up PTY sessions for main workspace projects
+    if let Ok(mut manager) = PTY_MANAGER.lock() {
+        for proj_name in occupation.original_branches.keys() {
+            let proj_path = main_projects_path.join(proj_name);
+            if let Some(path_str) = proj_path.to_str() {
+                let closed = manager.close_sessions_by_path_prefix(
+                    path_str,
+                    "exit_occupation: project switched back to original branch",
+                );
+                if !closed.is_empty() {
+                    log::info!(
+                        "[deploy] Closed {} PTY sessions for project '{}'",
+                        closed.len(),
+                        proj_name
+                    );
+                }
+            }
+        }
+    }
 
     log::info!(
         "[deploy] Exited occupation from worktree '{}'",

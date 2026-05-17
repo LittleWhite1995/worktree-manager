@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FolderIcon } from './Icons';
+import { basename } from '@/lib/utils';
 
 interface AddWorkspaceModalProps {
   open: boolean;
@@ -56,7 +57,7 @@ export const AddWorkspaceModal: FC<AddWorkspaceModalProps> = ({
       onPathChange(selected);
       // Auto-fill name from folder name if empty
       if (!name) {
-        const folderName = selected.split('/').pop() || selected.split('\\').pop();
+        const folderName = basename(selected);
         if (folderName) {
           onNameChange(folderName);
         }

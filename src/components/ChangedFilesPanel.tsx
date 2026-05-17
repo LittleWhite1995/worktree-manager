@@ -71,7 +71,7 @@ function writeRememberedSelection(reviewKey: string, fileKey: string): void {
 function buildExpandedPathSet(files: ChangedFileEntry[]): Set<string> {
     const paths = new Set<string>();
     for (const file of files) {
-        const parts = [file.projectName, ...file.path.split('/')];
+        const parts = [file.projectName, ...file.path.split(/[/\\]/)];
         for (let i = 1; i < parts.length; i++) {
             paths.add(parts.slice(0, i).join('/'));
         }
@@ -154,7 +154,7 @@ function buildTree(
     };
 
     for (const file of files) {
-        const parts = [file.projectName, ...file.path.split('/')];
+        const parts = [file.projectName, ...file.path.split(/[/\\]/)];
         let current = root;
 
         for (let i = 0; i < parts.length; i++) {

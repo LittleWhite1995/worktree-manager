@@ -56,6 +56,7 @@ import {
 } from '@/lib/backend';
 import type { WorkspaceConfig } from '@/types';
 import { renderCommitPrefix } from '@/lib/commit-prefix';
+import { basename } from '@/lib/utils';
 import { CreatePRModal } from './CreatePRModal';
 
 const AUTO_REFRESH_INTERVAL_MS = 60_000;
@@ -317,7 +318,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
     if (prefixIndex >= config.templates.length) return ''; // "无" option
     const template = config.templates[prefixIndex] ?? '';
     if (!template) return '';
-    const repoName = projectPath.split('/').pop() || '';
+    const repoName = basename(projectPath);
     return renderCommitPrefix(template, {
       worktreeName: worktreeDisplayName || repoName,
       projectName,
@@ -746,11 +747,12 @@ export const GitOperations: FC<GitOperationsProps> = ({
                       }
                     `}</style>
                     {prefixConfig.templates.map((tmpl, idx) => {
+                      const repoName = basename(projectPath);
                       const label = renderCommitPrefix(tmpl, {
-                        worktreeName: worktreeDisplayName || projectPath.split('/').pop() || '',
+                        worktreeName: worktreeDisplayName || repoName,
                         projectName,
                         branchName: currentBranch,
-                        repoName: projectPath.split('/').pop() || '',
+                        repoName,
                       }) || t('git.emptyPrefix', '(空模板)');
                       const isDefault = idx === prefixConfig.default_index;
                       return (
