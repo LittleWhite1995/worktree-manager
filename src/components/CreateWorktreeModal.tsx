@@ -4,7 +4,6 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -41,6 +40,8 @@ interface CreateWorktreeModalProps {
   onUpdateBaseBranch: (name: string, baseBranch: string) => void;
   onSubmit: () => void;
   creating: boolean;
+  syncBeforeCreate: boolean;
+  onSyncBeforeCreateChange: (checked: boolean) => void;
 }
 
 export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
@@ -58,6 +59,8 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
   onUpdateBaseBranch,
   onSubmit,
   creating,
+  syncBeforeCreate,
+  onSyncBeforeCreateChange,
 }) => {
   const { t } = useTranslation();
 
@@ -269,15 +272,25 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
             </div>
           </div>
         )}
-        <DialogFooter className="p-5 border-t border-[var(--color-border)]">
-          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={creating}>{t('common.cancel')}</Button>
-          <Button
-            onClick={onSubmit}
-            disabled={!canSubmit}
-          >
-            {creating ? t('common.creating') : t('createWorktree.createCount', { count: selectedProjects.size })}
-          </Button>
-        </DialogFooter>
+        <div className="flex items-center justify-between p-5 border-t border-[var(--color-border)]">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <Checkbox
+              checked={syncBeforeCreate}
+              onChange={() => onSyncBeforeCreateChange(!syncBeforeCreate)}
+              disabled={creating}
+            />
+            <span className="text-xs text-[var(--color-text-secondary)]">{t('createWorktree.syncBeforeCreate', '创建前同步 Base')}</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={creating}>{t('common.cancel')}</Button>
+            <Button
+              onClick={onSubmit}
+              disabled={!canSubmit}
+            >
+              {creating ? t('common.creating') : t('createWorktree.createCount', { count: selectedProjects.size })}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

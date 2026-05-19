@@ -1811,3 +1811,22 @@ mod tests {
         );
     }
 }
+
+// ==================== 前端日志转发 ====================
+
+#[tauri::command]
+pub(crate) async fn frontend_log(level: String, message: String) {
+    // Truncate to 4096 chars and strip control characters to prevent log injection
+    let sanitized: String = message
+        .chars()
+        .take(4096)
+        .filter(|c| !c.is_control() || *c == '\n')
+        .collect();
+    match level.as_str() {
+        "error" => log::error!("[frontend] {}", sanitized),
+        "warn" => log::warn!("[frontend] {}", sanitized),
+        "info" => log::info!("[frontend] {}", sanitized),
+        "debug" => log::debug!("[frontend] {}", sanitized),
+        _ => log::info!("[frontend] {}", sanitized),
+    }
+}

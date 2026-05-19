@@ -283,6 +283,8 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
           onUpdateBaseBranch={actions.updateProjectBaseBranch}
           onSubmit={actions.handleCreateWorktree}
           creating={actions.creating}
+          syncBeforeCreate={actions.syncBeforeCreate}
+          onSyncBeforeCreateChange={actions.setSyncBeforeCreate}
         />
 
         {isTauri() && (

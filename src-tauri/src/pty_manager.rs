@@ -2,7 +2,7 @@ use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize}
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 use tokio::sync::broadcast;
@@ -560,13 +560,13 @@ impl Drop for PtySession {
 }
 
 pub struct PtyManager {
-    sessions: HashMap<String, Arc<Mutex<PtySession>>>,
+    sessions: RwLock<HashMap<String, Arc<Mutex<PtySession>>>>,
 }
 
 impl PtyManager {
     pub fn new() -> Self {
         Self {
-            sessions: HashMap::new(),
+            sessions: RwLock::new(HashMap::new()),
         }
     }
 
@@ -759,18 +759,21 @@ impl PtyManager {
         };
 
         self.sessions
+            .write()
+            .unwrap()
             .insert(id.to_string(), Arc::new(Mutex::new(session)));
         log::info!(
             "[pty] Session '{}' created successfully. Total active sessions: {}",
             id,
-            self.sessions.len()
+            self.sessions.read().unwrap().len()
         );
         Ok(())
     }
 
     pub fn write_to_session(&self, id: &str, data: &str) -> Result<(), String> {
-        let session = self.sessions.get(id).ok_or_else(|| {
-            let active: Vec<&String> = self.sessions.keys().collect();
+        let sessions = self.sessions.read().unwrap();
+        let session = sessions.get(id).ok_or_else(|| {
+            let active: Vec<&String> = sessions.keys().collect();
             log::warn!(
                 "[pty] write_to_session: session '{}' not found. Active sessions ({}) = {:?}",
                 id,
@@ -793,8 +796,9 @@ impl PtyManager {
     }
 
     pub fn read_from_session(&self, id: &str, reader_id: Option<&str>) -> Result<String, String> {
-        let session = self.sessions.get(id).ok_or_else(|| {
-            let active: Vec<&String> = self.sessions.keys().collect();
+        let sessions = self.sessions.read().unwrap();
+        let session_arc = sessions.get(id).ok_or_else(|| {
+            let active: Vec<&String> = sessions.keys().collect();
             log::warn!(
                 "[pty] read_from_session: session '{}' not found. Active sessions ({}) = {:?}",
                 id,
@@ -804,7 +808,9 @@ impl PtyManager {
             "Session not found".to_string()
         })?;
 
-        let session = session.lock().map_err(|e| format!("Lock error: {}", e))?;
+        let session = session_arc
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
         let reader_key = reader_id.unwrap_or(id);
 
         // Non-blocking: replay only this reader's unread bytes.
@@ -827,12 +833,15 @@ impl PtyManager {
     }
 
     pub fn resize_session(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
-        let session = self.sessions.get(id).ok_or_else(|| {
+        let sessions = self.sessions.read().unwrap();
+        let session_arc = sessions.get(id).ok_or_else(|| {
             log::warn!("[pty] resize_session: session '{}' not found", id);
             "Session not found".to_string()
         })?;
 
-        let session = session.lock().map_err(|e| format!("Lock error: {}", e))?;
+        let session = session_arc
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
         session
             .master
             .resize(PtySize {
@@ -846,12 +855,12 @@ impl PtyManager {
     }
 
     pub fn close_session(&mut self, id: &str, reason: &str) -> Result<(), String> {
-        if let Some(session) = self.sessions.remove(id) {
+        if let Some(session) = self.sessions.write().unwrap().remove(id) {
             log::info!(
                 "[pty] Closing session '{}', reason: '{}'. Remaining sessions: {}",
                 id,
                 reason,
-                self.sessions.len()
+                self.sessions.read().unwrap().len()
             );
             if let Ok(mut session) = session.lock() {
                 session.kill_child();
@@ -867,24 +876,26 @@ impl PtyManager {
     }
 
     pub fn has_session(&self, id: &str) -> bool {
-        self.sessions.contains_key(id)
+        self.sessions.read().unwrap().contains_key(id)
     }
 
     pub fn session_shell_path(&self, id: &str) -> Option<String> {
-        self.sessions
+        let sessions = self.sessions.read().unwrap();
+        sessions
             .get(id)
             .and_then(|session| session.lock().ok())
             .map(|session| session.shell_path.clone())
     }
 
     pub fn session_count(&self) -> usize {
-        self.sessions.len()
+        self.sessions.read().unwrap().len()
     }
 
     /// Get a broadcast receiver and replay buffer snapshot for a PTY session (used by WebSocket subscribers).
     /// Returns (replay_data, broadcast_receiver).
     pub fn subscribe_session(&self, id: &str) -> Option<(Vec<u8>, broadcast::Receiver<Vec<u8>>)> {
-        let session_arc = self.sessions.get(id)?;
+        let sessions = self.sessions.read().unwrap();
+        let session_arc = sessions.get(id)?;
         let session = session_arc.lock().ok()?;
         let replay = session
             .replay_buffer
@@ -901,13 +912,19 @@ impl PtyManager {
         path_prefix: &str,
         reason: &str,
     ) -> Vec<String> {
-        let normalized_prefix = path_prefix.replace(['/', '#'], "-");
-        let sessions_to_close: Vec<String> = self
-            .sessions
-            .keys()
-            .filter(|id| id.contains(&normalized_prefix))
-            .cloned()
-            .collect();
+        let normalized_prefix = path_prefix.replace(['/', '\\', '#'], "-");
+        // NOTE: session IDs are created by frontend as `pty-{normalized-path}` (no trailing -#)
+        let session_prefix = format!("pty-{}", normalized_prefix);
+
+        // Collect IDs under read lock, then drop guard before write lock
+        let sessions_to_close: Vec<String> = {
+            let sessions = self.sessions.read().unwrap();
+            sessions
+                .keys()
+                .filter(|id| id.starts_with(&session_prefix))
+                .cloned()
+                .collect()
+        }; // read guard dropped here
 
         if !sessions_to_close.is_empty() {
             log::info!(
@@ -920,8 +937,9 @@ impl PtyManager {
             );
         }
 
+        // Now acquire write lock separately
         for id in &sessions_to_close {
-            if let Some(session) = self.sessions.remove(id) {
+            if let Some(session) = self.sessions.write().unwrap().remove(id) {
                 if let Ok(mut session) = session.lock() {
                     session.kill_child();
                 }

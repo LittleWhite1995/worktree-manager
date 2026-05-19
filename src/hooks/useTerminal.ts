@@ -35,7 +35,7 @@ export interface UseTerminalReturn {
 
 /** Close a single PTY session by path */
 function closePtySession(path: string): void {
-  const sessionId = `pty-${path.replace(/[/#]/g, '-')}`;
+  const sessionId = `pty-${path.replace(/[/\\/#]/g, '-')}`;
   callBackend('pty_close', { sessionId }).catch(() => { });
 }
 
@@ -182,7 +182,7 @@ export function useTerminal(
       const active = activeTerminalTabRef.current;
       const visible = terminalVisibleRef.current;
       const clientId = clientIdRef.current;
-      const sessionId = active ? `pty-${active.replace(/[#/]/g, '-')}` : null;
+      const sessionId = active ? `pty-${active.replace(/[#/\\]/g, '-')}` : null;
 
       if (import.meta.env.DEV) {
         console.log('[useTerminal] broadcast:', 'tabs:', tabs, 'active:', active);
@@ -539,7 +539,9 @@ export function useTerminal(
 
   // Remove all terminals matching a path prefix (e.g. worktree archive)
   const cleanupTerminalsForPath = useCallback(async (pathPrefix: string) => {
-    const matches = (p: string) => p.startsWith(pathPrefix) || p.split('#')[0].startsWith(pathPrefix);
+    // Normalize pathPrefix to handle Windows backslashes for consistent matching
+    const normalizedPrefix = pathPrefix.replace(/\\/g, '/');
+    const matches = (p: string) => p.startsWith(pathPrefix) || p.replace(/\\/g, '/').startsWith(normalizedPrefix) || p.split('#')[0].startsWith(pathPrefix) || p.split('#')[0].replace(/\\/g, '/').startsWith(normalizedPrefix);
 
     try {
       await closePtySessionsByPath(pathPrefix);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type FC } from 'react';
+import React, { useState, useEffect, useRef, useCallback, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,12 +23,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Palette, Check, Brain } from 'lucide-react';
+import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Palette, Check, Brain, AlertCircle } from 'lucide-react';
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
 import { BranchCombobox } from './BranchCombobox';
-import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild } from '../types';
-import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect, getCommitAiApiKey, setCommitAiApiKey as saveCommitAiApiKey } from '../lib/backend';
+import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild, FailedVaultItem } from '../types';
+import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect, getCommitAiApiKey, setCommitAiApiKey as saveCommitAiApiKey, setCommitAiEnabled as saveCommitAiEnabled, getCommitAiEnabled } from '../lib/backend';
 import type { CloudStatus, PairingStatus } from '../lib/backend';
 
 const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
@@ -150,6 +150,8 @@ const WorkspaceVaultSection: FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showItems, setShowItems] = useState(false);
+  const [failedItems, setFailedItems] = useState<FailedVaultItem[]>([]);
+  const [showFailedItems, setShowFailedItems] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -168,6 +170,7 @@ const WorkspaceVaultSection: FC = () => {
   const handleConnect = async (selectedPath: string) => {
     if (!selectedPath.trim()) return;
     setError(null);
+    setFailedItems([]);
     setLinking(true);
     try {
       const result = await vaultLink(selectedPath.trim());
@@ -181,6 +184,9 @@ const WorkspaceVaultSection: FC = () => {
         });
         setInputPath('');
         if (result.warning) setError(result.warning);
+      }
+      if (result.failed_items && result.failed_items.length > 0) {
+        setFailedItems(result.failed_items);
       }
     } catch (e) {
       setError(String(e));
@@ -208,6 +214,7 @@ const WorkspaceVaultSection: FC = () => {
   const handleRefresh = async () => {
     if (!vaultStatus?.vault_path) return;
     setError(null);
+    setFailedItems([]);
     setLinking(true);
     try {
       const result = await vaultLink(vaultStatus.vault_path);
@@ -220,6 +227,9 @@ const WorkspaceVaultSection: FC = () => {
           synced_items: result.synced_items,
         });
         if (result.warning) setError(result.warning);
+      }
+      if (result.failed_items && result.failed_items.length > 0) {
+        setFailedItems(result.failed_items);
       }
     } catch (e) {
       setError(String(e));
@@ -294,6 +304,40 @@ const WorkspaceVaultSection: FC = () => {
               </div>
             )}
           </div>
+          {/* Failed items with collapse */}
+          {failedItems.length > 0 && (
+            <div>
+              <button
+                className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 transition-colors"
+                onClick={() => setShowFailedItems(!showFailedItems)}
+              >
+                <span className="w-3 h-3 inline-flex items-center justify-center text-[10px]">
+                  {showFailedItems ? '\u25BC' : '\u25B6'}
+                </span>
+                {t('settings.vaultFailedItems', '失败项')}
+                <span className="text-orange-500/70">({failedItems.length})</span>
+                {failedItems.length > 3 && !showFailedItems && (
+                  <span className="text-[10px] text-orange-600/60">还有 {failedItems.length - 3} 项失败</span>
+                )}
+              </button>
+              {showFailedItems && (
+                <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto pr-1">
+                  {failedItems.slice(0, 3).map((item, index) => (
+                    <div key={index} className="text-xs text-orange-400/80 flex items-start gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                      <span className="font-mono truncate" title={item.path}>{item.path}</span>
+                      <span className="text-orange-500/60">- {item.reason}</span>
+                    </div>
+                  ))}
+                  {failedItems.length > 3 && (
+                    <div className="text-[10px] text-orange-500/60 pl-4">
+                      还有 {failedItems.length - 3} 项失败
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {/* Actions */}
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" disabled={linking} onClick={handleRefresh}>
@@ -1000,6 +1044,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   }, [sanitizeToolPaths]);
 
   const handleDetectTools = useCallback(async () => {
+    if (!isTauri()) return; // detect_tools is localhost-only
     setToolsDetecting(true);
     try {
       const tools = await callBackend('detect_tools') as DetectedToolsResult;
@@ -1125,13 +1170,17 @@ export const SettingsView: FC<SettingsViewProps> = ({
         setNgrokTokenLoaded(true);
       }).catch(() => setNgrokTokenLoaded(true));
     }
-    getDashscopeApiKey().then(k => {
-      setDashscopeKey(k || '');
+    if (isTauri()) {
+      getDashscopeApiKey().then(k => {
+        setDashscopeKey(k || '');
+        setDashscopeKeyLoaded(true);
+      }).catch(() => setDashscopeKeyLoaded(true));
+      getDashscopeBaseUrl().then(u => {
+        setDashscopeUrl(u || '');
+      }).catch(() => { });
+    } else {
       setDashscopeKeyLoaded(true);
-    }).catch(() => setDashscopeKeyLoaded(true));
-    getDashscopeBaseUrl().then(u => {
-      setDashscopeUrl(u || '');
-    }).catch(() => { });
+    }
     getVoiceRefineEnabled().then(v => {
       setVoiceRefineEnabled(v);
       setVoiceRefineLoaded(true);
@@ -1207,6 +1256,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
         setCommitAiKeyLoaded(true);
       })
       .catch(() => setCommitAiKeyLoaded(true));
+
+    getCommitAiEnabled()
+      .then(v => setCommitAiEnabled(v))
+      .catch(() => {});
   }, []);
 
   // ==================== Cloud connection handlers ====================
@@ -1252,15 +1305,25 @@ export const SettingsView: FC<SettingsViewProps> = ({
   }
 
   // ==================== Menu items ====================
-  const menuItems = [
-    { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" /> },
-    { id: 'appearance' as SettingsSection, label: t('settings.appearance'), icon: <Palette className="w-3.5 h-3.5" /> },
-        { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
-    ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" /> }] : []),
-    { id: 'commit' as SettingsSection, label: t('settings.commitNav', '提交设置'), icon: <FileText className="w-3.5 h-3.5" /> },
-    { id: 'voice' as SettingsSection, label: t('settings.voiceNav'), icon: <Mic className="w-3.5 h-3.5" /> },
+  interface MenuItem {
+    id: SettingsSection;
+    label: string;
+    icon: React.ReactNode;
+    group?: 'common' | 'advanced' | 'info';
+  }
+
+  const menuItems: MenuItem[] = [
+    // Common group
+    { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" />, group: 'common' },
+    { id: 'appearance' as SettingsSection, label: t('settings.appearance'), icon: <Palette className="w-3.5 h-3.5" />, group: 'common' },
+    // Advanced group
+    { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" />, group: 'advanced' },
+    ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" />, group: 'advanced' as const }] : []),
+    { id: 'commit' as SettingsSection, label: t('settings.commitNav', '提交设置'), icon: <FileText className="w-3.5 h-3.5" />, group: 'advanced' },
+    { id: 'voice' as SettingsSection, label: t('settings.voiceNav'), icon: <Mic className="w-3.5 h-3.5" />, group: 'advanced' },
     // { id: 'cloud' as SettingsSection, label: t('settings.cloudNav', '云端连接'), icon: <Link2 className="w-3.5 h-3.5" /> },
-    { id: 'about' as SettingsSection, label: t('settings.about'), icon: <Info className="w-3.5 h-3.5" /> },
+    // Info group
+    { id: 'about' as SettingsSection, label: t('settings.about'), icon: <Info className="w-3.5 h-3.5" />, group: 'info' },
   ];
 
   // ==================== Render ====================
@@ -1294,19 +1357,31 @@ export const SettingsView: FC<SettingsViewProps> = ({
         {/* Left sidebar */}
         <div className="w-48 shrink-0 border-r border-[var(--color-border)]/50 py-2 overflow-y-auto">
           <nav className="space-y-0.5 px-2">
-            {menuItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setActiveSection(item.id)}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors text-left ${activeSection === item.id
-                  ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
-                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface)]'
-                  }`}
-              >
-                {item.icon}
-                <span className="truncate">{item.label}</span>
-              </button>
-            ))}
+            {menuItems.map((item, index) => {
+              const prevGroup = index > 0 ? menuItems[index - 1].group : null;
+              const showDivider = prevGroup !== item.group;
+
+              return (
+                <React.Fragment key={item.id}>
+                  {showDivider && item.group && (
+                    <div className="text-[10px] text-[var(--color-text-muted)] px-2.5 pt-3 pb-1 uppercase tracking-wider">
+                      {item.group === 'advanced' ? t('settings.navAdvanced', 'Advanced') :
+                       item.group === 'info' ? t('settings.navInfo', 'Info') : null}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setActiveSection(item.id)}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors text-left ${activeSection === item.id
+                      ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface)]'
+                    }`}
+                  >
+                    {item.icon}
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                </React.Fragment>
+              );
+            })}
           </nav>
         </div>
 
@@ -1356,6 +1431,9 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     <label className="block text-xs text-[var(--color-text-muted)] mb-1.5">{t('settings.linkedWorktreeItems')}</label>
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {/* Merge linked_workspace_items + vault synced items, deduplicated, sorted */}
+                      {/* Note: vault items have higher priority than custom items.
+                          When a path exists in both, only the vault version is kept.
+                          The sort order puts vault items before custom items. */}
                       {(() => {
                         const vaultMap = new Map<string, { name: string; item_type: 'file' | 'directory' }>();
                         if (vaultStatus?.connected) {
@@ -1414,15 +1492,15 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     <Brain className="w-4 h-4 text-[var(--color-accent)]" />
                     <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">{t('settings.vaultNav', '知识库')}</h3>
                   </div>
-                  <div className="bg-[var(--color-bg-base)] border border-[var(--color-border)]/30 rounded p-3 mb-3">
-                    <div className="flex items-start gap-2">
-                      <Info className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0 mt-0.5" />
-                      <div className="text-xs text-[var(--color-text-secondary)] space-y-1">
-                        <p>{t('settings.vaultGuideLine1', '知识库用于挂载 Obsidian Vault，将笔记文件夹关联到工作区。')}</p>
-                        <p>{t('settings.vaultGuideLine2', '挂载后可在工作区快速访问笔记内容，支持软链接和同步项管理。')}</p>
-                      </div>
+                  <details className="bg-[var(--color-bg-base)] border border-[var(--color-border)]/30 rounded mb-3">
+                    <summary className="text-xs text-[var(--color-text-muted)] cursor-pointer hover:text-[var(--color-text-secondary)] p-2">
+                      {t('settings.vaultGuideSummary', '什么是知识库挂载？点击查看说明')}
+                    </summary>
+                    <div className="px-3 pb-3 text-xs text-[var(--color-text-secondary)] space-y-1">
+                      <p>{t('settings.vaultGuideLine1', '知识库挂载将任意文件夹关联到工作区，通过软链接在工作树中快速访问。参考 Karpathy 的 LLM wiki 流程：把知识库和工作区放在同一父目录下，用相对路径软链接关联。')}</p>
+                      <p>{t('settings.vaultGuideLine2', '支持 Obsidian、Zettelkasten、Roam Research 等任意笔记工具。挂载后支持软链接和同步项管理。')}</p>
                     </div>
-                  </div>
+                  </details>
                   <WorkspaceVaultSection />
                 </div>
 
@@ -2158,7 +2236,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
                         </div>
                         <button
                           type="button"
-                          onClick={() => { const newVal = !commitAiEnabled; setCommitAiEnabled(newVal); }}
+                          onClick={async () => { const newVal = !commitAiEnabled; setCommitAiEnabled(newVal); await saveCommitAiEnabled(newVal); }}
                           disabled={!commitAiKeyLoaded}
                           className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${commitAiEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-muted)]'}`}
                         >

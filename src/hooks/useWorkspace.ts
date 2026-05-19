@@ -123,7 +123,8 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
         callBackend<WorkspaceConfig>("get_workspace_config", extra),
         callBackend<WorktreeListItem[]>("list_worktrees", { includeArchived: true, ...extra }),
         callBackend<MainWorkspaceStatus>("get_main_workspace_status", extra),
-        callBackend<string>("get_config_path_info", extra).catch(() => ''),
+        // get_config_path_info is localhost-only — skip in browser sharing mode
+        isTauri() ? callBackend<string>("get_config_path_info", extra).catch(() => '') : Promise.resolve(''),
       ]);
       if (version !== loadVersion.current) {
         console.log(`[ws] loadData: discarded (stale v${version}, current v${loadVersion.current})`);
@@ -287,7 +288,10 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
       try {
         const toolPaths = JSON.parse(localStorage.getItem('tool_paths') || '{}');
         const perEditorKey = `editor_${editor}`;
-        if (toolPaths[perEditorKey]) customPath = toolPaths[perEditorKey];
+        if (toolPaths[perEditorKey]) {
+          // Escape special characters in editor path to prevent command injection
+          customPath = toolPaths[perEditorKey].replace(/[<>"|?*]/g, '_');
+        }
       } catch { /* ignore */ }
       await callBackend("open_in_editor", { request: { path, editor }, customPath });
     } catch (e) {

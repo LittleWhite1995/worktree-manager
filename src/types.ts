@@ -208,9 +208,15 @@ export interface VaultStatus {
   synced_items: SyncedItem[];
 }
 
+export interface FailedVaultItem {
+  path: string;
+  reason: string;
+}
+
 export interface VaultLinkResponse {
   connected: boolean;
   synced_items: SyncedItem[];
+  failed_items: FailedVaultItem[];
   error: string | null;
   warning: string | null;
 }

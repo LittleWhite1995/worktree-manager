@@ -102,6 +102,26 @@ pub(crate) async fn set_commit_ai_api_key(key: String) -> Result<(), String> {
     set_commit_ai_api_key_inner(key)
 }
 
+pub(crate) fn set_commit_ai_enabled_inner(enabled: bool) -> Result<(), String> {
+    let mut config = load_global_config();
+    config.commit_ai_enabled = enabled;
+    save_global_config_internal(&config)?;
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) async fn set_commit_ai_enabled(enabled: bool) -> Result<(), String> {
+    set_commit_ai_enabled_inner(enabled)
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) async fn get_commit_ai_enabled() -> bool {
+    let config = crate::config::load_global_config();
+    config.commit_ai_enabled
+}
+
 #[tauri::command]
 #[allow(dead_code)]
 pub(crate) fn check_commit_ai_api_key() -> bool {

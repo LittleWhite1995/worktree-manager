@@ -107,6 +107,86 @@ fn result_void_ok() -> Response {
     StatusCode::NO_CONTENT.into_response()
 }
 
+/// Get a string parameter from JSON args, accepting either camelCase or snake_case key.
+/// Returns owned String to avoid borrow lifetime issues with spawn_blocking.
+fn get_param(args: &Value, key: &str) -> String {
+    let map = match args.as_object() {
+        Some(m) => m,
+        None => return String::new(),
+    };
+    let camel = to_camel(key);
+    let snake = to_snake(key);
+    map.get(&camel)
+        .or_else(|| map.get(&snake))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_default()
+}
+
+fn get_param_opt(args: &Value, key: &str) -> Option<String> {
+    let map = args.as_object()?;
+    let camel = to_camel(key);
+    let snake = to_snake(key);
+    map.get(&camel)
+        .or_else(|| map.get(&snake))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+fn get_param_bool(args: &Value, key: &str, default: bool) -> bool {
+    let map = match args.as_object() {
+        Some(m) => m,
+        None => return default,
+    };
+    let camel = to_camel(key);
+    let snake = to_snake(key);
+    map.get(&camel)
+        .or_else(|| map.get(&snake))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(default)
+}
+
+fn get_param_u64(args: &Value, key: &str, default: u64) -> u64 {
+    let map = match args.as_object() {
+        Some(m) => m,
+        None => return default,
+    };
+    let camel = to_camel(key);
+    let snake = to_snake(key);
+    map.get(&camel)
+        .or_else(|| map.get(&snake))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(default)
+}
+
+fn to_camel(s: &str) -> String {
+    // e.g. "base_branch" -> "baseBranch", "workspace_path" -> "workspacePath"
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '_' {
+            if let Some(next) = chars.next() {
+                result.push(next.to_ascii_uppercase());
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+fn to_snake(s: &str) -> String {
+    // e.g. "baseBranch" -> "base_branch", "workspacePath" -> "workspace_path"
+    let mut result = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            result.push('_');
+        }
+        result.push(c.to_ascii_lowercase());
+    }
+    result
+}
+
 fn current_app_handle() -> Result<tauri::AppHandle, String> {
     crate::APP_HANDLE
         .lock()
@@ -160,7 +240,7 @@ async fn h_create_workspace(Json(args): Json<AddWsArgs>) -> Response {
 
 async fn h_set_window_workspace(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
-    let ws_path = normalize_path(args["workspacePath"].as_str().unwrap_or(""));
+    let ws_path = normalize_path(&get_param(&args, "workspace_path"));
     result_ok(set_window_workspace_impl(&sid, ws_path))
 }
 
@@ -220,7 +300,7 @@ async fn h_get_config_path_info(headers: HeaderMap) -> Response {
 
 async fn h_list_worktrees(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
-    let include_archived = args["includeArchived"].as_bool().unwrap_or(false);
+    let include_archived = get_param_bool(&args, "include_archived", false);
     result_json(list_worktrees_impl(&sid, include_archived))
 }
 
@@ -306,7 +386,7 @@ async fn h_add_project_to_worktree(headers: HeaderMap, Json(args): Json<Value>) 
 
 async fn h_deploy_to_main(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
-    let worktree_name = args["worktreeName"].as_str().unwrap_or("").to_string();
+    let worktree_name = get_param(&args, "worktree_name");
     result_json(deploy_to_main_impl(&sid, worktree_name))
 }
 
@@ -340,24 +420,9 @@ async fn h_scan_existing_projects(headers: HeaderMap) -> Response {
 async fn h_add_existing_project(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
     let name = args["name"].as_str().unwrap_or("").to_string();
-    let base_branch = args
-        .get("baseBranch")
-        .or_else(|| args.get("base_branch"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let test_branch = args
-        .get("testBranch")
-        .or_else(|| args.get("test_branch"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let merge_strategy = args
-        .get("mergeStrategy")
-        .or_else(|| args.get("merge_strategy"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("merge")
-        .to_string();
+    let base_branch = get_param(&args, "base_branch");
+    let test_branch = get_param(&args, "test_branch");
+    let merge_strategy = get_param(&args, "merge_strategy");
     result_ok(add_existing_project_impl(
         &sid,
         name,
@@ -398,8 +463,12 @@ async fn h_switch_branch(Json(args): Json<Value>) -> Response {
 
 async fn h_get_branch_diff_stats(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
-    let base_branch = args["baseBranch"].as_str().unwrap_or("").to_string();
-    let test_branch = args["testBranch"].as_str().map(|s| s.to_string());
+    let base_branch = get_param(&args, "base_branch");
+    let test_branch = args
+        .get("testBranch")
+        .or_else(|| args.get("test_branch"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let normalized = normalize_path(&path);
     let stats = git_ops::get_branch_diff_stats(
         std::path::Path::new(&normalized),
@@ -419,7 +488,7 @@ async fn h_get_changed_files(Json(args): Json<Value>) -> Response {
 
 async fn h_get_file_diff(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
-    let file_path = args["filePath"].as_str().unwrap_or("").to_string();
+    let file_path = get_param(&args, "file_path");
     let normalized = normalize_path(&path);
     result_json(git_ops::get_file_diff(
         std::path::Path::new(&normalized),
@@ -429,7 +498,7 @@ async fn h_get_file_diff(Json(args): Json<Value>) -> Response {
 
 async fn h_check_remote_branch_exists(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
-    let branch_name = args["branchName"].as_str().unwrap_or("").to_string();
+    let branch_name = get_param(&args, "branch_name");
     let normalized = normalize_path(&path);
     result_json(git_ops::check_remote_branch_exists(
         std::path::Path::new(&normalized),
@@ -451,7 +520,7 @@ async fn h_fetch_project_remote(Json(args): Json<Value>) -> Response {
 
 async fn h_sync_with_base_branch(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
-    let base_branch = args["baseBranch"].as_str().unwrap_or("").to_string();
+    let base_branch = get_param(&args, "base_branch");
     let normalized = normalize_path(&path);
     let result = tokio::task::spawn_blocking(move || {
         git_ops::sync_with_base_branch(std::path::Path::new(&normalized), &base_branch)
@@ -463,8 +532,10 @@ async fn h_sync_with_base_branch(Json(args): Json<Value>) -> Response {
 }
 
 async fn h_sync_all_projects_to_base(Json(args): Json<Value>) -> Response {
-    let project_paths: Vec<String> = args["projectPaths"]
-        .as_array()
+    let project_paths: Vec<String> = args
+        .get("projectPaths")
+        .or_else(|| args.get("project_paths"))
+        .and_then(|v| v.as_array())
         .map(|a| {
             a.iter()
                 .filter_map(|v| v.as_str().map(String::from))
@@ -494,7 +565,7 @@ async fn h_push_to_remote(Json(args): Json<Value>) -> Response {
 
 async fn h_merge_to_test_branch(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
-    let test_branch = args["testBranch"].as_str().unwrap_or("").to_string();
+    let test_branch = get_param(&args, "test_branch");
     let normalized = normalize_path(&path);
     let result = tokio::task::spawn_blocking(move || {
         git_ops::merge_to_test_branch(std::path::Path::new(&normalized), &test_branch)
@@ -507,7 +578,7 @@ async fn h_merge_to_test_branch(Json(args): Json<Value>) -> Response {
 
 async fn h_merge_to_base_branch(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
-    let base_branch = args["baseBranch"].as_str().unwrap_or("").to_string();
+    let base_branch = get_param(&args, "base_branch");
     let normalized = normalize_path(&path);
     let result = tokio::task::spawn_blocking(move || {
         git_ops::merge_to_base_branch(std::path::Path::new(&normalized), &base_branch)
@@ -520,7 +591,7 @@ async fn h_merge_to_base_branch(Json(args): Json<Value>) -> Response {
 
 async fn h_create_pull_request(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
-    let base_branch = args["baseBranch"].as_str().unwrap_or("").to_string();
+    let base_branch = get_param(&args, "base_branch");
     let title = args["title"].as_str().unwrap_or("").to_string();
     let body = args["body"].as_str().unwrap_or("").to_string();
     let normalized = normalize_path(&path);
@@ -558,9 +629,20 @@ async fn h_get_git_diff(Json(args): Json<Value>) -> Response {
 async fn h_commit_all(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
     let message = args["message"].as_str().unwrap_or("").to_string();
-    let author_name = args["authorName"].as_str().map(|s| s.to_string());
-    let author_email = args["authorEmail"].as_str().map(|s| s.to_string());
-    let skip_hooks = args["skipHooks"].as_bool();
+    let author_name = args
+        .get("authorName")
+        .or_else(|| args.get("author_name"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let author_email = args
+        .get("authorEmail")
+        .or_else(|| args.get("author_email"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let skip_hooks = args
+        .get("skipHooks")
+        .or_else(|| args.get("skip_hooks"))
+        .and_then(|v| v.as_bool());
     result_json(
         crate::commands::git::commit_all(path, message, author_name, author_email, skip_hooks)
             .await,
@@ -580,6 +662,7 @@ async fn h_get_commit_prefix_config() -> Response {
 struct SetPrefixArgs {
     templates: Vec<String>,
     enabled: bool,
+    #[serde(alias = "defaultIndex")]
     default_index: usize,
 }
 
@@ -678,12 +761,35 @@ async fn h_check_dashscope_api_key() -> Response {
 }
 
 async fn h_get_commit_ai_api_key() -> Response {
-    result_json(crate::commands::voice::get_commit_ai_api_key().await)
+    // Return masked key via HTTP to avoid exposing secrets in LAN sharing mode
+    let result: Result<Option<String>, String> =
+        crate::commands::voice::get_commit_ai_api_key().await;
+    match result {
+        Ok(Some(key)) => {
+            let masked = if key.len() > 8 {
+                format!("{}...{}", &key[..4], &key[key.len() - 4..])
+            } else {
+                "****".to_string()
+            };
+            result_json(Ok(Some(masked)))
+        }
+        Ok(None) => result_json(Ok(None::<String>)),
+        Err(e) => result_json::<Option<String>>(Err(e)),
+    }
 }
 
 async fn h_set_commit_ai_api_key(Json(args): Json<Value>) -> Response {
     let key = args["key"].as_str().unwrap_or("").to_string();
     result_json(crate::commands::voice::set_commit_ai_api_key(key).await)
+}
+
+async fn h_set_commit_ai_enabled(Json(args): Json<Value>) -> Response {
+    let enabled = args["enabled"].as_bool().unwrap_or(true);
+    result_json(crate::commands::voice::set_commit_ai_enabled(enabled).await)
+}
+
+async fn h_get_commit_ai_enabled() -> Response {
+    Json(json!(crate::commands::voice::get_commit_ai_enabled().await)).into_response()
 }
 
 async fn h_check_commit_ai_api_key() -> Response {
@@ -693,7 +799,7 @@ async fn h_check_commit_ai_api_key() -> Response {
 // -- Scan --
 
 async fn h_scan_linked_folders(Json(args): Json<Value>) -> Response {
-    let project_path = normalize_path(args["projectPath"].as_str().unwrap_or(""));
+    let project_path = normalize_path(&get_param(&args, "project_path"));
     result_json(crate::scan_linked_folders_internal(&project_path))
 }
 
@@ -717,7 +823,7 @@ async fn h_open_in_editor(Json(args): Json<Value>) -> Response {
             return (StatusCode::BAD_REQUEST, format!("Invalid request: {}", e)).into_response()
         }
     };
-    let custom_path = args["customPath"].as_str().map(|s| s.to_string());
+    let custom_path = get_param_opt(&args, "custom_path");
     result_ok(crate::open_in_editor_internal(
         &request,
         custom_path.as_deref(),
@@ -726,6 +832,13 @@ async fn h_open_in_editor(Json(args): Json<Value>) -> Response {
 
 async fn h_detect_tools() -> Response {
     result_json(Ok(crate::detect_tools_internal()))
+}
+
+async fn h_frontend_log(Json(args): Json<Value>) -> Response {
+    let level = get_param(&args, "level");
+    let message = get_param(&args, "message");
+    crate::commands::system::frontend_log(level, message).await;
+    result_void_ok()
 }
 
 async fn h_set_git_path(Json(args): Json<Value>) -> Response {
@@ -768,21 +881,21 @@ async fn h_unregister_window(headers: HeaderMap) -> Response {
 
 async fn h_lock_worktree(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
-    let ws_path = args["workspacePath"].as_str().unwrap_or("").to_string();
-    let wt_name = args["worktreeName"].as_str().unwrap_or("").to_string();
+    let ws_path = get_param(&args, "workspace_path");
+    let wt_name = get_param(&args, "worktree_name");
     result_ok(lock_worktree_impl(&sid, ws_path, wt_name))
 }
 
 async fn h_unlock_worktree(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
-    let ws_path = args["workspacePath"].as_str().unwrap_or("").to_string();
-    let wt_name = args["worktreeName"].as_str().unwrap_or("").to_string();
+    let ws_path = get_param(&args, "workspace_path");
+    let wt_name = get_param(&args, "worktree_name");
     unlock_worktree_impl(&sid, ws_path, wt_name);
     result_void_ok()
 }
 
 async fn h_get_locked_worktrees(Json(args): Json<Value>) -> Response {
-    let ws_path = args["workspacePath"].as_str().unwrap_or("").to_string();
+    let ws_path = get_param(&args, "workspace_path");
     match crate::WORKTREE_LOCKS.lock() {
         Ok(locks) => {
             let result: HashMap<String, String> = locks
@@ -802,19 +915,37 @@ async fn h_broadcast_terminal_state(Json(args): Json<Value>) -> Response {
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
     };
 
-    let workspace_path = args["workspacePath"].as_str().unwrap_or("").to_string();
-    let worktree_name = args["worktreeName"].as_str().unwrap_or("").to_string();
-    let activated_terminals = args["activatedTerminals"]
-        .as_array()
+    let workspace_path = get_param(&args, "workspace_path");
+    let worktree_name = get_param(&args, "worktree_name");
+    let activated_terminals = args
+        .get("activatedTerminals")
+        .or_else(|| args.get("activated_terminals"))
+        .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default()
         .into_iter()
         .filter_map(|value| value.as_str().map(ToOwned::to_owned))
         .collect();
-    let active_terminal_tab = args["activeTerminalTab"].as_str().map(|s| s.to_string());
-    let terminal_visible = args["terminalVisible"].as_bool().unwrap_or(false);
-    let client_id = args["clientId"].as_str().map(|s| s.to_string());
-    let session_id = args["sessionId"].as_str().map(|s| s.to_string());
+    let active_terminal_tab = args
+        .get("activeTerminalTab")
+        .or_else(|| args.get("active_terminal_tab"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let terminal_visible = args
+        .get("terminalVisible")
+        .or_else(|| args.get("terminal_visible"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let client_id = args
+        .get("clientId")
+        .or_else(|| args.get("client_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let session_id = args
+        .get("sessionId")
+        .or_else(|| args.get("session_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
     crate::commands::window::broadcast_terminal_state(
         app,
@@ -848,11 +979,11 @@ where
 }
 
 async fn h_pty_create(Json(args): Json<Value>) -> Response {
-    let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
-    let cwd = normalize_path(args["cwd"].as_str().unwrap_or(""));
-    let cols = args["cols"].as_u64().unwrap_or(80) as u16;
-    let rows = args["rows"].as_u64().unwrap_or(24) as u16;
-    let shell = args["shell"].as_str().map(|s| s.to_string());
+    let session_id = get_param(&args, "session_id");
+    let cwd = normalize_path(&get_param(&args, "cwd"));
+    let cols = get_param_u64(&args, "cols", 80) as u16;
+    let rows = get_param_u64(&args, "rows", 24) as u16;
+    let shell = get_param_opt(&args, "shell");
 
     result_ok(
         with_pty_manager(move |m| {
@@ -885,24 +1016,24 @@ async fn h_pty_create(Json(args): Json<Value>) -> Response {
 }
 
 async fn h_pty_write(Json(args): Json<Value>) -> Response {
-    let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
-    let data = args["data"].as_str().unwrap_or("").to_string();
+    let session_id = get_param(&args, "session_id");
+    let data = get_param(&args, "data");
     result_ok(with_pty_manager(move |m| m.write_to_session(&session_id, &data)).await)
 }
 
 async fn h_pty_read(Json(args): Json<Value>) -> Response {
-    let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
-    let client_id = args["clientId"].as_str().map(|s| s.to_string());
+    let session_id = get_param(&args, "session_id");
+    let client_id = get_param_opt(&args, "client_id");
     result_json(
         with_pty_manager(move |m| m.read_from_session(&session_id, client_id.as_deref())).await,
     )
 }
 
 async fn h_pty_resize(Json(args): Json<Value>) -> Response {
-    let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
-    let cols = args["cols"].as_u64().unwrap_or(80) as u16;
-    let rows = args["rows"].as_u64().unwrap_or(24) as u16;
-    let _request_client_id = args["clientId"].as_str().map(|s| s.to_string());
+    let session_id = get_param(&args, "session_id");
+    let cols = get_param_u64(&args, "cols", 80) as u16;
+    let rows = get_param_u64(&args, "rows", 24) as u16;
+    let _request_client_id = get_param_opt(&args, "client_id");
 
     log::info!(
         "[http] pty_resize: session={} size={}x{}",
@@ -914,19 +1045,19 @@ async fn h_pty_resize(Json(args): Json<Value>) -> Response {
 }
 
 async fn h_pty_close(Json(args): Json<Value>) -> Response {
-    let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
+    let session_id = get_param(&args, "session_id");
     result_ok(
         with_pty_manager(move |m| m.close_session(&session_id, "h_pty_close: HTTP request")).await,
     )
 }
 
 async fn h_pty_exists(Json(args): Json<Value>) -> Response {
-    let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
+    let session_id = get_param(&args, "session_id");
     result_json(with_pty_manager(move |m| Ok(m.has_session(&session_id))).await)
 }
 
 async fn h_pty_close_by_path(Json(args): Json<Value>) -> Response {
-    let path_prefix = normalize_path(args["pathPrefix"].as_str().unwrap_or(""));
+    let path_prefix = normalize_path(&get_param(&args, "path_prefix"));
     result_json(
         with_pty_manager(move |m| {
             Ok(m.close_sessions_by_path_prefix(&path_prefix, "h_pty_close_by_path: HTTP request"))
@@ -1222,15 +1353,15 @@ async fn h_get_last_share_password() -> Response {
 // -- Misc --
 
 async fn h_get_terminal_state(Json(args): Json<Value>) -> Response {
-    let ws_path = normalize_path(args["workspacePath"].as_str().unwrap_or(""));
-    let wt_name = args["worktreeName"].as_str().unwrap_or("").to_string();
+    let ws_path = normalize_path(&get_param(&args, "workspace_path"));
+    let wt_name = get_param(&args, "worktree_name");
     let state = crate::commands::window::get_terminal_state_inner(ws_path, wt_name);
     Json(json!(state)).into_response()
 }
 
 async fn h_open_workspace_window(Json(args): Json<Value>) -> Response {
     // In browser mode, "open new window" just opens a new browser tab
-    let ws_path = normalize_path(args["workspacePath"].as_str().unwrap_or(""));
+    let ws_path = normalize_path(&get_param(&args, "workspace_path"));
     // Return a URL that the frontend can use to open a new tab
     let url = format!("/?workspace={}", urlencoding::encode(&ws_path));
     Json(json!(url)).into_response()
@@ -1920,7 +2051,11 @@ async fn handle_ws(socket: WebSocket, session_id: String) {
 // -- Voice --
 
 async fn h_voice_start(Json(args): Json<Value>) -> Response {
-    let sample_rate = args["sampleRate"].as_u64().map(|v| v as u32);
+    let sample_rate = args
+        .get("sampleRate")
+        .or_else(|| args.get("sample_rate"))
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u32);
     result_ok(crate::commands::voice::voice_start_inner(sample_rate).await)
 }
 
@@ -2010,7 +2145,7 @@ async fn h_get_connected_clients() -> Response {
 }
 
 async fn h_kick_client(Json(args): Json<Value>) -> Response {
-    let session_id = args["sessionId"].as_str().unwrap_or("").to_string();
+    let session_id = get_param(&args, "session_id");
     result_ok(crate::kick_client_internal(&session_id))
 }
 

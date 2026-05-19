@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::config::{get_window_workspace_config, save_workspace_config_internal};
 use crate::git_ops;
 use crate::types::{CloneProjectRequest, ProjectConfig, SwitchBranchRequest};
 use crate::utils::{friendly_fs_error, git_command, normalize_path, parse_repo_url};
+use tokio::sync::Semaphore;
 
 // ==================== Helper: spawn_blocking wrapper ====================
 
@@ -786,9 +788,13 @@ pub(crate) fn sync_all_projects_to_base_impl(
         .map(|p| (p.name.clone(), p.base_branch.clone()))
         .collect();
 
+    let max_concurrent = std::cmp::min(8, project_paths.len());
+    let semaphore = Arc::new(Semaphore::new(max_concurrent));
+
     log::info!(
-        "[sync-base] Syncing {} projects to their base branches (concurrent)",
-        project_paths.len()
+        "[sync-base] Syncing {} projects to their base branches (max concurrent: {})",
+        project_paths.len(),
+        max_concurrent
     );
 
     let results: Vec<SyncBaseResult> = std::thread::scope(|s| {
@@ -807,8 +813,16 @@ pub(crate) fn sync_all_projects_to_base_impl(
                 .map(|(_, b)| b.clone())
                 .unwrap_or_else(|| "main".to_string());
 
-            let handle =
-                s.spawn(move || sync_single_project_to_base(&path, &project_name, &base_branch));
+            // Acquire semaphore permit before spawning (blocks if max concurrent reached)
+            let permit = tokio::runtime::Handle::current()
+                .block_on(semaphore.clone().acquire_owned())
+                .expect("Semaphore acquire failed");
+
+            let handle = s.spawn(move || {
+                let result = sync_single_project_to_base(&path, &project_name, &base_branch);
+                drop(permit);
+                result
+            });
             handles.push(handle);
         }
 
@@ -827,6 +841,37 @@ pub(crate) fn sync_all_projects_to_base_impl(
     );
 
     Ok(results)
+}
+
+/// Push with exponential backoff retry
+async fn retry_push_async(project_path: &str, max_retries: u32) -> Result<(), String> {
+    let mut delay_ms = 1000u64;
+    for attempt in 0..max_retries {
+        match git_ops::push_to_remote(Path::new(project_path)) {
+            Ok(_) => {
+                log::info!(
+                    "[sync-base] Push succeeded after {} attempt(s)",
+                    attempt + 1
+                );
+                return Ok(());
+            }
+            Err(e) if attempt < max_retries - 1 => {
+                log::warn!(
+                    "[sync-base] Push attempt {} failed: {}, retrying in {}ms...",
+                    attempt + 1,
+                    e,
+                    delay_ms
+                );
+                tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                delay_ms *= 2;
+            }
+            Err(e) => {
+                log::error!("[sync-base] Push attempt {} failed: {}", attempt + 1, e);
+                return Err(e);
+            }
+        }
+    }
+    Ok(())
 }
 
 fn sync_single_project_to_base(
@@ -848,12 +893,35 @@ fn sync_single_project_to_base(
 
     match git_ops::sync_with_base_branch(path, base_branch) {
         Ok(msg) => {
-            log::info!("[sync-base] {}: success - {}", project_name, msg);
-            SyncBaseResult {
-                path: path_str,
-                project_name: project_name.to_string(),
-                status: "success".to_string(),
-                message: msg,
+            log::info!("[sync-base] {}: sync succeeded - {}", project_name, msg);
+
+            // Push with retry (using tokio runtime available in this context)
+            let push_result =
+                tokio::runtime::Handle::current().block_on(retry_push_async(&path_str, 3));
+
+            match push_result {
+                Ok(()) => {
+                    log::info!(
+                        "[sync-base] {}: success - {} (push succeeded)",
+                        project_name,
+                        msg
+                    );
+                    SyncBaseResult {
+                        path: path_str,
+                        project_name: project_name.to_string(),
+                        status: "success".to_string(),
+                        message: format!("{} (push succeeded)", msg),
+                    }
+                }
+                Err(e) => {
+                    log::error!("[sync-base] {}: push failed - {}", project_name, e);
+                    SyncBaseResult {
+                        path: path_str,
+                        project_name: project_name.to_string(),
+                        status: "failed".to_string(),
+                        message: format!("{} (push failed: {})", msg, e),
+                    }
+                }
             }
         }
         Err(e) => {

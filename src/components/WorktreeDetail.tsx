@@ -606,7 +606,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   const handleStatsChanged = useCallback((path: string, stats: BranchDiffStats) => {
     setProjectStats(prev => {
       const existing = prev[path];
-      if (existing && existing.ahead === stats.ahead && existing.behind === stats.behind && existing.changed_files === stats.changed_files) return prev;
+      if (existing && existing.ahead === stats.ahead && existing.behind === stats.behind && existing.changed_files === stats.changed_files && existing.unpushed_commits === stats.unpushed_commits && existing.ahead_of_test === stats.ahead_of_test) return prev;
       return { ...prev, [path]: stats };
     });
   }, []);
@@ -670,34 +670,38 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
 
   const [switchingBranch, setSwitchingBranch] = useState<string[]>([]);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [exitError, setExitError] = useState<string | null>(null);
   const [removingProject, setRemovingProject] = useState<string | null>(null);
   const [confirmRemoveProject, setConfirmRemoveProject] = useState<string | null>(null);
   const [vaultStatus, setVaultStatus] = useState<VaultStatus | null>(null);
   // Track actual content width for responsive grid (accounts for sidebar)
-  const contentRef = useRef<HTMLDivElement>(null);
   const [contentWidth, setContentWidth] = useState(0);
-
-  useEffect(() => {
-    const el = contentRef.current;
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const contentRef = useCallback((el: HTMLDivElement | null) => {
+    // Disconnect previous observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
     if (!el) return;
-    // Initial measurement using requestAnimationFrame to avoid layout thrashing
-    const rafId = requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 0) {
-        setContentWidth(rect.width);
-      }
-    });
-    // ResizeObserver for subsequent changes
+    // Initial measurement
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0) setContentWidth(rect.width);
+    // Observe for subsequent changes
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setContentWidth(entry.contentRect.width);
       }
     });
     observer.observe(el);
+    observerRef.current = observer;
+  }, []);
+  // Safety net: disconnect ResizeObserver on unmount
+  useEffect(() => {
     return () => {
-      cancelAnimationFrame(rafId);
-      observer.disconnect();
+      observerRef.current?.disconnect();
+      observerRef.current = null;
     };
   }, []);
 
@@ -1043,7 +1047,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
         <>
             {occupation ? (
               /* Deployed state: show only deployed projects in worktree-style cards */
-              <div className="grid grid-cols-1 @[600px]:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {mainWorkspace.projects
                   .filter(proj => occupation.original_branches[proj.name])
                   .map(proj => {
@@ -1118,7 +1122,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
               </div>
             ) : (
               /* Normal state: show all projects in grid layout */
-              <div style={{ display: 'grid', gridTemplateColumns: contentWidth >= 1440 ? 'repeat(2, 1fr)' : '1fr', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: contentWidth >= 900 ? 'repeat(2, 1fr)' : '1fr', gap: '0.75rem' }}>
                 {mainWorkspace.projects.map(proj => {
                   const projectPath = proj.path;
                   const isSwitching = switchingBranch.includes(proj.name);
@@ -1234,24 +1238,43 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           </TooltipProvider>
                         </div>
                       </div>
-                      {/* Status badges — hide 'not merged to test' for main workspace */}
+                      {/* Status badges — use live stats when available */}
                       <div className="mt-2">
-                        <StatusBadges project={{
-                          name: proj.name,
-                          path: proj.path,
-                          current_branch: proj.current_branch,
-                          base_branch: proj.base_branch,
-                          test_branch: proj.test_branch,
-                          has_uncommitted: proj.has_uncommitted,
-                          uncommitted_count: proj.uncommitted_count,
-                          is_merged_to_test: true,
-                          is_merged_to_base: proj.is_merged_to_base,
-                          ahead_of_base: proj.ahead_of_base,
-                          behind_base: proj.behind_base,
-                          ahead_of_test: 0,
-                          unpushed_commits: proj.unpushed_commits,
-                          remote_url: '',
-                        }} />
+                        {(() => {
+                          const liveStats = projectStats[proj.path];
+                          const liveProj = liveStats ? {
+                            name: proj.name,
+                            path: proj.path,
+                            current_branch: proj.current_branch,
+                            base_branch: proj.base_branch,
+                            test_branch: proj.test_branch,
+                            has_uncommitted: liveStats.changed_files > 0,
+                            uncommitted_count: liveStats.changed_files,
+                            is_merged_to_test: false,
+                            is_merged_to_base: proj.is_merged_to_base,
+                            ahead_of_base: liveStats.ahead,
+                            behind_base: liveStats.behind,
+                            ahead_of_test: liveStats.ahead_of_test,
+                            unpushed_commits: liveStats.unpushed_commits,
+                            remote_url: '',
+                          } : {
+                            name: proj.name,
+                            path: proj.path,
+                            current_branch: proj.current_branch,
+                            base_branch: proj.base_branch,
+                            test_branch: proj.test_branch,
+                            has_uncommitted: proj.has_uncommitted,
+                            uncommitted_count: proj.uncommitted_count,
+                            is_merged_to_test: false,
+                            is_merged_to_base: proj.is_merged_to_base,
+                            ahead_of_base: proj.ahead_of_base,
+                            behind_base: proj.behind_base,
+                            ahead_of_test: proj.ahead_of_test,
+                            unpushed_commits: proj.unpushed_commits,
+                            remote_url: '',
+                          };
+                          return <StatusBadges project={liveProj} />;
+                        })()}
                       </div>
                       {/* Git operations */}
                       <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
@@ -1263,6 +1286,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           currentBranch={proj.current_branch}
                           onRefresh={onRefresh}
                           onOpenTerminal={onOpenTerminalPanel}
+                          onStatsChanged={(stats) => handleStatsChanged(proj.path, stats)}
                         />
                       </div>
                       {proj.linked_folders && proj.linked_folders.length > 0 && (
@@ -1346,7 +1370,11 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                   {restoring ? t('detail.restoring') : t('detail.restore')}
                 </Button>
                 {onDelete && (
-                  <Button variant="destructive" onClick={onDelete}>{t('detail.delete')}</Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border border-[var(--color-border)] hover:border-[var(--color-text-muted)]"
+                  >{t('detail.delete')}</Button>
                 )}
               </>
             ) : (
@@ -1443,7 +1471,35 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: contentWidth >= 1440 ? 'repeat(2, 1fr)' : '1fr', gap: '0.75rem' }}>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-[var(--color-bg-elevated)] rounded-lg p-4 max-w-sm w-full mx-4 shadow-xl">
+              <h3 className="text-sm font-medium mb-2">{t('detail.deleteConfirmTitle', 'Delete Worktree?')}</h3>
+              <p className="text-xs text-[var(--color-text-secondary)] mb-4">
+                {t('detail.deleteConfirmDesc', 'This will permanently remove the worktree. This action cannot be undone.')}
+              </p>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1.5 text-xs rounded border border-[var(--color-border)] hover:bg-[var(--color-bg-surface)]"
+                >
+                  {t('common.cancel', 'Cancel')}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    onDelete?.();
+                  }}
+                  className="px-3 py-1.5 text-xs rounded bg-[var(--color-error)] text-white hover:bg-[var(--color-error)]/90"
+                >
+                  {t('detail.deleteConfirmBtn', 'Delete')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: contentWidth >= 900 ? 'repeat(2, 1fr)' : '1fr', gap: '0.75rem' }}>
             {selectedWorktree.projects.map((proj, index) => {
               const liveStats = projectStats[proj.path];
               const liveProj = liveStats ? {

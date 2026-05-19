@@ -625,6 +625,14 @@ export async function setCommitAiApiKey(key: string): Promise<void> {
   return callBackend<void>('set_commit_ai_api_key', { key });
 }
 
+export async function setCommitAiEnabled(enabled: boolean): Promise<void> {
+  return callBackend<void>('set_commit_ai_enabled', { enabled });
+}
+
+export async function getCommitAiEnabled(): Promise<boolean> {
+  return callBackend<boolean>('get_commit_ai_enabled', {});
+}
+
 export async function checkCommitAiApiKey(): Promise<boolean> {
   return callBackend<boolean>('check_commit_ai_api_key');
 }
