@@ -1072,7 +1072,8 @@ mod tests {
         fs::create_dir_all(vault_source.path().join("memory")).unwrap();
         fs::write(vault_source.path().join("repos.md"), "repos").unwrap();
 
-        let items = create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
+        let (items, _failed) =
+            create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
         assert_eq!(items.len(), 3);
 
         // Symlinks created directly in workspace root (not in .vault/)
@@ -1096,7 +1097,8 @@ mod tests {
         // Vault has same-named file
         fs::write(vault_source.path().join("CLAUDE.md"), "vault content").unwrap();
 
-        let items = create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
+        let (items, _failed) =
+            create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
         assert_eq!(items.len(), 1);
 
         // Original backed up to .local
@@ -1134,7 +1136,8 @@ mod tests {
 
         // Second vault: create_vault_symlinks should remove old + create new
         fs::write(vault_source_2.path().join("new.md"), "new").unwrap();
-        let items = create_vault_symlinks(workspace.path(), vault_source_2.path(), &[]).unwrap();
+        let (items, _failed) =
+            create_vault_symlinks(workspace.path(), vault_source_2.path(), &[]).unwrap();
 
         // Old symlink removed, new one created
         assert!(!workspace.path().join("old.md").exists());
