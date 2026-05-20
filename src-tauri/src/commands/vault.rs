@@ -32,6 +32,12 @@ pub struct SyncedItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FailedVaultItem {
+    pub path: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VaultStatus {
     pub connected: bool,
     pub vault_path: Option<String>,
@@ -42,6 +48,7 @@ pub struct VaultStatus {
 pub struct VaultLinkResponse {
     pub connected: bool,
     pub synced_items: Vec<SyncedItem>,
+    pub failed_items: Vec<FailedVaultItem>,
     pub error: Option<String>,
     pub warning: Option<String>,
 }
@@ -161,11 +168,15 @@ const BUILT_IN_BLACKLIST: &[&str] = &[
 /// `extra_ignored` allows passing additional names to skip (e.g. custom `worktrees_dir`).
 ///
 /// Also removes stale symlinks from any previous vault connection.
+///
+/// Returns `(synced_items, failed_items)` where failed_items contains items that could
+/// not be symlinked (max 3). Partial success is allowed - some items may succeed while
+/// others fail.
 pub fn create_vault_symlinks(
     workspace_root: &Path,
     vault_workspace_dir: &Path,
     extra_ignored: &[&str],
-) -> Result<Vec<SyncedItem>, String> {
+) -> Result<(Vec<SyncedItem>, Vec<FailedVaultItem>), String> {
     use std::collections::HashSet;
 
     // First: remove old vault symlinks (symlinks in workspace root pointing to any vault)
@@ -181,15 +192,35 @@ pub fn create_vault_symlinks(
         .copied()
         .collect();
     let mut items: Vec<SyncedItem> = Vec::new();
+    let mut failed_items: Vec<FailedVaultItem> = Vec::new();
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                // Continue on error, collect failed entry
+                if failed_items.len() < 3 {
+                    failed_items.push(FailedVaultItem {
+                        path: String::new(),
+                        reason: format!("Failed to read directory entry: {}", e),
+                    });
+                }
+                continue;
+            }
+        };
         let source = entry.path();
-        let file_name = entry
-            .file_name()
-            .to_str()
-            .ok_or_else(|| "Invalid file name".to_string())?
-            .to_string();
+        let file_name = match entry.file_name().to_str() {
+            Some(name) => name.to_string(),
+            None => {
+                if failed_items.len() < 3 {
+                    failed_items.push(FailedVaultItem {
+                        path: String::new(),
+                        reason: "Invalid file name".to_string(),
+                    });
+                }
+                continue;
+            }
+        };
 
         // Skip blacklisted files
         if ignored.contains(file_name.as_str()) {
@@ -218,14 +249,16 @@ pub fn create_vault_symlinks(
                     // Non-vault symlink — backup by saving target as {name}.local.link
                     if let Ok(target) = fs::read_link(&link_path) {
                         let backup_path = workspace_root.join(format!("{}.local.link", file_name));
-                        fs::write(&backup_path, target.to_string_lossy().as_bytes()).map_err(
-                            |e| {
-                                format!(
-                                    "Failed to backup symlink target for '{}': {}",
-                                    file_name, e
-                                )
-                            },
-                        )?;
+                        if let Err(e) = fs::write(&backup_path, target.to_string_lossy().as_bytes())
+                        {
+                            if failed_items.len() < 3 {
+                                failed_items.push(FailedVaultItem {
+                                    path: file_name.clone(),
+                                    reason: format!("Failed to backup symlink target: {}", e),
+                                });
+                            }
+                            continue;
+                        }
                         log::info!(
                             "[vault] Backed up symlink {} → {}.local.link",
                             file_name,
@@ -234,37 +267,54 @@ pub fn create_vault_symlinks(
                     }
                 }
 
-                remove_symlink(&link_path).map_err(|e| {
-                    format!("Failed to remove existing symlink '{}': {}", file_name, e)
-                })?;
+                if let Err(e) = remove_symlink(&link_path) {
+                    if failed_items.len() < 3 {
+                        failed_items.push(FailedVaultItem {
+                            path: file_name.clone(),
+                            reason: format!("Failed to remove existing symlink: {}", e),
+                        });
+                    }
+                    continue;
+                }
             } else {
                 // Existing real file/dir — backup to {name}.local
                 let backup_path = workspace_root.join(format!("{}.local", file_name));
-                fs::rename(&link_path, &backup_path).map_err(|e| {
-                    format!(
-                        "Failed to backup '{}' to '{}.local': {}",
-                        file_name, file_name, e
-                    )
-                })?;
+                if let Err(e) = fs::rename(&link_path, &backup_path) {
+                    if failed_items.len() < 3 {
+                        failed_items.push(FailedVaultItem {
+                            path: file_name.clone(),
+                            reason: format!("Failed to backup to '{}.local': {}", file_name, e),
+                        });
+                    }
+                    continue;
+                }
                 log::info!("[vault] Backed up {} → {}.local", file_name, file_name);
             }
         }
 
         // Create symlink
         #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(&source, &link_path)
-                .map_err(|e| format!("Failed to create symlink for '{}': {}", file_name, e))?;
-        }
+        let symlink_ok = std::os::unix::fs::symlink(&source, &link_path).is_ok();
         #[cfg(windows)]
-        {
-            if source.is_dir() {
-                std::os::windows::fs::symlink_dir(&source, &link_path)
-                    .map_err(|e| format!("Failed to create symlink for '{}': {}", file_name, e))?;
+        let symlink_ok = if source.is_dir() {
+            std::os::windows::fs::symlink_dir(&source, &link_path).is_ok()
+        } else {
+            std::os::windows::fs::symlink_file(&source, &link_path).is_ok()
+        };
+
+        if !symlink_ok {
+            let err_msg = if source.is_dir() {
+                "Failed to create symlink (directory)"
             } else {
-                std::os::windows::fs::symlink_file(&source, &link_path)
-                    .map_err(|e| format!("Failed to create symlink for '{}': {}", file_name, e))?;
+                "Failed to create symlink (file)"
+            };
+            if failed_items.len() < 3 {
+                failed_items.push(FailedVaultItem {
+                    path: file_name.clone(),
+                    reason: err_msg.to_string(),
+                });
             }
+            continue;
         }
 
         let item_type = if source.is_dir() { "directory" } else { "file" };
@@ -275,7 +325,7 @@ pub fn create_vault_symlinks(
     }
 
     items.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(items)
+    Ok((items, failed_items))
 }
 
 /// Workspace-critical names that must not appear in a Vault directory.
@@ -649,6 +699,7 @@ pub fn vault_link_impl(
                 return Ok(VaultLinkResponse {
                     connected: false,
                     synced_items: Vec::new(),
+                    failed_items: Vec::new(),
                     error: Some(format!("Directory does not exist: {}", vault_path)),
                     warning: None,
                 });
@@ -664,6 +715,7 @@ pub fn vault_link_impl(
                 return Ok(VaultLinkResponse {
                     connected: false,
                     synced_items: Vec::new(),
+                    failed_items: Vec::new(),
                     error: Some(msg),
                     warning: None,
                 });
@@ -680,13 +732,15 @@ pub fn vault_link_impl(
                 return Ok(VaultLinkResponse {
                     connected: false,
                     synced_items: Vec::new(),
+                    failed_items: Vec::new(),
                     error: Some("Cannot link a workspace to itself".to_string()),
                     warning: None,
                 });
             }
 
-            // Create symlinks
-            let synced_items = create_vault_symlinks(workspace_root, vault_dir, &extra_ignored)?;
+            // Create symlinks (partial failure allowed - some items may fail)
+            let (synced_items, failed_items) =
+                create_vault_symlinks(workspace_root, vault_dir, &extra_ignored)?;
 
             // Save overrides
             let (vault_root, vault_workspace_path) = split_vault_path(&vault_path)
@@ -725,6 +779,7 @@ pub fn vault_link_impl(
             Ok(VaultLinkResponse {
                 connected: true,
                 synced_items,
+                failed_items,
                 error: None,
                 warning: None,
             })
@@ -760,6 +815,7 @@ pub fn vault_link_impl(
             Ok(VaultLinkResponse {
                 connected: false,
                 synced_items: Vec::new(),
+                failed_items: Vec::new(),
                 error: None,
                 warning: None,
             })
@@ -1016,7 +1072,8 @@ mod tests {
         fs::create_dir_all(vault_source.path().join("memory")).unwrap();
         fs::write(vault_source.path().join("repos.md"), "repos").unwrap();
 
-        let items = create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
+        let (items, _failed) =
+            create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
         assert_eq!(items.len(), 3);
 
         // Symlinks created directly in workspace root (not in .vault/)
@@ -1040,7 +1097,8 @@ mod tests {
         // Vault has same-named file
         fs::write(vault_source.path().join("CLAUDE.md"), "vault content").unwrap();
 
-        let items = create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
+        let (items, _failed) =
+            create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
         assert_eq!(items.len(), 1);
 
         // Original backed up to .local
@@ -1078,7 +1136,8 @@ mod tests {
 
         // Second vault: create_vault_symlinks should remove old + create new
         fs::write(vault_source_2.path().join("new.md"), "new").unwrap();
-        let items = create_vault_symlinks(workspace.path(), vault_source_2.path(), &[]).unwrap();
+        let (items, _failed) =
+            create_vault_symlinks(workspace.path(), vault_source_2.path(), &[]).unwrap();
 
         // Old symlink removed, new one created
         assert!(!workspace.path().join("old.md").exists());

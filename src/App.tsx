@@ -292,6 +292,8 @@ function App() {
               onUpdateBaseBranch={actions.updateProjectBaseBranch}
               onSubmit={actions.handleCreateWorktree}
               creating={actions.creating}
+              syncBeforeCreate={actions.syncBeforeCreate}
+              onSyncBeforeCreateChange={actions.setSyncBeforeCreate}
             />
 
             <AddProjectToWorktreeModal

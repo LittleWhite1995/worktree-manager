@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type FC } from 'react';
+import React, { useState, useEffect, useRef, useCallback, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,12 +23,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Palette, Check } from 'lucide-react';
+import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wrench, FolderOpen, Link2, Folder, FileText, ChevronRight, ChevronDown, Star, Palette, Check, Brain, AlertCircle } from 'lucide-react';
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
 import { BranchCombobox } from './BranchCombobox';
-import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild } from '../types';
-import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect } from '../lib/backend';
+import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild, FailedVaultItem } from '../types';
+import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect, getCommitAiApiKey, setCommitAiApiKey as saveCommitAiApiKey, setCommitAiEnabled as saveCommitAiEnabled, getCommitAiEnabled } from '../lib/backend';
 import type { CloudStatus, PairingStatus } from '../lib/backend';
 
 const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
@@ -141,20 +141,22 @@ const VaultItemTree: FC<VaultItemTreeProps> = ({
 };
 
 
-// ==================== VaultSettingsSection ====================
-const VaultSettingsSection: FC = () => {
+// ==================== WorkspaceVaultSection ====================
+const WorkspaceVaultSection: FC = () => {
   const { t } = useTranslation();
-  const [status, setStatus] = useState<VaultStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [vaultStatus, setVaultStatus] = useState<VaultStatus | null>(null);
+  const [inputPath, setInputPath] = useState('');
   const [linking, setLinking] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showItems, setShowItems] = useState(false);
-  const [inputPath, setInputPath] = useState('');
+  const [failedItems, setFailedItems] = useState<FailedVaultItem[]>([]);
+  const [showFailedItems, setShowFailedItems] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
       const s = await getVaultStatus();
-      setStatus(s);
+      setVaultStatus(s);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -165,226 +167,234 @@ const VaultSettingsSection: FC = () => {
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
-  const handleConnect = useCallback(async (selectedPath: string) => {
+  const handleConnect = async (selectedPath: string) => {
     if (!selectedPath.trim()) return;
     setError(null);
+    setFailedItems([]);
     setLinking(true);
     try {
       const result = await vaultLink(selectedPath.trim());
       if (result.error) {
         setError(result.error);
       } else {
-        setStatus({
+        setVaultStatus({
           connected: result.connected,
           vault_path: selectedPath.trim(),
           synced_items: result.synced_items,
         });
         setInputPath('');
-        if (result.warning) {
-          setError(result.warning);
-        }
+        if (result.warning) setError(result.warning);
+      }
+      if (result.failed_items && result.failed_items.length > 0) {
+        setFailedItems(result.failed_items);
       }
     } catch (e) {
       setError(String(e));
     } finally {
       setLinking(false);
     }
-  }, []);
+  };
 
-  const handleSelectFolder = useCallback(async () => {
+  const handleSelectFolder = async () => {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
       const selected = await open({
         directory: true,
         multiple: false,
-        title: t('settings.vaultSelectTitle', '选择 Vault Workspace 目录'),
+        title: t('settings.vaultSelectTitle', '选择知识库目录'),
       });
       if (selected) {
         await handleConnect(selected as string);
       }
     } catch {
-      // Dialog not available (browser mode) — user uses input field instead
+      // Dialog not available in browser mode
     }
-  }, [t, handleConnect]);
+  };
 
-  const handleRefresh = useCallback(async () => {
-    if (!status?.vault_path) return;
+  const handleRefresh = async () => {
+    if (!vaultStatus?.vault_path) return;
     setError(null);
+    setFailedItems([]);
     setLinking(true);
     try {
-      const result = await vaultLink(status.vault_path);
+      const result = await vaultLink(vaultStatus.vault_path);
       if (result.error) {
         setError(result.error);
       } else {
-        setStatus({
+        setVaultStatus({
           connected: result.connected,
-          vault_path: status.vault_path,
+          vault_path: vaultStatus.vault_path,
           synced_items: result.synced_items,
         });
-        if (result.warning) {
-          setError(result.warning);
-        }
+        if (result.warning) setError(result.warning);
+      }
+      if (result.failed_items && result.failed_items.length > 0) {
+        setFailedItems(result.failed_items);
       }
     } catch (e) {
       setError(String(e));
     } finally {
       setLinking(false);
     }
-  }, [status?.vault_path]);
+  };
 
-  const handleDisconnect = useCallback(async (keepSymlinks = false) => {
+  const handleDisconnect = async (keepSymlinks = false) => {
     const msg = keepSymlinks
-      ? t('settings.vaultSoftDisconnectConfirm', '断开 Vault 配置但保留本地软链接，确定？')
+      ? t('settings.vaultSoftDisconnectConfirm', '断开但保留本地软链接？')
       : t('settings.vaultDisconnectConfirm', '确定要断开 Vault 吗？这将移除所有软链接。');
-    if (!window.confirm(msg)) {
-      return;
-    }
+    if (!window.confirm(msg)) return;
     setError(null);
     setLinking(true);
     try {
       await vaultLink(null, keepSymlinks);
-      setStatus({ connected: false, vault_path: null, synced_items: [] });
+      setVaultStatus({ connected: false, vault_path: null, synced_items: [] });
     } catch (e) {
       setError(String(e));
     } finally {
       setLinking(false);
     }
-  }, [t]);
+  };
 
   if (loading) {
-    return <div className="text-xs text-[var(--color-text-muted)] py-4">{t('common.loading', '加载中...')}</div>;
+    return <div className="text-xs text-[var(--color-text-muted)]">{t('common.loading', '...')}</div>;
   }
 
   return (
-    <div>
-      <h2 className="text-lg font-medium mb-4">{t('settings.vaultTitle', 'Vault')}</h2>
-      {error && <p className="text-sm text-[var(--color-error)] mb-3">{error}</p>}
-
-      <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 rounded-lg p-4 space-y-3">
-        {status?.connected ? (
-          <>
-            {/* Connected state */}
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-sm font-medium text-[var(--color-text-primary)]">
-                {t('settings.vaultConnected', '已挂载')}
+    <div className="space-y-3">
+      {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
+      {vaultStatus?.connected ? (
+        <>
+          {/* Connected state */}
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              {t('settings.vaultConnected', '已连接')}
+            </span>
+          </div>
+          {vaultStatus.vault_path && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-[var(--color-text-muted)] font-mono truncate max-w-[200px]" title={vaultStatus.vault_path}>
+                {vaultStatus.vault_path}
               </span>
             </div>
-
-            <div>
-              <label className="block text-xs text-[var(--color-text-muted)] mb-1">
-                {t('settings.vaultPath', '路径')}
-              </label>
-              <TooltipProvider delayDuration={300}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      className="text-sm text-[var(--color-text-secondary)] font-mono break-all text-left hover:text-[var(--color-accent)] transition-colors flex items-center gap-1"
-                      onClick={() => {
-                        if (status.vault_path) {
-                          callBackend('reveal_in_finder', { path: status.vault_path }).catch(() => {});
-                        }
-                      }}
-                    >
-                      <FolderOpen className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
-                      {status.vault_path}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{t('settings.vaultOpenPath', '在文件夹中打开')}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-
-            {/* Synced items toggle */}
+          )}
+          {/* Synced items toggle */}
+          <div>
+            <button
+              className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+              onClick={() => setShowItems(!showItems)}
+            >
+              <span className="w-3 h-3 inline-flex items-center justify-center text-[10px]">
+                {showItems ? '\u25BC' : '\u25B6'}
+              </span>
+              {t('settings.vaultSyncedItems', '已同步项')}
+              <span className="text-[var(--color-text-muted)]">({vaultStatus.synced_items.length})</span>
+            </button>
+            {showItems && vaultStatus.vault_path && (
+              <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto pr-1">
+                {vaultStatus.synced_items.map((item) => (
+                  <VaultItemTree
+                    key={item.name}
+                    vaultPath={vaultStatus.vault_path!}
+                    relativePath={item.name}
+                    itemName={item.name}
+                    itemType={item.item_type}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Failed items with collapse */}
+          {failedItems.length > 0 && (
             <div>
               <button
-                className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-                onClick={() => setShowItems(!showItems)}
+                className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 transition-colors"
+                onClick={() => setShowFailedItems(!showFailedItems)}
               >
                 <span className="w-3 h-3 inline-flex items-center justify-center text-[10px]">
-                  {showItems ? '\u25BC' : '\u25B6'}
+                  {showFailedItems ? '\u25BC' : '\u25B6'}
                 </span>
-                {t('settings.vaultSyncedItems', '已同步项')}
-                <span className="text-[var(--color-text-muted)]">({status.synced_items.length})</span>
+                {t('settings.vaultFailedItems', '失败项')}
+                <span className="text-orange-500/70">({failedItems.length})</span>
+                {failedItems.length > 3 && !showFailedItems && (
+                  <span className="text-[10px] text-orange-600/60">还有 {failedItems.length - 3} 项失败</span>
+                )}
               </button>
-              {showItems && status.vault_path && (
-                <div className="mt-2 space-y-0.5 max-h-64 overflow-y-auto pr-1">
-                  {status.synced_items.map((item) => (
-                    <VaultItemTree
-                      key={item.name}
-                      vaultPath={status.vault_path!}
-                      relativePath={item.name}
-                      itemName={item.name}
-                      itemType={item.item_type}
-                    />
+              {showFailedItems && (
+                <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto pr-1">
+                  {failedItems.slice(0, 3).map((item, index) => (
+                    <div key={index} className="text-xs text-orange-400/80 flex items-start gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                      <span className="font-mono truncate" title={item.path}>{item.path}</span>
+                      <span className="text-orange-500/60">- {item.reason}</span>
+                    </div>
                   ))}
+                  {failedItems.length > 3 && (
+                    <div className="text-[10px] text-orange-500/60 pl-4">
+                      还有 {failedItems.length - 3} 项失败
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-
-            {/* Actions */}
-            <div className="flex gap-2 pt-2">
-              <Button variant="secondary" size="sm" disabled={linking} onClick={handleRefresh}>
-                {t('settings.vaultRefresh', '刷新')}
-              </Button>
-              <Button variant="secondary" size="sm" disabled={linking} onClick={handleSelectFolder}>
-                {t('settings.vaultChange', '更换...')}
-              </Button>
-              <Button
-                variant="ghost" size="sm" disabled={linking}
-                onClick={() => handleDisconnect(false)}
-                className="text-[var(--color-error)] hover:text-[var(--color-error)]"
-              >
-                {t('settings.vaultDisconnect', '断开')}
-              </Button>
-              <Button
-                variant="ghost" size="sm" disabled={linking}
-                onClick={() => handleDisconnect(true)}
-                className="text-orange-400 hover:text-orange-300"
-              >
-                {t('settings.vaultSoftDisconnect', '断开(保留链接)')}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Not connected state */}
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[var(--color-text-muted)]" />
-              <span className="text-sm text-[var(--color-text-secondary)]">
-                {t('settings.vaultNotConnected', '未挂载')}
-              </span>
-            </div>
-
-            {/* Folder select button (Tauri) + manual input fallback (browser) */}
-            <div className="space-y-2">
-              <Button variant="secondary" size="sm" disabled={linking} onClick={handleSelectFolder}>
-                {linking ? t('common.loading', '加载中...') : t('settings.vaultSelect', '选择 Vault 目录...')}
-              </Button>
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  value={inputPath}
-                  onChange={(e) => setInputPath(e.target.value)}
-                  placeholder={t('settings.vaultInputPlaceholder', '或粘贴 Vault 目录路径...')}
-                  className="h-8 text-sm flex-1"
-                />
-                <Button
-                  variant="secondary" size="sm"
-                  disabled={linking || !inputPath.trim()}
-                  onClick={() => handleConnect(inputPath)}
-                >
-                  {t('settings.vaultConnect', '挂载')}
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
+          )}
+          {/* Actions */}
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={linking} onClick={handleRefresh}>
+              <RefreshCw className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="secondary" size="sm" disabled={linking} onClick={handleSelectFolder}>
+              {t('settings.vaultChange', '更换')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={linking}
+              onClick={() => handleDisconnect(true)}
+              className="text-orange-400 hover:text-orange-300"
+            >
+              {t('settings.vaultSoftDisconnect', '断开(保留链接)')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={linking}
+              onClick={() => handleDisconnect(false)}
+              className="text-[var(--color-error)] hover:text-[var(--color-error)]"
+            >
+              {t('settings.vaultDisconnect', '断开')}
+            </Button>
+          </div>
+        </>
+      ) : (
+        /* Not connected */
+        <div className="flex gap-2">
+          <div className="w-2 h-2 rounded-full bg-[var(--color-text-muted)] mt-2 shrink-0" />
+          <span className="text-xs text-[var(--color-text-muted)] mr-2">{t('settings.vaultNotConnected', '未连接')}</span>
+          <Input
+            type="text"
+            value={inputPath}
+            onChange={(e) => setInputPath(e.target.value)}
+            placeholder={t('settings.vaultInputPlaceholder', '/path/to/vault')}
+            className="flex-1 h-8 text-sm"
+          />
+          <Button variant="secondary" size="sm" onClick={handleSelectFolder}>
+            <FolderOpen className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            disabled={linking || !inputPath.trim()}
+            onClick={() => handleConnect(inputPath)}
+          >
+            {linking ? t('common.loading', '...') : t('settings.vaultConnect', '连接')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
+
+
 
 interface SettingsViewProps {
   workspaceConfig: WorkspaceConfig;
@@ -400,7 +410,7 @@ interface SettingsViewProps {
   onRemoveWorkspace?: (path: string) => void;
 }
 
-type SettingsSection = 'workspaces' | 'appearance' | 'vault' | 'tools' | 'share' | 'commit' | 'voice' | 'cloud' | 'about';
+type SettingsSection = 'workspaces' | 'appearance' | 'tools' | 'share' | 'commit' | 'voice' | 'cloud' | 'about';
 
 // ==================== AppearanceSettingsSection ====================
 const THEME_I18N_KEY: Record<string, string> = {
@@ -691,6 +701,15 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const [voiceRefineEnabled, setVoiceRefineEnabled] = useState(true);
   const [voiceRefineLoaded, setVoiceRefineLoaded] = useState(false);
 
+  // Commit AI key state
+  const [commitAiKey, setCommitAiKey] = useState('');
+  const [commitAiKeyMasked, setCommitAiKeyMasked] = useState(false);
+  const [commitAiKeyLoaded, setCommitAiKeyLoaded] = useState(false);
+  const [commitAiSaving, setCommitAiSaving] = useState(false);
+  const [commitAiSaved, setCommitAiSaved] = useState(false);
+  const [commitAiError, setCommitAiError] = useState<string | null>(null);
+  const [commitAiEnabled, setCommitAiEnabled] = useState(true);
+
   // Cloud connection state
   const [cloudStatus, setCloudStatus] = useState<CloudStatus | null>(null)
   const [pairingCode, setPairingCode] = useState<string | null>(null)
@@ -780,6 +799,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
   }, [sanitizeToolPaths]);
 
   const handleDetectTools = useCallback(async () => {
+    if (!isTauri()) return; // detect_tools is localhost-only
     setToolsDetecting(true);
     try {
       const tools = await callBackend('detect_tools') as DetectedToolsResult;
@@ -905,13 +925,17 @@ export const SettingsView: FC<SettingsViewProps> = ({
         setNgrokTokenLoaded(true);
       }).catch(() => setNgrokTokenLoaded(true));
     }
-    getDashscopeApiKey().then(k => {
-      setDashscopeKey(k || '');
+    if (isTauri()) {
+      getDashscopeApiKey().then(k => {
+        setDashscopeKey(k || '');
+        setDashscopeKeyLoaded(true);
+      }).catch(() => setDashscopeKeyLoaded(true));
+      getDashscopeBaseUrl().then(u => {
+        setDashscopeUrl(u || '');
+      }).catch(() => { });
+    } else {
       setDashscopeKeyLoaded(true);
-    }).catch(() => setDashscopeKeyLoaded(true));
-    getDashscopeBaseUrl().then(u => {
-      setDashscopeUrl(u || '');
-    }).catch(() => { });
+    }
     getVoiceRefineEnabled().then(v => {
       setVoiceRefineEnabled(v);
       setVoiceRefineLoaded(true);
@@ -980,6 +1004,21 @@ export const SettingsView: FC<SettingsViewProps> = ({
         setShellIntegrationLoaded(true);
       })
       .catch(() => setShellIntegrationLoaded(true));
+
+    getCommitAiApiKey()
+      .then(key => {
+        const k = key || '';
+        // Detect masked key from HTTP mode (e.g. "sk-1...5678") to avoid overwriting real key
+        const isMasked = k.includes('...');
+        setCommitAiKey(isMasked ? '' : k);
+        setCommitAiKeyMasked(isMasked);
+        setCommitAiKeyLoaded(true);
+      })
+      .catch(() => setCommitAiKeyLoaded(true));
+
+    getCommitAiEnabled()
+      .then(v => setCommitAiEnabled(v))
+      .catch(() => {});
   }, []);
 
   // ==================== Cloud connection handlers ====================
@@ -1025,16 +1064,25 @@ export const SettingsView: FC<SettingsViewProps> = ({
   }
 
   // ==================== Menu items ====================
-  const menuItems = [
-    { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" /> },
-    { id: 'appearance' as SettingsSection, label: t('settings.appearance'), icon: <Palette className="w-3.5 h-3.5" /> },
-    { id: 'vault' as SettingsSection, label: t('settings.vaultNav'), icon: <FolderOpen className="w-3.5 h-3.5 text-[var(--color-warning)]" /> },
-    { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" /> },
-    ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" /> }] : []),
-    { id: 'commit' as SettingsSection, label: t('settings.commitNav', '提交设置'), icon: <FileText className="w-3.5 h-3.5" /> },
-    { id: 'voice' as SettingsSection, label: t('settings.voiceNav'), icon: <Mic className="w-3.5 h-3.5" /> },
+  interface MenuItem {
+    id: SettingsSection;
+    label: string;
+    icon: React.ReactNode;
+    group?: 'common' | 'advanced' | 'info';
+  }
+
+  const menuItems: MenuItem[] = [
+    // Common group
+    { id: 'workspaces' as SettingsSection, label: t('settings.workspaceConfig'), icon: <Settings className="w-3.5 h-3.5" />, group: 'common' },
+    { id: 'appearance' as SettingsSection, label: t('settings.appearance'), icon: <Palette className="w-3.5 h-3.5" />, group: 'common' },
+    // Advanced group
+    { id: 'tools' as SettingsSection, label: t('settings.toolsNav', '工具'), icon: <Wrench className="w-3.5 h-3.5" />, group: 'advanced' },
+    ...(isTauri() ? [{ id: 'share' as SettingsSection, label: t('settings.externalShareNav', '外网分享'), icon: <Globe className="w-3.5 h-3.5" />, group: 'advanced' as const }] : []),
+    { id: 'commit' as SettingsSection, label: t('settings.commitNav', '提交设置'), icon: <FileText className="w-3.5 h-3.5" />, group: 'advanced' },
+    { id: 'voice' as SettingsSection, label: t('settings.voiceNav'), icon: <Mic className="w-3.5 h-3.5" />, group: 'advanced' },
     // { id: 'cloud' as SettingsSection, label: t('settings.cloudNav', '云端连接'), icon: <Link2 className="w-3.5 h-3.5" /> },
-    { id: 'about' as SettingsSection, label: t('settings.about'), icon: <Info className="w-3.5 h-3.5" /> },
+    // Info group
+    { id: 'about' as SettingsSection, label: t('settings.about'), icon: <Info className="w-3.5 h-3.5" />, group: 'info' },
   ];
 
   // ==================== Render ====================
@@ -1068,19 +1116,31 @@ export const SettingsView: FC<SettingsViewProps> = ({
         {/* Left sidebar */}
         <div className="w-48 shrink-0 border-r border-[var(--color-border)]/50 py-2 overflow-y-auto">
           <nav className="space-y-0.5 px-2">
-            {menuItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setActiveSection(item.id)}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors text-left ${activeSection === item.id
-                  ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
-                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface)]'
-                  }`}
-              >
-                {item.icon}
-                <span className="truncate">{item.label}</span>
-              </button>
-            ))}
+            {menuItems.map((item, index) => {
+              const prevGroup = index > 0 ? menuItems[index - 1].group : null;
+              const showDivider = prevGroup !== item.group;
+
+              return (
+                <React.Fragment key={item.id}>
+                  {showDivider && item.group && (
+                    <div className="text-[10px] text-[var(--color-text-muted)] px-2.5 pt-3 pb-1 uppercase tracking-wider">
+                      {item.group === 'advanced' ? t('settings.navAdvanced', 'Advanced') :
+                       item.group === 'info' ? t('settings.navInfo', 'Info') : null}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setActiveSection(item.id)}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors text-left ${activeSection === item.id
+                      ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-surface)]'
+                    }`}
+                  >
+                    {item.icon}
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                </React.Fragment>
+              );
+            })}
           </nav>
         </div>
 
@@ -1130,6 +1190,9 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     <label className="block text-xs text-[var(--color-text-muted)] mb-1.5">{t('settings.linkedWorktreeItems')}</label>
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {/* Merge linked_workspace_items + vault synced items, deduplicated, sorted */}
+                      {/* Note: vault items have higher priority than custom items.
+                          When a path exists in both, only the vault version is kept.
+                          The sort order puts vault items before custom items. */}
                       {(() => {
                         const vaultMap = new Map<string, { name: string; item_type: 'file' | 'directory' }>();
                         if (vaultStatus?.connected) {
@@ -1180,6 +1243,24 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     </div>
                     <p className="text-[10px] text-[var(--color-text-muted)] mt-1">{t('settings.linkedWorktreeItemsHint')}</p>
                   </div>
+                </div>
+
+                {/* 知识库 */}
+                <div className="border border-[var(--color-border)]/50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Brain className="w-4 h-4 text-[var(--color-accent)]" />
+                    <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">{t('settings.vaultNav', '知识库')}</h3>
+                  </div>
+                  <details className="bg-[var(--color-bg-base)] border border-[var(--color-border)]/30 rounded mb-3">
+                    <summary className="text-xs text-[var(--color-text-muted)] cursor-pointer hover:text-[var(--color-text-secondary)] p-2">
+                      {t('settings.vaultGuideSummary', '什么是知识库挂载？点击查看说明')}
+                    </summary>
+                    <div className="px-3 pb-3 text-xs text-[var(--color-text-secondary)] space-y-1">
+                      <p>{t('settings.vaultGuideLine1', '知识库挂载将任意文件夹关联到工作区，通过软链接在工作树中快速访问。参考 Karpathy 的 LLM wiki 流程：把知识库和工作区放在同一父目录下，用相对路径软链接关联。')}</p>
+                      <p>{t('settings.vaultGuideLine2', '支持 Obsidian、Zettelkasten、Roam Research 等任意笔记工具。挂载后支持软链接和同步项管理。')}</p>
+                    </div>
+                  </details>
+                  <WorkspaceVaultSection />
                 </div>
 
                 {/* Projects Config */}
@@ -1437,11 +1518,7 @@ export const SettingsView: FC<SettingsViewProps> = ({
               <AppearanceSettingsSection />
             )}
 
-            {/* ==================== Vault Section ==================== */}
-            {activeSection === 'vault' && (
-              <VaultSettingsSection />
-            )}
-
+            
             {/* ==================== Tools Section ==================== */}
             {activeSection === 'tools' && (
               <div className="space-y-4">
@@ -1907,6 +1984,61 @@ export const SettingsView: FC<SettingsViewProps> = ({
               <div>
                 <h2 className="text-lg font-medium mb-4">{t('settings.commitTitle', '提交设置')}</h2>
                 <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 rounded-lg p-4 space-y-4">
+                  {/* AI 助手 */}
+                  <div>
+                    <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-4">{t('settings.commitAiTitle', 'AI 助手')}</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-sm text-[var(--color-text-secondary)]">{t('settings.commitAiLabel', 'AI 生成 commit message')}</label>
+                          <p className="text-xs text-[var(--color-text-muted)]">{t('settings.commitAiDesc', '根据 diff 自动生成提交信息')}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => { const newVal = !commitAiEnabled; setCommitAiEnabled(newVal); await saveCommitAiEnabled(newVal); }}
+                          disabled={!commitAiKeyLoaded}
+                          className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${commitAiEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-muted)]'}`}
+                        >
+                          <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${commitAiEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.commitAiKeyLabel', 'Dashscope API Key')}</label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="password"
+                            value={commitAiKey}
+                            onChange={(e) => { setCommitAiKey(e.target.value); setCommitAiKeyMasked(false); }}
+                            placeholder={commitAiKeyMasked ? t('settings.commitAiKeyMaskedPlaceholder', 'Key already set (enter new key to replace)') : t('settings.commitAiKeyPlaceholder', 'sk-...')}
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={commitAiSaving || (commitAiKeyMasked && !commitAiKey.trim())}
+                            onClick={async () => {
+                              setCommitAiSaving(true);
+                              setCommitAiError(null);
+                              try {
+                                await saveCommitAiApiKey(commitAiKey.trim());
+                                setCommitAiSaved(true);
+                                setTimeout(() => setCommitAiSaved(false), 2000);
+                              } catch (e) {
+                                setCommitAiError(String(e));
+                              } finally {
+                                setCommitAiSaving(false);
+                              }
+                            }}
+                          >
+                            {commitAiSaving ? t('common.saving') : commitAiSaved ? t('settings.savedSuccess') : t('common.save')}
+                          </Button>
+                        </div>
+                        {commitAiError && <p className="text-sm text-[var(--color-error)] mt-1">{commitAiError}</p>}
+                        <p className="text-xs text-[var(--color-text-muted)] mt-1">{t('settings.commitAiKeyHint', '需要独立的 Dashscope API Key，与语音 Key 分离')}</p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* 前缀开关 */}
                   <div className="flex items-center justify-between">
                     <div>

@@ -566,6 +566,7 @@ button {
   overflow: hidden;
   max-width: 160px;
   container-type: inline-size;
+  min-width: 320px;
 }
 
 .sidebar-marquee-container:hover .sidebar-marquee-text {

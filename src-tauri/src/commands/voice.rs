@@ -74,6 +74,65 @@ pub(crate) fn check_dashscope_api_key() -> bool {
         .unwrap_or(false)
 }
 
+// ==================== Commit AI API Key Commands ====================
+
+#[allow(dead_code)]
+pub(crate) fn get_commit_ai_api_key_inner() -> Result<Option<String>, String> {
+    let config = load_global_config();
+    Ok(config.commit_ai_api_key)
+}
+
+#[allow(dead_code)]
+pub(crate) fn set_commit_ai_api_key_inner(key: String) -> Result<(), String> {
+    let mut config = load_global_config();
+    config.commit_ai_api_key = if key.is_empty() { None } else { Some(key) };
+    save_global_config_internal(&config)?;
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) async fn get_commit_ai_api_key() -> Result<Option<String>, String> {
+    get_commit_ai_api_key_inner()
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) async fn set_commit_ai_api_key(key: String) -> Result<(), String> {
+    set_commit_ai_api_key_inner(key)
+}
+
+pub(crate) fn set_commit_ai_enabled_inner(enabled: bool) -> Result<(), String> {
+    let mut config = load_global_config();
+    config.commit_ai_enabled = enabled;
+    save_global_config_internal(&config)?;
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) async fn set_commit_ai_enabled(enabled: bool) -> Result<(), String> {
+    set_commit_ai_enabled_inner(enabled)
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) async fn get_commit_ai_enabled() -> bool {
+    let config = crate::config::load_global_config();
+    config.commit_ai_enabled
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub(crate) fn check_commit_ai_api_key() -> bool {
+    let config = crate::config::load_global_config();
+    config
+        .commit_ai_api_key
+        .as_ref()
+        .map(|k| !k.is_empty())
+        .unwrap_or(false)
+}
+
 // ==================== Dashscope Base URL Commands ====================
 
 const DEFAULT_DASHSCOPE_WS_URL: &str = "wss://dashscope.aliyuncs.com/api-ws/v1/inference/";
@@ -512,12 +571,24 @@ pub(crate) async fn call_ai_chat(
 
     // Fallback: local Dashscope
     let config = crate::config::load_global_config();
-    let api_key = config
-        .dashscope_api_key
-        .ok_or("未配置 AI 能力（无云端连接且无本地 API Key）")?;
-    let base_url = config
-        .dashscope_base_url
-        .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
+    // Use commit_ai_api_key for commit_ai purpose, dashscope_api_key for others
+    let (api_key, base_url) = if purpose == "commit_ai" {
+        let key = config
+            .commit_ai_api_key
+            .ok_or("未配置 Commit AI API Key，请在设置中配置")?;
+        let url = config
+            .dashscope_base_url
+            .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
+        (key, url)
+    } else {
+        let key = config
+            .dashscope_api_key
+            .ok_or("未配置 AI 能力（无云端连接且无本地 API Key）")?;
+        let url = config
+            .dashscope_base_url
+            .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
+        (key, url)
+    };
 
     let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
     let body = serde_json::json!({
@@ -626,7 +697,7 @@ pub(crate) async fn generate_commit_message(diff: String) -> Result<String, Stri
         serde_json::json!({"role": "user", "content": trimmed}),
     ];
 
-    let result = call_ai_chat(messages, None, 0.3, "chat").await?;
+    let result = call_ai_chat(messages, None, 0.3, "commit_ai").await?;
     Ok(if result.is_empty() {
         "chore: update".to_string()
     } else {

@@ -20,6 +20,8 @@ export interface WorkspaceConfig {
   worktrees_dir: string;
   projects: ProjectConfig[];
   linked_workspace_items: string[];
+  uat_branch?: string;
+  archived_worktrees?: string[];
 }
 
 // Project status types
@@ -208,9 +210,15 @@ export interface VaultStatus {
   synced_items: SyncedItem[];
 }
 
+export interface FailedVaultItem {
+  path: string;
+  reason: string;
+}
+
 export interface VaultLinkResponse {
   connected: boolean;
   synced_items: SyncedItem[];
+  failed_items: FailedVaultItem[];
   error: string | null;
   warning: string | null;
 }

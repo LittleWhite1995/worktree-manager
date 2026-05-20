@@ -182,6 +182,12 @@ pub struct GlobalConfig {
     pub custom_mirrors: Vec<CustomMirror>,
     #[serde(default)]
     pub cloud: CloudConfig,
+    // NEW: commit AI 独立key
+    #[serde(default)]
+    pub commit_ai_api_key: Option<String>,
+    // NEW: AI生成开关
+    #[serde(default = "default_true")]
+    pub commit_ai_enabled: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -223,6 +229,8 @@ impl Default for GlobalConfig {
             shell_integration_enabled: true,
             custom_mirrors: vec![],
             cloud: CloudConfig::default(),
+            commit_ai_api_key: None,
+            commit_ai_enabled: true,
         }
     }
 }

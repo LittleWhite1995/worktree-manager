@@ -13,7 +13,7 @@ import type {
   CreateProjectRequest,
   EditorType,
 } from '../types';
-import { isTauri, getWindowLabel, removeProjectFromConfig, callBackend } from '../lib/backend';
+import { isTauri, getWindowLabel, removeProjectFromConfig, callBackend, syncAllProjectsToBase } from '../lib/backend';
 
 export interface UseWorkspaceActionsReturn {
   // Selected worktree
@@ -50,6 +50,8 @@ export interface UseWorkspaceActionsReturn {
   selectedProjects: Map<string, string>;
   toggleProjectSelection: (name: string, baseBranch: string) => void;
   updateProjectBaseBranch: (name: string, baseBranch: string) => void;
+  syncBeforeCreate: boolean;
+  setSyncBeforeCreate: (v: boolean) => void;
   openCreateModal: () => void;
   handleCreateWorktree: () => Promise<void>;
 
@@ -146,6 +148,7 @@ export function useWorkspaceActions(
   const [folderAlias, setFolderAlias] = useState('');
   const [useFolderAlias, setUseFolderAlias] = useState(false);
   const [selectedProjects, setSelectedProjects] = useState<Map<string, string>>(new Map());
+  const [syncBeforeCreate, setSyncBeforeCreate] = useState(true);
 
   // Add/create workspace form state
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
@@ -188,7 +191,9 @@ export function useWorkspaceActions(
   });
 
   // Auto-detect tools on mount only if no editors/terminals cached yet
+  // Skip in browser sharing mode — detect_tools is localhost-only
   useEffect(() => {
+    if (!isTauri()) return;
     const existingEditors = localStorage.getItem('detected_editors');
     const existingTerminals = localStorage.getItem('detected_terminals');
     const existingTerminalIcons = localStorage.getItem('terminal_icons');
@@ -364,6 +369,24 @@ export function useWorkspaceActions(
     if (!newWorktreeName.trim() || selectedProjects.size === 0) return;
     setCreating(true);
     try {
+      // Sync selected projects to base branch before creating worktree
+      if (syncBeforeCreate && workspace.mainWorkspace) {
+        const selectedNames = new Set(selectedProjects.keys());
+        const projectPaths = workspace.mainWorkspace.projects
+          .filter(p => selectedNames.has(p.name))
+          .map(p => p.path);
+        if (projectPaths.length > 0) {
+          const results = await syncAllProjectsToBase(projectPaths);
+          const failed = results.filter(r => r.status === 'failed');
+          if (failed.length > 0) {
+            const failedNames = failed.map(r => `${r.project_name}: ${r.message}`).join('\n');
+            workspace.setError(tFn('createWorktree.syncFailed', '同步 Base 失败，请手动处理后重试：\n{{details}}', { details: failedNames }));
+            setCreating(false);
+            return;
+          }
+        }
+      }
+
       const projects: CreateProjectRequest[] = Array.from(selectedProjects.entries()).map(
         ([name, base_branch]) => ({ name, base_branch })
       );
@@ -375,7 +398,7 @@ export function useWorkspaceActions(
     } finally {
       setCreating(false);
     }
-  }, [workspace, newWorktreeName, selectedProjects, modals, useFolderAlias, folderAlias]);
+  }, [workspace, newWorktreeName, selectedProjects, modals, useFolderAlias, folderAlias, syncBeforeCreate, tFn]);
 
   // Add project
   const handleAddProject = useCallback(async (project: {
@@ -681,6 +704,8 @@ export function useWorkspaceActions(
     selectedProjects,
     toggleProjectSelection,
     updateProjectBaseBranch,
+    syncBeforeCreate,
+    setSyncBeforeCreate,
     openCreateModal,
     handleCreateWorktree,
 

@@ -11,13 +11,6 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -34,7 +27,7 @@ import {
   CloseIcon,
   TerminalIcon,
 } from './Icons';
-import { Pencil, Star } from 'lucide-react';
+import { Pencil, HelpCircle } from 'lucide-react';
 import {
   syncWithBaseBranch,
   pushToRemote,
@@ -46,9 +39,8 @@ import {
   getGitDiff,
   commitAll,
   generateCommitMessage,
-  checkDashscopeApiKey,
+  checkCommitAiApiKey,
   getCommitPrefixConfig,
-  setCommitPrefixConfig,
   getGitUserGlobalConfig,
   setGitUserConfig,
   getSkipGitHooks,
@@ -67,6 +59,23 @@ const AUTO_REFRESH_SLOTS = 4;
 function isConflictError(msg: string): boolean {
   const lower = msg.toLowerCase();
   return lower.includes('conflict') || lower.includes('merge_conflict') || lower.includes('fix conflicts');
+}
+
+function truncateConflictMessage(msg: string, maxFiles = 5): string {
+  // Guard against invalid input
+  if (maxFiles <= 0) return msg;
+  // Git conflict output: "file1.ts\nfile2.ts\nfile3.ts..." with <<<<<<<, =======, >>>>>>> markers
+  // Filter out empty lines and conflict markers (<<<<<<<, =======, >>>>>>>)
+  const lines = msg.split('\n').filter(l => {
+    const trimmed = l.trim();
+    return trimmed.length > 0 && !trimmed.startsWith('<<<<<<<') && !trimmed.startsWith('=======') && !trimmed.startsWith('>>>>>>>');
+  });
+  if (lines.length <= maxFiles) {
+    return `Conflict in ${lines.length} file${lines.length === 1 ? '' : 's'}: ${lines.join(', ')}.`;
+  }
+  const shown = lines.slice(0, maxFiles).join(', ');
+  const remaining = lines.length - maxFiles;
+  return `Conflict in ${lines.length} files: ${shown}, and ${remaining} more. Resolve in editor or terminal.`;
 }
 
 interface GitOperationsProps {
@@ -127,6 +136,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
   const fetchingSyncingRef = useRef(fetchingSyncing);
   const activeActionRef = useRef(activeAction);
   const autoRefreshInFlightRef = useRef(false);
+  const loadStatsVersionRef = useRef(0);
 
   useEffect(() => {
     fetchingSyncingRef.current = fetchingSyncing;
@@ -169,6 +179,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
   }, []);
 
   const loadStats = useCallback(async (silent?: boolean) => {
+    const version = ++loadStatsVersionRef.current;
     if (!silent) {
       setLoading(true);
       setError(null);
@@ -176,17 +187,22 @@ export const GitOperations: FC<GitOperationsProps> = ({
     }
     try {
       const result = await getBranchDiffStats(projectPath, baseBranch, testBranch);
+      if (version !== loadStatsVersionRef.current) {
+        console.log('[GitOps] loadStats: discarded stale result (v' + version + ', current v' + loadStatsVersionRef.current + ')');
+        return;
+      }
       console.log('[GitOps] diff stats:', { projectPath, baseBranch, testBranch, result });
       setStats(result);
       onStatsChanged?.(result);
     } catch (err) {
+      if (version !== loadStatsVersionRef.current) return;
       if (!silent) {
         setError(err instanceof Error ? err.message : String(err));
       } else {
         console.warn('[auto-refresh] loadStats failed silently:', err);
       }
     } finally {
-      if (!silent) setLoading(false);
+      if (version === loadStatsVersionRef.current && !silent) setLoading(false);
     }
   }, [projectPath, baseBranch, testBranch]);
 
@@ -335,6 +351,9 @@ export const GitOperations: FC<GitOperationsProps> = ({
     setContent('');
     setGeneratingMessage(true);
     try {
+      // Check API key first - if no key, skip all AI generation
+      const hasKey = await checkCommitAiApiKey();
+
       let config: { templates: string[]; enabled: boolean; default_index: number };
       try {
         config = await getCommitPrefixConfig();
@@ -362,14 +381,12 @@ export const GitOperations: FC<GitOperationsProps> = ({
       console.log('[commit] computedPrefix:', computedPrefix);
       setPrefix(computedPrefix);
 
-      const hasKey = await checkDashscopeApiKey();
       if (hasKey) {
         const diff = await getGitDiff(projectPath);
         const msg = await generateCommitMessage(diff);
         setContent(msg);
-      } else {
-        setContent('');
       }
+      // If no key, leave content empty with placeholder - no error thrown
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('No changes')) {
@@ -388,8 +405,11 @@ export const GitOperations: FC<GitOperationsProps> = ({
   const handleRegenerateMessage = async () => {
     setGeneratingMessage(true);
     try {
-      const hasKey = await checkDashscopeApiKey();
-      if (!hasKey) return;
+      const hasKey = await checkCommitAiApiKey();
+      if (!hasKey) {
+        // No API key - nothing to regenerate, just clear generating state
+        return;
+      }
       const diff = await getGitDiff(projectPath);
       const msg = await generateCommitMessage(diff);
       setContent(msg);
@@ -475,7 +495,9 @@ export const GitOperations: FC<GitOperationsProps> = ({
           onClick={errorPersistent ? undefined : dismissError}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[var(--color-error)] flex-1 whitespace-pre-wrap break-all">{error}</span>
+            <span className="text-[var(--color-error)] flex-1 whitespace-pre-wrap break-all">
+              {isConflictError(error) ? truncateConflictMessage(error) : error}
+            </span>
             <button
               onClick={(e) => { e.stopPropagation(); dismissError(); }}
               className="shrink-0 p-0.5 rounded hover:bg-[var(--color-error)]/30 transition-colors"
@@ -489,7 +511,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
                 e.stopPropagation();
                 onOpenTerminal(projectPath);
               }}
-              className="mt-1.5 flex items-center gap-1.5 text-[var(--color-error)] hover:text-[var(--color-error)] transition-colors text-xs bg-[var(--color-error)]/20 hover:bg-[var(--color-error)]/30 rounded px-2 py-1"
+              className="mt-1.5 flex items-center gap-1.5 text-[var(--color-error)] hover:text-[var(--color-error)] transition-colors text-xs bg-[var(--color-error)]/20 hover:bg-[var(--color-error)]/30 rounded px-2 py-2 min-h-[44px]"
             >
               <TerminalIcon className="w-3 h-3" />
               <span>{t('git.openTerminalToResolve')}</span>
@@ -726,95 +748,60 @@ export const GitOperations: FC<GitOperationsProps> = ({
             )}
 
             <div className="flex items-center justify-between">
-              {/* Prefix template selector */}
+              {/* Prefix template selector — Desktop: horizontal pills */}
               {prefixConfig.enabled && prefixConfig.templates.length > 0 && (
-                <Select
-                  value={String(selectedPrefixIndex)}
-                  onValueChange={(v) => handlePrefixChange(Number(v))}
+                <div className="hidden min-[480px]:flex gap-1 flex-wrap">
+                  {prefixConfig.templates.map((tpl, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handlePrefixChange(i)}
+                      className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+                        selectedPrefixIndex === i
+                          ? 'bg-[var(--color-accent)] text-white'
+                          : 'bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
+                      }`}
+                    >
+                      {tpl}
+                    </button>
+                  ))}
+                  <button
+                    onClick={handlePrefixToContent}
+                    className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+                      selectedPrefixIndex === prefixConfig.templates.length
+                        ? 'bg-[var(--color-accent)]/80 text-white'
+                        : 'bg-[var(--color-bg-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-elevated)]'
+                    }`}
+                  >
+                    {t('git.noPrefix')}
+                  </button>
+                </div>
+              )}
+
+              {/* Mobile: native dropdown */}
+              {prefixConfig.enabled && prefixConfig.templates.length > 0 && (
+                <select
+                  className="min-[480px]:hidden w-full h-8 text-xs border rounded px-2"
+                  value={selectedPrefixIndex}
+                  onChange={(e) => handlePrefixChange(Number(e.target.value))}
                   disabled={generatingMessage}
                 >
-                  <SelectTrigger className="w-48 truncate text-xs h-8">
-                    <SelectValue placeholder={t('git.selectPrefix')} />
-                  </SelectTrigger>
-                  <SelectContent className="prefix-select-dropdown"
-                  >
-                    <style>{`
-                      .prefix-select-dropdown [data-radix-select-viewport] [role="option"] {
-                        padding-right: 0.5rem !important;
-                      }
-                      .prefix-select-dropdown [data-radix-select-viewport] [role="option"] .absolute.right-2 {
-                        display: none !important;
-                      }
-                    `}</style>
-                    {prefixConfig.templates.map((tmpl, idx) => {
-                      const repoName = basename(projectPath);
-                      const label = renderCommitPrefix(tmpl, {
-                        worktreeName: worktreeDisplayName || repoName,
-                        projectName,
-                        branchName: currentBranch,
-                        repoName,
-                      }) || t('git.emptyPrefix', '(空模板)');
-                      const isDefault = idx === prefixConfig.default_index;
-                      return (
-                        <SelectItem key={idx} value={String(idx)} className="text-xs"
-                        >
-                          <span className="flex items-center w-full gap-2"
-                          >
-                            <div
-                              className="p-0.5 rounded hover:bg-[var(--color-bg-elevated)]/50 cursor-pointer"
-                              onPointerDown={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                console.log('[prefix] star pointerdown: old default=', prefixConfig.default_index, 'new default=', idx);
-                                const newConfig = { ...prefixConfig, default_index: idx };
-                                setPrefixConfig(newConfig);
-                                setCommitPrefixConfig({
-                                  templates: prefixConfig.templates,
-                                  enabled: prefixConfig.enabled,
-                                  default_index: idx,
-                                }).then(() => console.log('[prefix] save success'))
-                                  .catch((err) => console.error('[prefix] save error:', err));
-                              }}
-                            >
-                              <Star
-                                className={`w-3 h-3 pointer-events-none ${isDefault ? 'fill-amber-400 text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'}`}
-                              />
-                            </div>
-                            <span className="truncate">{label}</span>
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                    <SelectItem value={String(prefixConfig.templates.length)} className="text-xs"
-                    >
-                      <span className="flex items-center w-full gap-2"
-                      >
-                        <div
-                          className="p-0.5 rounded hover:bg-[var(--color-bg-elevated)]/50 cursor-pointer"
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            const noPrefixIdx = prefixConfig.templates.length;
-                            console.log('[prefix] star pointerdown (no-prefix): old default=', prefixConfig.default_index, 'new default=', noPrefixIdx);
-                            const newConfig = { ...prefixConfig, default_index: noPrefixIdx };
-                            setPrefixConfig(newConfig);
-                            setCommitPrefixConfig({
-                              templates: prefixConfig.templates,
-                              enabled: prefixConfig.enabled,
-                              default_index: noPrefixIdx,
-                            }).then(() => console.log('[prefix] save success (no-prefix)'))
-                              .catch((err) => console.error('[prefix] save error (no-prefix):', err));
-                          }}
-                        >
-                          <Star
-                            className={`w-3 h-3 pointer-events-none ${prefixConfig.default_index === prefixConfig.templates.length ? 'fill-amber-400 text-[var(--color-warning)]' : 'text-[var(--color-text-muted)]'}`}
-                          />
-                        </div>
-                        <span>{t('git.noPrefix', '无')}</span>
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  {prefixConfig.templates.map((tpl, i) => <option key={i} value={i}>{tpl}</option>)}
+                  <option value={prefixConfig.templates.length}>{t('git.noPrefix')}</option>
+                </select>
+              )}
+
+              {/* Prefix help tooltip */}
+              {prefixConfig.enabled && prefixConfig.templates.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center">
+                      <HelpCircle className="w-3 h-3 text-[var(--color-text-muted)] ml-1 cursor-help" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>{t('git.prefixTip', 'Click prefix to edit as text. A prefix like [feat] or [fix] is prepended to your commit message.')}</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
 
               <Button
