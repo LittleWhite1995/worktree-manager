@@ -194,7 +194,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   const actualCwd = cwd.split('#')[0];
   // Session ID includes the full cwd (with #timestamp for duplicated terminals)
   // so each terminal tab gets its own PTY session
-  const sessionIdRef = useRef<string>(`pty-${cwd.replace(/[/#]/g, '-')}`);
+  const sessionIdRef = useRef<string>(`pty-${cwd.replace(/[/\\/#]/g, '-')}`);
   const readerIntervalRef = useRef<number | null>(null);
   const wsSubscribedRef = useRef(false);
   const desktopUnlistenRef = useRef<UnlistenFn | null>(null);

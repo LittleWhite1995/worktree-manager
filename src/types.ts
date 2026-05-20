@@ -20,6 +20,8 @@ export interface WorkspaceConfig {
   worktrees_dir: string;
   projects: ProjectConfig[];
   linked_workspace_items: string[];
+  uat_branch?: string;
+  archived_worktrees?: string[];
 }
 
 // Project status types

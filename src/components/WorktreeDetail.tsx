@@ -1528,7 +1528,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                                   onClick={async () => {
                                     setSwitchingBranch([proj.name]);
                                     try {
-                                      await onSwitchBranch(proj.path, selectedWorktree.display_name!);
+                                      await onSwitchBranch(proj.path, selectedWorktree.display_name ?? selectedWorktree.name);
                                     } catch (e: any) {
                                       toast('error', t('detail.switchBranchFailed', { name: proj.name, branch: selectedWorktree.display_name, error: String(e?.message || e) }));
                                     } finally {

@@ -921,7 +921,11 @@ impl PtyManager {
             let sessions = self.sessions.read().unwrap();
             sessions
                 .keys()
-                .filter(|id| id.starts_with(&session_prefix))
+                .filter(|id| {
+                    // Exact match or followed by '-' to avoid matching /path/project-extra
+                    // when closing /path/project
+                    **id == session_prefix || id.starts_with(&format!("{}-", session_prefix))
+                })
                 .cloned()
                 .collect()
         }; // read guard dropped here

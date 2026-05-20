@@ -594,7 +594,8 @@ export function useTerminal(
   // UI-only cleanup: clear local terminal state without closing backend PTY sessions.
   // Used when a grid cell is unmounted — other cells may still share the same PTY sessions.
   const cleanupTerminalUIForPath = useCallback((pathPrefix: string) => {
-    const matches = (p: string) => p.startsWith(pathPrefix) || p.split('#')[0].startsWith(pathPrefix);
+    const normalizedPrefix = pathPrefix.replace(/\\/g, '/');
+    const matches = (p: string) => p.startsWith(pathPrefix) || p.replace(/\\/g, '/').startsWith(normalizedPrefix) || p.split('#')[0].startsWith(pathPrefix) || p.split('#')[0].replace(/\\/g, '/').startsWith(normalizedPrefix);
 
     setMountedTerminals(prev => {
       const next = new Set(prev);

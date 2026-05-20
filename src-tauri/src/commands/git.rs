@@ -5,7 +5,6 @@ use crate::config::{get_window_workspace_config, save_workspace_config_internal}
 use crate::git_ops;
 use crate::types::{CloneProjectRequest, ProjectConfig, SwitchBranchRequest};
 use crate::utils::{friendly_fs_error, git_command, normalize_path, parse_repo_url};
-use tokio::sync::Semaphore;
 
 // ==================== Helper: spawn_blocking wrapper ====================
 
@@ -788,14 +787,22 @@ pub(crate) fn sync_all_projects_to_base_impl(
         .map(|p| (p.name.clone(), p.base_branch.clone()))
         .collect();
 
-    let max_concurrent = std::cmp::min(8, project_paths.len());
-    let semaphore = Arc::new(Semaphore::new(max_concurrent));
+    let max_concurrent = project_paths.len().clamp(1, 8);
 
     log::info!(
         "[sync-base] Syncing {} projects to their base branches (max concurrent: {})",
         project_paths.len(),
         max_concurrent
     );
+
+    // Use a channel-based semaphore to avoid tokio block_on in thread::scope
+    let (sem_tx, sem_rx) = std::sync::mpsc::sync_channel::<()>(max_concurrent);
+    let sem_rx = Arc::new(std::sync::Mutex::new(sem_rx));
+
+    // Pre-fill permits
+    for _ in 0..max_concurrent {
+        let _ = sem_tx.send(());
+    }
 
     let results: Vec<SyncBaseResult> = std::thread::scope(|s| {
         let mut handles = Vec::new();
@@ -811,16 +818,22 @@ pub(crate) fn sync_all_projects_to_base_impl(
                 .iter()
                 .find(|(name, _)| name == &project_name)
                 .map(|(_, b)| b.clone())
-                .unwrap_or_else(|| "main".to_string());
+                .unwrap_or_else(|| {
+                    log::warn!(
+                        "[sync-base] Project '{}' not found in config, defaulting to 'main'",
+                        project_name
+                    );
+                    "main".to_string()
+                });
 
-            // Acquire semaphore permit before spawning (blocks if max concurrent reached)
-            let permit = tokio::runtime::Handle::current()
-                .block_on(semaphore.clone().acquire_owned())
-                .expect("Semaphore acquire failed");
+            // Acquire permit: blocks if max concurrent reached
+            let rx = sem_rx.clone();
+            rx.lock().unwrap().recv().expect("Semaphore channel closed");
 
+            let tx = sem_tx.clone();
             let handle = s.spawn(move || {
                 let result = sync_single_project_to_base(&path, &project_name, &base_branch);
-                drop(permit);
+                let _ = tx.send(()); // Release permit
                 result
             });
             handles.push(handle);
@@ -843,8 +856,8 @@ pub(crate) fn sync_all_projects_to_base_impl(
     Ok(results)
 }
 
-/// Push with exponential backoff retry
-async fn retry_push_async(project_path: &str, max_retries: u32) -> Result<(), String> {
+/// Push with exponential backoff retry (synchronous — safe for use in thread::scope)
+fn retry_push(project_path: &str, max_retries: u32) -> Result<(), String> {
     let mut delay_ms = 1000u64;
     for attempt in 0..max_retries {
         match git_ops::push_to_remote(Path::new(project_path)) {
@@ -862,7 +875,7 @@ async fn retry_push_async(project_path: &str, max_retries: u32) -> Result<(), St
                     e,
                     delay_ms
                 );
-                tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                std::thread::sleep(std::time::Duration::from_millis(delay_ms));
                 delay_ms *= 2;
             }
             Err(e) => {
@@ -895,9 +908,7 @@ fn sync_single_project_to_base(
         Ok(msg) => {
             log::info!("[sync-base] {}: sync succeeded - {}", project_name, msg);
 
-            // Push with retry (using tokio runtime available in this context)
-            let push_result =
-                tokio::runtime::Handle::current().block_on(retry_push_async(&path_str, 3));
+            let push_result = retry_push(&path_str, 3);
 
             match push_result {
                 Ok(()) => {

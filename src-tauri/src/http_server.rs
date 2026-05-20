@@ -531,7 +531,8 @@ async fn h_sync_with_base_branch(Json(args): Json<Value>) -> Response {
     result_json(result)
 }
 
-async fn h_sync_all_projects_to_base(Json(args): Json<Value>) -> Response {
+async fn h_sync_all_projects_to_base(headers: HeaderMap, Json(args): Json<Value>) -> Response {
+    let sid = session_id(&headers);
     let project_paths: Vec<String> = args
         .get("projectPaths")
         .or_else(|| args.get("project_paths"))
@@ -543,7 +544,7 @@ async fn h_sync_all_projects_to_base(Json(args): Json<Value>) -> Response {
         })
         .unwrap_or_default();
     let result = tokio::task::spawn_blocking(move || {
-        crate::commands::git::sync_all_projects_to_base_impl("http", project_paths)
+        crate::commands::git::sync_all_projects_to_base_impl(&sid, project_paths)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))
@@ -765,7 +766,7 @@ async fn h_get_commit_ai_api_key() -> Response {
     let result: Result<Option<String>, String> =
         crate::commands::voice::get_commit_ai_api_key().await;
     match result {
-        Ok(Some(key)) => {
+        Ok(Some(key)) if !key.is_empty() => {
             let masked = if key.len() > 8 {
                 format!("{}...{}", &key[..4], &key[key.len() - 4..])
             } else {
@@ -773,7 +774,7 @@ async fn h_get_commit_ai_api_key() -> Response {
             };
             result_json(Ok(Some(masked)))
         }
-        Ok(None) => result_json(Ok(None::<String>)),
+        Ok(_) => result_json(Ok(None::<String>)),
         Err(e) => result_json::<Option<String>>(Err(e)),
     }
 }
@@ -2078,7 +2079,21 @@ async fn h_voice_refine_text(Json(args): Json<Value>) -> Response {
 }
 
 async fn h_get_dashscope_api_key() -> Response {
-    result_json(crate::commands::voice::get_dashscope_api_key_inner())
+    // Return masked key via HTTP to avoid exposing secrets in LAN sharing mode
+    let result: Result<Option<String>, String> =
+        crate::commands::voice::get_dashscope_api_key_inner();
+    match result {
+        Ok(Some(key)) if !key.is_empty() => {
+            let masked = if key.len() > 8 {
+                format!("{}...{}", &key[..4], &key[key.len() - 4..])
+            } else {
+                "****".to_string()
+            };
+            result_json(Ok(Some(masked)))
+        }
+        Ok(_) => result_json(Ok(None::<String>)),
+        Err(e) => result_json::<Option<String>>(Err(e)),
+    }
 }
 
 async fn h_set_dashscope_api_key(Json(args): Json<Value>) -> Response {
