@@ -792,16 +792,18 @@ export const GitOperations: FC<GitOperationsProps> = ({
 
               {/* Prefix help tooltip */}
               {prefixConfig.enabled && prefixConfig.templates.length > 0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center">
-                      <HelpCircle className="w-3 h-3 text-[var(--color-text-muted)] ml-1 cursor-help" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p>{t('git.prefixTip', 'Click prefix to edit as text. A prefix like [feat] or [fix] is prepended to your commit message.')}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center">
+                        <HelpCircle className="w-3 h-3 text-[var(--color-text-muted)] ml-1 cursor-help" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>{t('git.prefixTip', 'Click prefix to edit as text. A prefix like [feat] or [fix] is prepended to your commit message.')}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
 
               <Button
