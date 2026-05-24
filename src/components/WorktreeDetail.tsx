@@ -1520,7 +1520,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                       <div className="flex items-center gap-1.5 text-[var(--color-text-secondary)] text-sm mt-0.5">
                         <GitBranchIcon className="w-3.5 h-3.5" />
                         <span className="select-text">{proj.current_branch}</span>
-                        {proj.current_branch !== selectedWorktree.display_name && (
+                        {(() => {
+                          const targetBranch = selectedWorktree.display_name || selectedWorktree.name;
+                          if (proj.current_branch === targetBranch) return null;
+                          return (
                           <TooltipProvider delayDuration={300}>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1528,9 +1531,9 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                                   onClick={async () => {
                                     setSwitchingBranch([proj.name]);
                                     try {
-                                      await onSwitchBranch(proj.path, selectedWorktree.display_name ?? selectedWorktree.name);
+                                      await onSwitchBranch(proj.path, targetBranch);
                                     } catch (e: any) {
-                                      toast('error', t('detail.switchBranchFailed', { name: proj.name, branch: selectedWorktree.display_name, error: String(e?.message || e) }));
+                                      toast('error', t('detail.switchBranchFailed', { name: proj.name, branch: targetBranch, error: String(e?.message || e) }));
                                     } finally {
                                       setSwitchingBranch([]);
                                     }
@@ -1542,10 +1545,11 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                                   {t('detail.returnToBranchShort')}
                                 </button>
                               </TooltipTrigger>
-                              <TooltipContent side="top">{t('detail.returnToBranch', { branch: selectedWorktree.display_name })}</TooltipContent>
+                              <TooltipContent side="top">{t('detail.returnToBranch', { branch: targetBranch })}</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                        )}
+                          );
+                        })()}
                         {switchingBranch.includes(proj.name) && <RefreshIcon className="w-3 h-3 animate-spin ml-1" />}
                       </div>
                     </div>

@@ -547,15 +547,28 @@ pub struct PtySession {
 }
 
 impl PtySession {
-    fn kill_child(&mut self) {
+    /// Kill the child process and wait for it to exit with a timeout.
+    /// Uses try_wait to avoid blocking the calling thread indefinitely.
+    fn kill_and_wait(&mut self) {
         let _ = self.child.kill();
-        let _ = self.child.wait();
+        let start = Instant::now();
+        let timeout = Duration::from_secs(2);
+        while start.elapsed() < timeout {
+            match self.child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+                Err(_) => return,
+            }
+        }
+        log::warn!("[pty] kill_and_wait timed out after 2s");
     }
 }
 
 impl Drop for PtySession {
     fn drop(&mut self) {
-        self.kill_child();
+        // Do NOT block on wait() here — Drop may run on the main thread.
+        // Just send the kill signal; the process will exit on its own.
+        let _ = self.child.kill();
     }
 }
 
@@ -862,9 +875,13 @@ impl PtyManager {
                 reason,
                 self.sessions.read().unwrap().len()
             );
-            if let Ok(mut session) = session.lock() {
-                session.kill_child();
-            }
+            // Spawn a background thread so the main thread never blocks on child.wait().
+            std::thread::spawn(move || {
+                if let Ok(mut session) = session.lock() {
+                    session.kill_and_wait();
+                }
+                // session Arc is dropped here → Drop::drop runs, but only does kill()
+            });
         } else {
             log::warn!(
                 "[pty] close_session called for '{}' but not found, reason: '{}'",
@@ -941,12 +958,14 @@ impl PtyManager {
             );
         }
 
-        // Now acquire write lock separately
+        // Now acquire write lock separately and move cleanup to background threads
         for id in &sessions_to_close {
             if let Some(session) = self.sessions.write().unwrap().remove(id) {
-                if let Ok(mut session) = session.lock() {
-                    session.kill_child();
-                }
+                std::thread::spawn(move || {
+                    if let Ok(mut session) = session.lock() {
+                        session.kill_and_wait();
+                    }
+                });
             }
         }
 

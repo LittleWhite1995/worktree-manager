@@ -182,6 +182,7 @@ export interface TerminalHandle {
   findNext: (query: string, options?: SearchOptions) => boolean;
   findPrevious: (query: string, options?: SearchOptions) => boolean;
   clearSearch: () => void;
+  isInitializing: () => boolean;
 }
 
 const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible, clientId, voiceStatus = 'idle', onShellIntegrationDetected, onCwdChanged, onSearchRequested, onRendererFallback }, ref) => {
@@ -217,6 +218,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
   }>({ visible: false, x: 0, y: 0 });
   const [isMobile, setIsMobile] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const initStatusRef = useRef<string | null>(null);
   const [initStatus, setInitStatus] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   const [reinitTrigger, setReinitTrigger] = useState(0);
@@ -272,6 +274,11 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Sync initStatusRef so isInitializing() always returns the latest value
+  useEffect(() => {
+    initStatusRef.current = initStatus;
+  }, [initStatus]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -462,6 +469,7 @@ const TerminalInner = forwardRef<TerminalHandle, TerminalProps>(({ cwd, visible,
     clearSearch: () => {
       adapterRef.current?.clearSearch?.();
     },
+    isInitializing: () => initStatusRef.current !== null,
   }), []);
 
   const handleIncomingData = useCallback((data: string) => {

@@ -497,7 +497,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                     onTabClick(tab.path);
                   }}
                   onAuxClick={(e) => {
-                    if (e.button === 1 && isActivated) {
+                    if (e.button === 1 && isActivated && !terminalRefsMap.current.get(tab.path)?.isInitializing()) {
                       e.preventDefault();
                       onCloseTab(tab.path);
                     }
@@ -517,12 +517,22 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span
-                            className="w-5 h-5 ml-1 flex items-center justify-center rounded-full hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                            onClick={(e) => { e.stopPropagation(); onCloseTab(tab.path); }}
+                            className={`w-5 h-5 ml-1 flex items-center justify-center rounded-full transition-colors ${terminalRefsMap.current.get(tab.path)?.isInitializing()
+                              ? 'opacity-40 cursor-not-allowed'
+                              : 'hover:bg-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] cursor-pointer'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (terminalRefsMap.current.get(tab.path)?.isInitializing()) return;
+                              onCloseTab(tab.path);
+                            }}
                             role="button"
                             aria-label={t('terminal.closeTerminalTab', { name: tab.name })}
-                            tabIndex={0}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCloseTab(tab.path); } }}
+                            tabIndex={terminalRefsMap.current.get(tab.path)?.isInitializing() ? -1 : 0}
+                            onKeyDown={(e) => {
+                              if (terminalRefsMap.current.get(tab.path)?.isInitializing()) return;
+                              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onCloseTab(tab.path); }
+                            }}
                           >
                             <CloseIcon className="w-2.5 h-2.5" />
                           </span>
