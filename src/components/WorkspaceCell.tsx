@@ -184,6 +184,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
               onToggleBatchArchiveModal={() => actions.setBatchArchiveModalOpen(!actions.batchArchiveModalOpen)}
               onBatchRestore={actions.handleBatchRestore}
               onBatchDelete={actions.handleBatchDelete}
+              onUpdateWorktreeStatus={workspace.updateWorktreeStatus}
             />
           )}
 

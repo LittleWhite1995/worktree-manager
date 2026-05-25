@@ -250,6 +250,7 @@ pub(crate) fn create_workspace(name: String, path: String) -> Result<(), String>
         vault_linked_workspace_items: vec![],
         uat_branch: default_uat_branch(),
         archived_worktrees: vec![],
+        worktree_statuses: std::collections::HashMap::new(),
     };
     save_workspace_config_internal(&path, &ws_config)?;
 
@@ -405,6 +406,7 @@ pub fn create_workspace_internal(name: &str, path: &str) -> Result<(), String> {
         vault_linked_workspace_items: vec![],
         uat_branch: default_uat_branch(),
         archived_worktrees: vec![],
+        worktree_statuses: std::collections::HashMap::new(),
     };
     save_workspace_config_internal(path, &ws_config)?;
     add_workspace_internal(name, path)?;

@@ -455,6 +455,40 @@ pub(crate) async fn list_worktrees(
     }
 }
 
+pub fn update_worktree_status_impl(
+    window_label: &str,
+    worktree_name: String,
+    status: crate::types::WorktreeStatus,
+) -> Result<(), String> {
+    let (_workspace_path, mut config) =
+        crate::config::get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+
+    config.worktree_statuses.insert(worktree_name, status);
+
+    crate::commands::workspace::save_workspace_config_impl(window_label, config)
+}
+
+#[tauri::command]
+pub(crate) async fn update_worktree_status(
+    window: tauri::Window,
+    worktree_name: String,
+    status: crate::types::WorktreeStatus,
+    workspace_path: Option<String>,
+) -> Result<(), String> {
+    if let Some(path) = workspace_path {
+        let mut config = crate::config::load_workspace_config(&path);
+        config.worktree_statuses.insert(worktree_name, status);
+        crate::commands::workspace::save_workspace_config_by_path(path, config)
+    } else {
+        let label = window.label().to_string();
+        tokio::task::spawn_blocking(move || {
+            update_worktree_status_impl(&label, worktree_name, status)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+    }
+}
+
 /// Load worktree folder-name → display-name mapping from mapping.json
 fn load_worktree_mapping(mapping_path: &std::path::Path) -> HashMap<String, String> {
     if let Ok(content) = std::fs::read_to_string(mapping_path) {
@@ -576,10 +610,11 @@ fn scan_worktrees_dir(
         let display_name = mapping.get(lookup_key).cloned();
 
         result.push(WorktreeListItem {
-            name,
+            name: name.clone(),
             display_name,
             path: normalize_path(&path.to_string_lossy()),
             is_archived,
+            status: config.worktree_statuses.get(&name).cloned(),
             projects,
         });
     }

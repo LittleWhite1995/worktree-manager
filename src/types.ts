@@ -65,6 +65,8 @@ export interface MainWorkspaceStatus {
   projects: MainProjectStatus[];
 }
 
+export type WorktreeStatus = 'in_progress' | 'in_review' | 'completed' | 'paused';
+
 // Worktree types
 export interface WorktreeListItem {
   name: string;
@@ -72,6 +74,7 @@ export interface WorktreeListItem {
   display_name?: string;
   path: string;
   is_archived: boolean;
+  status?: WorktreeStatus;
   projects: ProjectStatus[];
 }
 

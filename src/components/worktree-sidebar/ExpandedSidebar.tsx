@@ -32,6 +32,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -138,6 +139,7 @@ interface ExpandedSidebarProps extends Omit<WorktreeSidebarProps, 'worktrees'> {
   onToggleBatchArchiveModal: () => void;
   onBatchRestore: (names: string[]) => Promise<void>;
   onBatchDelete: (names: string[]) => Promise<void>;
+  onUpdateWorktreeStatus?: (worktreeName: string, status: import('../../types').WorktreeStatus) => Promise<void>;
 }
 
 export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
@@ -194,6 +196,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
   onToggleBatchArchiveModal,
   onBatchRestore,
   onBatchDelete,
+  onUpdateWorktreeStatus,
 }) => {
   const { t } = useTranslation();
   const [appVersion, setAppVersion] = useState('');
@@ -397,6 +400,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
           onTouchStart={onTouchStart}
           selectedWorktree={selectedWorktree}
           showArchived={showArchived}
+          onUpdateWorktreeStatus={onUpdateWorktreeStatus}
         />
 
         {isTauri && isMainWin && isPrimary && (
@@ -645,6 +649,7 @@ const WorktreeList: FC<{
   onTouchStart: (e: TouchEvent, worktree: WorktreeListItem) => void;
   selectedWorktree: WorktreeSidebarProps['selectedWorktree'];
   showArchived: boolean;
+  onUpdateWorktreeStatus?: (worktreeName: string, status: import('../../types').WorktreeStatus) => Promise<void>;
 }> = ({
   activeWorktrees,
   archivedWorktrees,
@@ -663,6 +668,7 @@ const WorktreeList: FC<{
   onTouchStart,
   selectedWorktree,
   showArchived,
+  onUpdateWorktreeStatus,
 }) => {
   const { t } = useTranslation();
   const [activeSearchQuery, setActiveSearchQuery] = useState('');
@@ -786,9 +792,12 @@ const WorktreeList: FC<{
                       <TooltipProvider delayDuration={300}>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="font-medium text-sm line-clamp-2 break-words flex-1">{highlightWorktreeName(worktree.display_name || worktree.name, matchResult)}</span>
+                            <span className="font-medium text-sm truncate flex-1">{highlightWorktreeName(worktree.display_name || worktree.name, matchResult)}</span>
                           </TooltipTrigger>
-                          <TooltipContent side="right">{worktree.display_name ? `${worktree.display_name} (${worktree.name})` : worktree.name}</TooltipContent>
+                          <TooltipContent side="right">
+                            <div>{worktree.display_name ? `${worktree.display_name} (${worktree.name})` : worktree.name}</div>
+                            <div className="text-[var(--color-text-muted)] text-xs mt-0.5">{t('sidebar.projects', { count: worktree.projects.length })}</div>
+                          </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                       {isDeployed && (
@@ -817,8 +826,11 @@ const WorktreeList: FC<{
                           </TooltipProvider>
                         );
                       })()}
+                      <WorktreeStatusBadge
+                        status={worktree.status}
+                        onStatusChange={(status) => onUpdateWorktreeStatus?.(worktree.name, status)}
+                      />
                     </div>
-                    <div className="text-[var(--color-text-muted)] text-xs mt-0.5 pl-6">{t('sidebar.projects', { count: worktree.projects.length })}</div>
                   </div>
                 </SortableWorktreeItem>
               );
@@ -876,6 +888,7 @@ const WorktreeList: FC<{
                 <TooltipContent side="right">{worktree.display_name ? `${worktree.display_name} (${worktree.name})` : worktree.name}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            <StatusBadge label={t('sidebar.paused')} tooltip={t('sidebar.pausedTooltip')} tone="gray" />
           </div>
         </div>
       ))}
@@ -886,21 +899,82 @@ const WorktreeList: FC<{
 const StatusBadge: FC<{
   label: string;
   tooltip: string;
-  tone: 'amber' | 'blue';
+  tone: 'amber' | 'blue' | 'green' | 'gray';
 }> = ({ label, tooltip, tone }) => {
-  const toneClass = tone === 'blue'
-    ? 'text-[var(--color-accent)]/80 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20'
-    : 'text-[var(--color-warning)]/80 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/20';
+  const toneClasses: Record<typeof tone, string> = {
+    blue: 'text-[var(--color-accent)]/80 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20',
+    amber: 'text-[var(--color-warning)]/80 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/20',
+    green: 'text-emerald-400 bg-emerald-900/30 border border-emerald-800/30',
+    gray: 'text-gray-400 bg-gray-800/50 border border-gray-700/30',
+  };
 
   return (
     <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 cursor-help ${toneClass}`}>{label}</span>
+          <span className={`text-[10px] px-1 py-0 rounded-sm shrink-0 cursor-help ${toneClasses[tone]}`}>{label}</span>
         </TooltipTrigger>
         <TooltipContent side="right">{tooltip}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+};
+
+const STATUS_CONFIG: Record<import('../../types').WorktreeStatus, { labelKey: string; tooltipKey: string; tone: string }> = {
+  in_progress: { labelKey: 'sidebar.statusInProgress', tooltipKey: 'sidebar.statusInProgressTooltip', tone: 'blue' },
+  in_review: { labelKey: 'sidebar.statusInReview', tooltipKey: 'sidebar.statusInReviewTooltip', tone: 'purple' },
+  completed: { labelKey: 'sidebar.statusCompleted', tooltipKey: 'sidebar.statusCompletedTooltip', tone: 'green' },
+  paused: { labelKey: 'sidebar.statusPaused', tooltipKey: 'sidebar.statusPausedTooltip', tone: 'gray' },
+};
+
+const WorktreeStatusBadge: FC<{
+  status?: import('../../types').WorktreeStatus;
+  onStatusChange?: (status: import('../../types').WorktreeStatus) => void;
+}> = ({ status, onStatusChange }) => {
+  const { t } = useTranslation();
+  const effectiveStatus = status || 'in_progress';
+  const config = STATUS_CONFIG[effectiveStatus];
+
+  const toneClass =
+    config.tone === 'blue'
+      ? 'text-[var(--color-accent)]/80 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20'
+      : config.tone === 'purple'
+        ? 'text-purple-400 bg-purple-900/30 border border-purple-800/30'
+        : config.tone === 'green'
+          ? 'text-emerald-400 bg-emerald-900/30 border border-emerald-800/30'
+          : 'text-gray-400 bg-gray-800/50 border border-gray-700/30';
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <span className={`text-[10px] px-1 py-0 rounded-sm shrink-0 cursor-pointer hover:opacity-80 ${toneClass}`}>
+          {t(config.labelKey)}
+        </span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[120px]">
+        {(Object.keys(STATUS_CONFIG) as import('../../types').WorktreeStatus[]).map((s) => {
+          const sConfig = STATUS_CONFIG[s];
+          const dotClass =
+            sConfig.tone === 'blue'
+              ? 'bg-[var(--color-accent)]'
+              : sConfig.tone === 'purple'
+                ? 'bg-purple-400'
+                : sConfig.tone === 'green'
+                  ? 'bg-emerald-400'
+                  : 'bg-gray-400';
+          return (
+            <DropdownMenuItem
+              key={s}
+              className={`text-xs ${s === effectiveStatus ? 'bg-[var(--color-bg-elevated)]' : ''}`}
+              onClick={() => onStatusChange?.(s)}
+            >
+              <span className={`w-2 h-2 rounded-full mr-2 ${dotClass}`} />
+              {t(sConfig.labelKey)}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

@@ -21,7 +21,6 @@ import {
   RefreshIcon,
   SyncIcon,
   GitMergeIcon,
-  GitPullRequestIcon,
   UploadIcon,
   WarningIcon,
   CloseIcon,
@@ -49,7 +48,6 @@ import {
 import type { WorkspaceConfig } from '@/types';
 import { renderCommitPrefix } from '@/lib/commit-prefix';
 import { basename } from '@/lib/utils';
-import { CreatePRModal } from './CreatePRModal';
 
 const AUTO_REFRESH_INTERVAL_MS = 60_000;
 const AUTO_REFRESH_STAGGER_MS = 15_000;
@@ -112,7 +110,6 @@ export const GitOperations: FC<GitOperationsProps> = ({
   const [loading, setLoading] = useState(false);
   const [fetchingSyncing, setFetchingSyncing] = useState(false);
   const [activeAction, setActiveAction] = useState<'sync' | 'push' | 'mergeTest' | 'mergeBase' | null>(null);
-  const [showPRModal, setShowPRModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorPersistent, setErrorPersistent] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -590,7 +587,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
         </div>
 
         <TooltipProvider delayDuration={300}>
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
           {(() => {
             const mergeTestTip = testBranchExists === false ? t('git.remoteBranchNotExists', { branch: testBranch }) : (stats?.ahead_of_test ?? 0) >= 100 ? t('git.tooManyCommitsToMerge', { branch: testBranch, count: stats?.ahead_of_test ?? 0 }) : '';
             const mergeTestBtn = (
@@ -635,27 +632,6 @@ export const GitOperations: FC<GitOperationsProps> = ({
             ) : mergeBaseBtn;
           })()}
 
-          {(() => {
-            const prTip = baseBranchExists === false ? t('git.remoteBranchNotExists', { branch: baseBranch }) : '';
-            const prBtn = (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowPRModal(true)}
-                disabled={loading || baseBranchExists === false || actionsDisabled}
-                className="text-xs min-w-0 w-full"
-              >
-                <GitPullRequestIcon className="w-3 h-3 mr-1 shrink-0" />
-                <span className="truncate">{t('git.createPR')}</span>
-              </Button>
-            );
-            return prTip ? (
-              <Tooltip>
-                <TooltipTrigger asChild><span>{prBtn}</span></TooltipTrigger>
-                <TooltipContent side="bottom"><p>{prTip}</p></TooltipContent>
-              </Tooltip>
-            ) : prBtn;
-          })()}
         </div>
         </TooltipProvider>
       </div>
@@ -747,63 +723,62 @@ export const GitOperations: FC<GitOperationsProps> = ({
               </div>
             )}
 
-            <div className="flex items-center justify-between">
-              {/* Prefix template selector — Desktop: horizontal pills */}
+            <div className="flex items-center gap-2">
+              {/* Prefix selector + tooltip group */}
               {prefixConfig.enabled && prefixConfig.templates.length > 0 && (
-                <div className="hidden min-[480px]:flex gap-1 flex-wrap">
-                  {prefixConfig.templates.map((tpl, i) => (
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                  {/* Desktop: horizontal pills */}
+                  <div className="hidden min-[480px]:flex gap-1 flex-wrap">
+                    {prefixConfig.templates.map((tpl, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handlePrefixChange(i)}
+                        className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+                          selectedPrefixIndex === i
+                            ? 'bg-[var(--color-accent)] text-white'
+                            : 'bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
+                        }`}
+                      >
+                        {tpl}
+                      </button>
+                    ))}
                     <button
-                      key={i}
-                      onClick={() => handlePrefixChange(i)}
+                      onClick={handlePrefixToContent}
                       className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                        selectedPrefixIndex === i
-                          ? 'bg-[var(--color-accent)] text-white'
-                          : 'bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]'
+                        selectedPrefixIndex === prefixConfig.templates.length
+                          ? 'bg-[var(--color-accent)]/80 text-white'
+                          : 'bg-[var(--color-bg-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-elevated)]'
                       }`}
                     >
-                      {tpl}
+                      {t('git.noPrefix')}
                     </button>
-                  ))}
-                  <button
-                    onClick={handlePrefixToContent}
-                    className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                      selectedPrefixIndex === prefixConfig.templates.length
-                        ? 'bg-[var(--color-accent)]/80 text-white'
-                        : 'bg-[var(--color-bg-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-elevated)]'
-                    }`}
+                  </div>
+
+                  {/* Mobile: native dropdown */}
+                  <select
+                    className="min-[480px]:hidden w-full h-8 text-xs border rounded px-2"
+                    value={selectedPrefixIndex}
+                    onChange={(e) => handlePrefixChange(Number(e.target.value))}
+                    disabled={generatingMessage}
                   >
-                    {t('git.noPrefix')}
-                  </button>
+                    {prefixConfig.templates.map((tpl, i) => <option key={i} value={i}>{tpl}</option>)}
+                    <option value={prefixConfig.templates.length}>{t('git.noPrefix')}</option>
+                  </select>
+
+                  {/* Prefix help tooltip */}
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center shrink-0">
+                          <HelpCircle className="w-3 h-3 text-[var(--color-text-muted)] cursor-help" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>{t('git.prefixTip', 'Click prefix to edit as text. A prefix like [feat] or [fix] is prepended to your commit message.')}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
-              )}
-
-              {/* Mobile: native dropdown */}
-              {prefixConfig.enabled && prefixConfig.templates.length > 0 && (
-                <select
-                  className="min-[480px]:hidden w-full h-8 text-xs border rounded px-2"
-                  value={selectedPrefixIndex}
-                  onChange={(e) => handlePrefixChange(Number(e.target.value))}
-                  disabled={generatingMessage}
-                >
-                  {prefixConfig.templates.map((tpl, i) => <option key={i} value={i}>{tpl}</option>)}
-                  <option value={prefixConfig.templates.length}>{t('git.noPrefix')}</option>
-                </select>
-              )}
-
-              {/* Prefix help tooltip */}
-              {prefixConfig.enabled && prefixConfig.templates.length > 0 && (
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center">
-                        <HelpCircle className="w-3 h-3 text-[var(--color-text-muted)] ml-1 cursor-help" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <p>{t('git.prefixTip', 'Click prefix to edit as text. A prefix like [feat] or [fix] is prepended to your commit message.')}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               )}
 
               <Button
@@ -811,13 +786,14 @@ export const GitOperations: FC<GitOperationsProps> = ({
                 size="sm"
                 onClick={handleRegenerateMessage}
                 disabled={generatingMessage}
-                className="text-xs"
+                className="text-xs shrink-0"
               >
                 <RefreshIcon className={`w-3 h-3 mr-1 ${generatingMessage ? 'animate-spin' : ''}`} />
                 {t('git.regenerate')}
               </Button>
             </div>
           </div>
+
           <DialogFooter className="flex gap-2">
             <Button variant="secondary" onClick={() => setShowCommitDialog(false)}>
               {t('common.cancel')}
@@ -839,14 +815,6 @@ export const GitOperations: FC<GitOperationsProps> = ({
         </DialogContent>
       </Dialog>
 
-      <CreatePRModal
-        open={showPRModal}
-        onOpenChange={setShowPRModal}
-        projectPath={projectPath}
-        baseBranch={baseBranch}
-        currentBranch={currentBranch}
-        onSuccess={onRefresh}
-      />
     </div>
   );
 };

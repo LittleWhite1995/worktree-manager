@@ -304,6 +304,23 @@ async fn h_list_worktrees(headers: HeaderMap, Json(args): Json<Value>) -> Respon
     result_json(list_worktrees_impl(&sid, include_archived))
 }
 
+async fn h_update_worktree_status(headers: HeaderMap, Json(args): Json<Value>) -> Response {
+    let sid = session_id(&headers);
+    let worktree_name = args["worktree_name"].as_str().unwrap_or("").to_string();
+    let status: crate::types::WorktreeStatus = match serde_json::from_value(args["status"].clone())
+    {
+        Ok(s) => s,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST, format!("Invalid status: {}", e)).into_response()
+        }
+    };
+    result_ok(crate::commands::worktree::update_worktree_status_impl(
+        &sid,
+        worktree_name,
+        status,
+    ))
+}
+
 async fn h_get_main_workspace_status(headers: HeaderMap) -> Response {
     let sid = session_id(&headers);
     result_json(get_main_workspace_status_impl(&sid))

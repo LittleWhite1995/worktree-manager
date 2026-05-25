@@ -496,7 +496,6 @@ pub fn push_to_remote(path: &Path) -> Result<String, String> {
         .trim()
         .to_string();
 
-    // Step 2: Push to remote
     log::info!("[git] Pushing branch '{}' to origin", current_branch);
     let push_output = git_command()
         .arg("-C")

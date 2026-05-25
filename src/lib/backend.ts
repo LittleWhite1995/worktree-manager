@@ -759,3 +759,16 @@ export async function cloudRejectPairing(): Promise<void> {
 export async function cloudDisconnect(): Promise<void> {
   return callBackend('cloud_disconnect')
 }
+
+export async function updateWorktreeStatus(
+  worktreeName: string,
+  status: import('../types').WorktreeStatus,
+  workspacePath?: string,
+): Promise<void> {
+  const extra = workspacePath ? { workspacePath } : {};
+  return callBackend<void>('update_worktree_status', {
+    worktreeName,
+    status,
+    ...extra,
+  });
+}

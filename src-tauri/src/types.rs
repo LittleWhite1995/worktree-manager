@@ -249,6 +249,8 @@ pub struct WorkspaceConfig {
     pub uat_branch: String, // UAT 分支名，默认 "uat"
     #[serde(default)]
     pub archived_worktrees: Vec<String>, // archived worktree names
+    #[serde(default)]
+    pub worktree_statuses: HashMap<String, WorktreeStatus>, // worktree_name -> status
 }
 
 pub fn default_uat_branch() -> String {
@@ -257,6 +259,15 @@ pub fn default_uat_branch() -> String {
 
 pub fn default_linked_workspace_items() -> Vec<String> {
     vec![]
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum WorktreeStatus {
+    InProgress,
+    InReview,
+    Completed,
+    Paused,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -285,6 +296,7 @@ impl Default for WorkspaceConfig {
             vault_linked_workspace_items: vec![],
             uat_branch: default_uat_branch(),
             archived_worktrees: vec![],
+            worktree_statuses: HashMap::new(),
         }
     }
 }
@@ -298,6 +310,7 @@ pub struct WorktreeListItem {
     pub display_name: Option<String>,
     pub path: String,
     pub is_archived: bool,
+    pub status: Option<WorktreeStatus>,
     pub projects: Vec<ProjectStatus>,
 }
 
