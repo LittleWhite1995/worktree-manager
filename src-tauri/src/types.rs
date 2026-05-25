@@ -250,7 +250,7 @@ pub struct WorkspaceConfig {
     #[serde(default)]
     pub archived_worktrees: Vec<String>, // archived worktree names
     #[serde(default)]
-    pub worktree_statuses: HashMap<String, WorktreeStatus>, // worktree_name -> status
+    pub worktree_colors: HashMap<String, WorktreeColor>, // worktree_name -> color
 }
 
 pub fn default_uat_branch() -> String {
@@ -263,11 +263,13 @@ pub fn default_linked_workspace_items() -> Vec<String> {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
-pub enum WorktreeStatus {
-    InProgress,
-    InReview,
-    Completed,
-    Paused,
+pub enum WorktreeColor {
+    Red,
+    Orange,
+    Yellow,
+    Green,
+    Blue,
+    Purple,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -296,7 +298,7 @@ impl Default for WorkspaceConfig {
             vault_linked_workspace_items: vec![],
             uat_branch: default_uat_branch(),
             archived_worktrees: vec![],
-            worktree_statuses: HashMap::new(),
+            worktree_colors: HashMap::new(),
         }
     }
 }
@@ -310,7 +312,7 @@ pub struct WorktreeListItem {
     pub display_name: Option<String>,
     pub path: String,
     pub is_archived: bool,
-    pub status: Option<WorktreeStatus>,
+    pub color: Option<WorktreeColor>,
     pub projects: Vec<ProjectStatus>,
 }
 

@@ -82,7 +82,7 @@ Route scanning includes both `src-tauri/src/http_server.rs` and `src-tauri/src/h
 | `list_workspaces` | yes | yes | yes | POST | `h_list_workspaces` |
 | `list_worktrees` | yes | yes | yes | POST | `h_list_worktrees` |
 | `load_workspace_config_by_path` | yes | yes | yes | POST | `h_load_workspace_config_by_path` |
-| `update_worktree_status` | yes | yes | yes | POST | `h_update_worktree_status` |
+| `update_worktree_color` | yes | yes | yes | POST | `h_update_worktree_color` |
 | `lock_worktree` | yes | yes | yes | POST | `h_lock_worktree` |
 | `merge_to_base_branch` | yes | yes | yes | POST | `h_merge_to_base_branch` |
 | `merge_to_test_branch` | yes | yes | yes | POST | `h_merge_to_test_branch` |

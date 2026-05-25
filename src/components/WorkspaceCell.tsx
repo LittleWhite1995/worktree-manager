@@ -184,7 +184,6 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
               onToggleBatchArchiveModal={() => actions.setBatchArchiveModalOpen(!actions.batchArchiveModalOpen)}
               onBatchRestore={actions.handleBatchRestore}
               onBatchDelete={actions.handleBatchDelete}
-              onUpdateWorktreeStatus={workspace.updateWorktreeStatus}
             />
           )}
 
@@ -334,6 +333,8 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
             y={actions.contextMenu.y}
             onClose={() => actions.setContextMenu(null)}
             onArchive={() => actions.openArchiveModal(actions.contextMenu!.worktree)}
+            currentColor={actions.contextMenu.worktree.color}
+            onSetColor={(color) => workspace.updateWorktreeColor(actions.contextMenu!.worktree.name, color as import('../types').WorktreeColor | null)}
           />
         )}
 

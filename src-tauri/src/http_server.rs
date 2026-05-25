@@ -304,20 +304,22 @@ async fn h_list_worktrees(headers: HeaderMap, Json(args): Json<Value>) -> Respon
     result_json(list_worktrees_impl(&sid, include_archived))
 }
 
-async fn h_update_worktree_status(headers: HeaderMap, Json(args): Json<Value>) -> Response {
+async fn h_update_worktree_color(headers: HeaderMap, Json(args): Json<Value>) -> Response {
     let sid = session_id(&headers);
     let worktree_name = args["worktree_name"].as_str().unwrap_or("").to_string();
-    let status: crate::types::WorktreeStatus = match serde_json::from_value(args["status"].clone())
-    {
-        Ok(s) => s,
-        Err(e) => {
-            return (StatusCode::BAD_REQUEST, format!("Invalid status: {}", e)).into_response()
-        }
+    let color: Option<crate::types::WorktreeColor> = match args.get("color") {
+        Some(v) if !v.is_null() => match serde_json::from_value(v.clone()) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                return (StatusCode::BAD_REQUEST, format!("Invalid color: {}", e)).into_response()
+            }
+        },
+        _ => None,
     };
-    result_ok(crate::commands::worktree::update_worktree_status_impl(
+    result_ok(crate::commands::worktree::update_worktree_color_impl(
         &sid,
         worktree_name,
-        status,
+        color,
     ))
 }
 

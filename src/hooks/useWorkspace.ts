@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { callBackend, fetchProjectRemote, isTauri, updateWorktreeStatus as updateWorktreeStatusBackend } from '../lib/backend';
+import { callBackend, fetchProjectRemote, isTauri, updateWorktreeColor as updateWorktreeColorBackend } from '../lib/backend';
 import { useCellContext } from '../contexts/CellContext';
 import { getPreferredExternalTerminal, getShellForTerminalLaunch, logTerminalPreferenceDebugInfo } from '../lib/terminalPreferences';
 import type {
@@ -57,7 +57,7 @@ export interface UseWorkspaceReturn {
   lockWorktree: (workspacePath: string, worktreeName: string) => Promise<void>;
   unlockWorktree: (workspacePath: string, worktreeName: string) => Promise<void>;
   getLockedWorktrees: (workspacePath: string) => Promise<Record<string, string>>;
-  updateWorktreeStatus: (worktreeName: string, status: import('../types').WorktreeStatus) => Promise<void>;
+  updateWorktreeColor: (worktreeName: string, color: import('../types').WorktreeColor | null) => Promise<void>;
 }
 
 export function useWorkspace(ready = true, initialWorkspacePath?: string, shellMode = false): UseWorkspaceReturn {
@@ -365,13 +365,13 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
     return callBackend<Record<string, string>>("get_locked_worktrees", { workspacePath });
   }, []);
 
-  const updateWorktreeStatus = useCallback(async (worktreeName: string, status: import('../types').WorktreeStatus) => {
+  const updateWorktreeColor = useCallback(async (worktreeName: string, color: import('../types').WorktreeColor | null) => {
     try {
       // Optimistic update: immediately update local state for instant UI feedback
       setWorktrees(prev => prev.map(wt =>
-        wt.name === worktreeName ? { ...wt, status } : wt
+        wt.name === worktreeName ? { ...wt, color: color ?? undefined } : wt
       ));
-      await updateWorktreeStatusBackend(worktreeName, status, explicitPath);
+      await updateWorktreeColorBackend(worktreeName, color, explicitPath);
     } catch (e) {
       setError(String(e));
       // Rollback on error by reloading
@@ -416,6 +416,6 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
     lockWorktree,
     unlockWorktree,
     getLockedWorktrees,
-    updateWorktreeStatus,
+    updateWorktreeColor,
   };
 }

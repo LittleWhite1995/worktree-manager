@@ -54,5 +54,4 @@ export interface WorktreeSidebarProps {
   onToggleBatchArchiveModal: () => void;
   onBatchRestore: (names: string[]) => Promise<void>;
   onBatchDelete: (names: string[]) => Promise<void>;
-  onUpdateWorktreeStatus?: (worktreeName: string, status: import('../../types').WorktreeStatus) => Promise<void>;
 }

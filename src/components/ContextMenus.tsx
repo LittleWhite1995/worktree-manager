@@ -9,13 +9,26 @@ interface ContextMenuProps {
   y: number;
   onClose: () => void;
   onArchive: () => void;
+  currentColor?: string | null;
+  onSetColor?: (color: string | null) => void;
 }
+
+const COLOR_OPTIONS = [
+  { key: 'red',    class: 'bg-red-400' },
+  { key: 'orange', class: 'bg-orange-400' },
+  { key: 'yellow', class: 'bg-yellow-400' },
+  { key: 'green',  class: 'bg-emerald-400' },
+  { key: 'blue',   class: 'bg-[var(--color-accent)]' },
+  { key: 'purple', class: 'bg-purple-400' },
+];
 
 export const WorktreeContextMenu: FC<ContextMenuProps> = ({
   x,
   y,
   onClose,
   onArchive,
+  currentColor,
+  onSetColor,
 }) => {
   const { t } = useTranslation();
   return (
@@ -36,6 +49,35 @@ export const WorktreeContextMenu: FC<ContextMenuProps> = ({
           <ArchiveIcon className="w-4 h-4" />
           {t('contextMenu.archive')}
         </button>
+        )}
+        {onSetColor && (
+          <>
+            <div className="border-t border-[var(--color-border)] my-1" />
+            <div className="px-3 py-1.5">
+              <div className="text-[10px] text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wider">{t('contextMenu.setColor', '标记颜色')}</div>
+              <div className="flex items-center gap-1.5">
+                {COLOR_OPTIONS.map((c) => (
+                  <button
+                    key={c.key}
+                    onClick={() => { onSetColor(c.key); onClose(); }}
+                    className={`w-5 h-5 rounded-full ${c.class} ${currentColor === c.key ? 'ring-2 ring-white/60' : 'hover:scale-110'} transition-transform`}
+                    title={c.key}
+                  />
+                ))}
+                {currentColor && (
+                  <button
+                    onClick={() => { onSetColor(null); onClose(); }}
+                    className="w-5 h-5 rounded-full border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] transition-colors ml-1"
+                    title={t('contextMenu.removeColor', '清除')}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

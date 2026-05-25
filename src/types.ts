@@ -65,7 +65,7 @@ export interface MainWorkspaceStatus {
   projects: MainProjectStatus[];
 }
 
-export type WorktreeStatus = 'in_progress' | 'in_review' | 'completed' | 'paused';
+export type WorktreeColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple';
 
 // Worktree types
 export interface WorktreeListItem {
@@ -74,7 +74,7 @@ export interface WorktreeListItem {
   display_name?: string;
   path: string;
   is_archived: boolean;
-  status?: WorktreeStatus;
+  color?: WorktreeColor;
   projects: ProjectStatus[];
 }
 

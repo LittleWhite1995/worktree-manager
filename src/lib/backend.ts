@@ -760,15 +760,15 @@ export async function cloudDisconnect(): Promise<void> {
   return callBackend('cloud_disconnect')
 }
 
-export async function updateWorktreeStatus(
+export async function updateWorktreeColor(
   worktreeName: string,
-  status: import('../types').WorktreeStatus,
+  color: import('../types').WorktreeColor | null,
   workspacePath?: string,
 ): Promise<void> {
   const extra = workspacePath ? { workspacePath } : {};
-  return callBackend<void>('update_worktree_status', {
+  return callBackend<void>('update_worktree_color', {
     worktreeName,
-    status,
+    color,
     ...extra,
   });
 }

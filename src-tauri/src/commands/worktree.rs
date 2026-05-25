@@ -455,34 +455,40 @@ pub(crate) async fn list_worktrees(
     }
 }
 
-pub fn update_worktree_status_impl(
+pub fn update_worktree_color_impl(
     window_label: &str,
     worktree_name: String,
-    status: crate::types::WorktreeStatus,
+    color: Option<crate::types::WorktreeColor>,
 ) -> Result<(), String> {
     let (_workspace_path, mut config) =
         crate::config::get_window_workspace_config(window_label).ok_or("No workspace selected")?;
 
-    config.worktree_statuses.insert(worktree_name, status);
+    match color {
+        Some(c) => config.worktree_colors.insert(worktree_name, c),
+        None => config.worktree_colors.remove(&worktree_name),
+    };
 
     crate::commands::workspace::save_workspace_config_impl(window_label, config)
 }
 
 #[tauri::command]
-pub(crate) async fn update_worktree_status(
+pub(crate) async fn update_worktree_color(
     window: tauri::Window,
     worktree_name: String,
-    status: crate::types::WorktreeStatus,
+    color: Option<crate::types::WorktreeColor>,
     workspace_path: Option<String>,
 ) -> Result<(), String> {
     if let Some(path) = workspace_path {
         let mut config = crate::config::load_workspace_config(&path);
-        config.worktree_statuses.insert(worktree_name, status);
+        match color {
+            Some(c) => config.worktree_colors.insert(worktree_name, c),
+            None => config.worktree_colors.remove(&worktree_name),
+        };
         crate::commands::workspace::save_workspace_config_by_path(path, config)
     } else {
         let label = window.label().to_string();
         tokio::task::spawn_blocking(move || {
-            update_worktree_status_impl(&label, worktree_name, status)
+            update_worktree_color_impl(&label, worktree_name, color)
         })
         .await
         .map_err(|e| format!("Task join error: {}", e))?
@@ -614,7 +620,7 @@ fn scan_worktrees_dir(
             display_name,
             path: normalize_path(&path.to_string_lossy()),
             is_archived,
-            status: config.worktree_statuses.get(&name).cloned(),
+            color: config.worktree_colors.get(&name).cloned(),
             projects,
         });
     }

@@ -99,17 +99,29 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
             const lockedBy = lockedWorktrees[worktree.name];
             const isLockedByOther = lockedBy && lockedBy !== currentWindowLabel;
             const canSelect = !isLockedByOther || !isTauri;
+            const isSelected = selectedWorktree?.name === worktree.name;
+            const c = worktree.color;
+            const btnClass = isLockedByOther && isTauri
+              ? 'opacity-30 cursor-not-allowed'
+              : isSelected
+                ? c === 'red'    ? 'bg-red-500/20 text-red-400 ring-1 ring-red-400'
+                : c === 'orange' ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-400'
+                : c === 'yellow' ? 'bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-400'
+                : c === 'green'  ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-400'
+                : c === 'purple' ? 'bg-purple-500/20 text-purple-400 ring-1 ring-purple-400'
+                : 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]'
+                : c === 'red'    ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                : c === 'orange' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20'
+                : c === 'yellow' ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20'
+                : c === 'green'  ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                : c === 'purple' ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
+                : 'bg-[var(--color-bg-elevated)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10';
             return (
               <Tooltip key={worktree.name}>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => canSelect && onSelectWorktree(worktree)}
-                    className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors shrink-0 ${isLockedByOther && isTauri
-                      ? 'opacity-30 cursor-not-allowed'
-                      : selectedWorktree?.name === worktree.name
-                        ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]'
-                        : 'bg-[var(--color-bg-elevated)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10'
-                      }`}
+                    className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors shrink-0 ${btnClass}`}
                   >
                     <GitBranch className="w-4 h-4" />
                   </button>
