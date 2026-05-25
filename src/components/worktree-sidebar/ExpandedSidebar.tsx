@@ -947,7 +947,10 @@ const WorktreeStatusBadge: FC<{
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <span className={`text-[10px] px-1 py-0 rounded-sm shrink-0 cursor-pointer hover:opacity-80 ${toneClass}`}>
+        <span
+          className={`text-[10px] px-1 py-0 rounded-sm shrink-0 cursor-pointer hover:opacity-80 ${toneClass}`}
+          onClick={(e) => e.stopPropagation()}
+        >
           {t(config.labelKey)}
         </span>
       </DropdownMenuTrigger>
@@ -966,7 +969,10 @@ const WorktreeStatusBadge: FC<{
             <DropdownMenuItem
               key={s}
               className={`text-xs ${s === effectiveStatus ? 'bg-[var(--color-bg-elevated)]' : ''}`}
-              onClick={() => onStatusChange?.(s)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusChange?.(s);
+              }}
             >
               <span className={`w-2 h-2 rounded-full mr-2 ${dotClass}`} />
               {t(sConfig.labelKey)}

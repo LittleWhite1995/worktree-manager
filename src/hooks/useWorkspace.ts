@@ -367,10 +367,15 @@ export function useWorkspace(ready = true, initialWorkspacePath?: string, shellM
 
   const updateWorktreeStatus = useCallback(async (worktreeName: string, status: import('../types').WorktreeStatus) => {
     try {
+      // Optimistic update: immediately update local state for instant UI feedback
+      setWorktrees(prev => prev.map(wt =>
+        wt.name === worktreeName ? { ...wt, status } : wt
+      ));
       await updateWorktreeStatusBackend(worktreeName, status, explicitPath);
-      await loadData();
     } catch (e) {
       setError(String(e));
+      // Rollback on error by reloading
+      await loadData();
       throw e;
     }
   }, [explicitPath, loadData]);
