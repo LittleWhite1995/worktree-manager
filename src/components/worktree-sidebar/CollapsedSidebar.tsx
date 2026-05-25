@@ -98,7 +98,6 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
           {activeWorktrees.map((worktree) => {
             const lockedBy = lockedWorktrees[worktree.name];
             const isLockedByOther = lockedBy && lockedBy !== currentWindowLabel;
-            const isLockedBySameWindow = isLockedByOther && lockedBy.split(':')[0] === currentWindowLabel.split(':')[0];
             const canSelect = !isLockedByOther || !isTauri;
             return (
               <Tooltip key={worktree.name}>
@@ -108,21 +107,28 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
                     className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors shrink-0 relative ${isLockedByOther && isTauri
                       ? 'opacity-30 cursor-not-allowed'
                       : selectedWorktree?.name === worktree.name
-                        ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]'
-                        : 'hover:bg-[var(--color-bg-elevated)] text-[var(--color-accent)]'
+                        ? worktree.status === 'in_review'
+                          ? 'bg-purple-500/20 text-purple-400 ring-1 ring-purple-400'
+                          : worktree.status === 'completed'
+                            ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-400'
+                            : worktree.status === 'paused'
+                              ? 'bg-gray-500/20 text-gray-400 ring-1 ring-gray-400'
+                              : 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]'
+                        : worktree.status === 'in_review'
+                          ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
+                          : worktree.status === 'completed'
+                            ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                            : worktree.status === 'paused'
+                              ? 'bg-gray-500/10 text-gray-400 hover:bg-gray-500/20'
+                              : 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20'
                       }`}
                   >
                     <GitBranch className="w-4 h-4" />
-                    <span className={`absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full ${
-                      worktree.status === 'in_review' ? 'bg-purple-400' :
-                      worktree.status === 'completed' ? 'bg-emerald-400' :
-                      worktree.status === 'paused' ? 'bg-gray-400' :
-                      'bg-[var(--color-accent)]'
-                    }`} />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  {worktree.display_name || worktree.name}{isLockedByOther ? ` (${t(isLockedBySameWindow ? 'sidebar.occupiedByCell' : 'sidebar.occupied')})` : ''}
+                  <div>{worktree.display_name ? `${worktree.display_name} (${worktree.name})` : worktree.name}</div>
+                  <div className="text-[var(--color-text-muted)] text-xs mt-0.5">{t('sidebar.projects', { count: worktree.projects.length })}</div>
                 </TooltipContent>
               </Tooltip>
             );
