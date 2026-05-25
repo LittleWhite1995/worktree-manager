@@ -41,18 +41,8 @@ export const WorktreeContextMenu: FC<ContextMenuProps> = ({
         style={{ left: x, top: y }}
         onClick={(e) => e.stopPropagation()}
       >
-        {isTauri() && (
-        <button
-          onClick={onArchive}
-          className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] flex items-center gap-2 transition-colors"
-        >
-          <ArchiveIcon className="w-4 h-4" />
-          {t('contextMenu.archive')}
-        </button>
-        )}
         {onSetColor && (
           <>
-            <div className="border-t border-[var(--color-border)] my-1" />
             <div className="px-3 py-1.5">
               <div className="text-[10px] text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wider">{t('contextMenu.setColor', '标记颜色')}</div>
               <div className="flex items-center gap-1.5">
@@ -77,6 +67,18 @@ export const WorktreeContextMenu: FC<ContextMenuProps> = ({
                 )}
               </div>
             </div>
+          </>
+        )}
+        {isTauri() && (
+          <>
+            <div className="border-t border-[var(--color-border)] my-1" />
+            <button
+              onClick={onArchive}
+              className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] flex items-center gap-2 transition-colors"
+            >
+              <ArchiveIcon className="w-4 h-4" />
+              {t('contextMenu.archive')}
+            </button>
           </>
         )}
       </div>
