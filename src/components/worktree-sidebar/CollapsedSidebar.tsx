@@ -94,7 +94,7 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
           </Tooltip>
         )}
 
-        <div className="flex-1 overflow-y-auto flex flex-col items-center gap-0.5 w-full px-1">
+        <div className="flex-1 overflow-y-auto flex flex-col items-center gap-0.5 w-full px-1 pt-px">
           {activeWorktrees.map((worktree) => {
             const lockedBy = lockedWorktrees[worktree.name];
             const isLockedByOther = lockedBy && lockedBy !== currentWindowLabel;
