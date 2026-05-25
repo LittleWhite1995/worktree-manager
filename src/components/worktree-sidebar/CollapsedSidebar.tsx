@@ -105,7 +105,7 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => canSelect && onSelectWorktree(worktree)}
-                    className={`h-8 w-8 flex flex-col items-center justify-center rounded-md transition-colors shrink-0 ${isLockedByOther && isTauri
+                    className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors shrink-0 relative ${isLockedByOther && isTauri
                       ? 'opacity-30 cursor-not-allowed'
                       : selectedWorktree?.name === worktree.name
                         ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]'
@@ -113,7 +113,7 @@ export const CollapsedSidebar: FC<CollapsedSidebarProps> = ({
                       }`}
                   >
                     <GitBranch className="w-4 h-4" />
-                    <span className={`w-1 h-1 rounded-full mt-0.5 ${
+                    <span className={`absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full ${
                       worktree.status === 'in_review' ? 'bg-purple-400' :
                       worktree.status === 'completed' ? 'bg-emerald-400' :
                       worktree.status === 'paused' ? 'bg-gray-400' :
