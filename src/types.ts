@@ -4,6 +4,12 @@ export interface WorkspaceRef {
   path: string;
 }
 
+export interface TagDefinition {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface ProjectConfig {
   name: string;
   base_branch: string;
@@ -13,6 +19,7 @@ export interface ProjectConfig {
   commit_prefix_index?: number;
   git_user_name?: string;
   git_user_email?: string;
+  tags?: string[];  // 关联的 tag id 数组
 }
 
 export interface WorkspaceConfig {
@@ -22,6 +29,7 @@ export interface WorkspaceConfig {
   linked_workspace_items: string[];
   uat_branch?: string;
   archived_worktrees?: string[];
+  tags?: TagDefinition[];  // 全局 Tag 定义列表
 }
 
 // Project status types

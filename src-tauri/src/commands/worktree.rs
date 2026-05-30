@@ -584,6 +584,7 @@ fn scan_worktrees_dir(
                         commit_prefix_index: None,
                         git_user_name: None,
                         git_user_email: None,
+                        tags: vec![],
                     });
 
                 let info = get_worktree_info_for_branches(
@@ -977,6 +978,7 @@ pub fn create_worktree_impl(
                     commit_prefix_index: None,
                     git_user_name: None,
                     git_user_email: None,
+                    tags: vec![],
                 })
         })
         .collect();
@@ -1721,6 +1723,7 @@ pub fn add_project_to_worktree_impl(
             commit_prefix_index: None,
             git_user_name: None,
             git_user_email: None,
+            tags: vec![],
         });
 
     // Resolve display name from mapping (used as branch name)

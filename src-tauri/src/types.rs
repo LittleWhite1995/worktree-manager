@@ -251,6 +251,8 @@ pub struct WorkspaceConfig {
     pub archived_worktrees: Vec<String>, // archived worktree names
     #[serde(default)]
     pub worktree_colors: HashMap<String, WorktreeColor>, // worktree_name -> color
+    #[serde(default)]
+    pub tags: Vec<TagDefinition>,
 }
 
 pub fn default_uat_branch() -> String {
@@ -273,6 +275,13 @@ pub enum WorktreeColor {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TagDefinition {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProjectConfig {
     pub name: String,
     pub base_branch: String,
@@ -286,6 +295,8 @@ pub struct ProjectConfig {
     pub git_user_name: Option<String>,
     #[serde(default)]
     pub git_user_email: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl Default for WorkspaceConfig {
@@ -299,6 +310,7 @@ impl Default for WorkspaceConfig {
             uat_branch: default_uat_branch(),
             archived_worktrees: vec![],
             worktree_colors: HashMap::new(),
+            tags: vec![],
         }
     }
 }
