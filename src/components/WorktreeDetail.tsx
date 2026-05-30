@@ -50,7 +50,7 @@ import type { LogEntry } from '@/lib/operationLog';
 import { GitOperations } from './GitOperations';
 import { useToast } from './Toast';
 import { EDITORS } from '../constants';
-import { isTauri, openLink, getVaultStatus, syncAllProjectsToBase, type BranchDiffStats } from '@/lib/backend';
+import { isTauri, openLink, getVaultStatus, syncAllProjectsToBase, pullCurrentBranch, type BranchDiffStats } from '@/lib/backend';
 import type {
   WorktreeListItem,
   MainWorkspaceStatus,
@@ -727,6 +727,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   }, [selectedEditor, detectedEditors]);
 
   const [switchingBranch, setSwitchingBranch] = useState<string[]>([]);
+  const [worktreeAction, setWorktreeAction] = useState<'syncAll' | 'pullAll' | 'refreshAll' | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [exitError, setExitError] = useState<string | null>(null);
@@ -935,6 +936,40 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
       onRefresh?.();
     }
   }, [mainWorkspace?.projects, toast, t, onRefresh]);
+
+  const handleWorktreeSyncAll = async () => {
+    if (!selectedWorktree) return;
+    setWorktreeAction('syncAll');
+    try {
+      const projectPaths = selectedWorktree.projects.map(p => p.path);
+      await syncAllProjectsToBase(projectPaths);
+      onSilentRefresh?.();
+    } finally {
+      setWorktreeAction(null);
+    }
+  };
+
+  const handleWorktreePullAll = async () => {
+    if (!selectedWorktree) return;
+    setWorktreeAction('pullAll');
+    try {
+      await Promise.allSettled(
+        selectedWorktree.projects.map(p => pullCurrentBranch(p.path))
+      );
+      onSilentRefresh?.();
+    } finally {
+      setWorktreeAction(null);
+    }
+  };
+
+  const handleWorktreeRefreshAll = async () => {
+    setWorktreeAction('refreshAll');
+    try {
+      onRefresh?.();
+    } finally {
+      setWorktreeAction(null);
+    }
+  };
 
   if (!selectedWorktree && !mainWorkspace) {
     return (
@@ -1598,6 +1633,58 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
               <>
                 {isTauri() && (
                   <>
+                    <div className="inline-flex items-center rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated)] overflow-hidden">
+                      <TooltipProvider delayDuration={300}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-surface)] transition-colors disabled:opacity-50"
+                              disabled={worktreeAction !== null}
+                              onClick={handleWorktreeSyncAll}
+                            >
+                              {worktreeAction === 'syncAll'
+                                ? <SyncIcon className="w-3.5 h-3.5 animate-spin" />
+                                : <SyncIcon className="w-3.5 h-3.5" />}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">{t('detail.syncAllTip')}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      <TooltipProvider delayDuration={300}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-surface)] transition-colors disabled:opacity-50 border-l border-[var(--color-border)]"
+                              disabled={worktreeAction !== null}
+                              onClick={handleWorktreePullAll}
+                            >
+                              {worktreeAction === 'pullAll'
+                                ? <span style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><SyncIcon className="w-3.5 h-3.5 animate-spin" /></span>
+                                : <span style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><SyncIcon className="w-3.5 h-3.5" /></span>}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">{t('detail.pullAllTip')}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      <TooltipProvider delayDuration={300}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-surface)] transition-colors disabled:opacity-50 border-l border-[var(--color-border)]"
+                              disabled={worktreeAction !== null}
+                              onClick={handleWorktreeRefreshAll}
+                            >
+                              {worktreeAction === 'refreshAll'
+                                ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
+                                : <RefreshIcon className="w-3.5 h-3.5" />}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">{t('detail.refreshAllTip')}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <div className="inline-flex rounded-md">
                       <TooltipProvider delayDuration={300}>
                         <Tooltip>
