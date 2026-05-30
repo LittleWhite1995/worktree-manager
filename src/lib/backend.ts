@@ -68,12 +68,24 @@ function getApiBase(): string {
 // Core invoke adapter
 // ---------------------------------------------------------------------------
 
+// Commands that may legitimately take a long time (git clone, worktree create, etc.)
+const LONG_RUNNING_COMMANDS = new Set([
+  'create_worktree', 'archive_worktree', 'restore_worktree', 'delete_archived_worktree',
+  'clone_project', 'deploy_to_main', 'start_sharing', 'start_ngrok_tunnel',
+  'fetch_project_remote', 'sync_with_base_branch', 'sync_all_projects_to_base',
+  'push_to_remote', 'push_sync_to_base_branch', 'merge_base_branch',
+  'download_update_via_mirror',
+]);
+const DEFAULT_TIMEOUT_MS = 30_000;
+const LONG_TIMEOUT_MS = 600_000; // 10 min
+
 export async function callBackend<T = unknown>(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
   const t0 = performance.now();
   const QUIET_COMMANDS = new Set(['pty_read', 'pty_write']);
+  const timeoutMs = LONG_RUNNING_COMMANDS.has(command) ? LONG_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
   const logResult = (result: T) => {
     const elapsed = performance.now() - t0;
     if (!QUIET_COMMANDS.has(command) || elapsed > 100) {
@@ -88,9 +100,16 @@ export async function callBackend<T = unknown>(
 
   if (isTauri()) {
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<T>(command, args).then(logResult, logError);
+    const result = invoke<T>(command, args);
+    // Tauri IPC timeout guard: reject if backend doesn't respond
+    const timer = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`[ipc] ${command} timed out after ${timeoutMs}ms`)), timeoutMs)
+    );
+    return Promise.race([result, timer]).then(logResult, logError);
   }
 
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
   const res = await fetch(`${getApiBase()}/${command}`, {
     method: 'POST',
     headers: {
@@ -98,7 +117,8 @@ export async function callBackend<T = unknown>(
       'X-Session-Id': getSessionId(),
     },
     body: JSON.stringify(args ?? {}),
-  });
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timerId));
 
   if (!res.ok) {
     if (res.status === 401) {
@@ -430,6 +450,11 @@ export async function syncWithBaseBranch(path: string, baseBranch: string): Prom
 /** Push current branch to remote */
 export async function pushToRemote(path: string): Promise<string> {
   return callBackend<string>('push_to_remote', { path });
+}
+
+/** Pull current branch from remote */
+export async function pullCurrentBranch(path: string): Promise<string> {
+  return callBackend<string>('pull_current_branch', { path });
 }
 
 /** Merge current branch to test branch */

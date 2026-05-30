@@ -30,6 +30,7 @@ import { Pencil, HelpCircle } from 'lucide-react';
 import {
   syncWithBaseBranch,
   pushToRemote,
+  pullCurrentBranch,
   mergeToTestBranch,
   mergeToBaseBranch,
   getBranchDiffStats,
@@ -109,7 +110,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
   const [stats, setStats] = useState<BranchDiffStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchingSyncing, setFetchingSyncing] = useState(false);
-  const [activeAction, setActiveAction] = useState<'sync' | 'push' | 'mergeTest' | 'mergeBase' | null>(null);
+  const [activeAction, setActiveAction] = useState<'sync' | 'pull' | 'push' | 'mergeTest' | 'mergeBase' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorPersistent, setErrorPersistent] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -555,7 +556,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
       </div>
 
       <div className="flex flex-col gap-2">
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
           <Button
             variant="secondary"
             size="sm"
@@ -566,6 +567,17 @@ export const GitOperations: FC<GitOperationsProps> = ({
           >
             <SyncIcon className="w-3 h-3 mr-1 shrink-0" />
             <span className="truncate">{activeAction === 'sync' ? t('git.syncing') : t('git.syncBranch', { branch: baseBranch })}</span>
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => runGitAction('pull', () => pullCurrentBranch(projectPath))}
+            disabled={loading || actionsDisabled}
+            className="text-xs min-w-0"
+          >
+            <span className="inline-flex mr-1 shrink-0" style={{ transform: 'scaleX(-1)' }}><SyncIcon className="w-3 h-3" /></span>
+            <span className="truncate">{activeAction === 'pull' ? t('git.pulling') : t('git.pull')}</span>
           </Button>
 
           <Button
