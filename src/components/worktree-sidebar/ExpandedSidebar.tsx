@@ -371,11 +371,8 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
         {mainWorkspace && (
           <MainWorkspaceCard
             occupation={occupation}
-            onOpenCreateModal={onOpenCreateModal}
             onSelectMain={() => onSelectWorktree(null)}
-            path={mainWorkspace.path}
             selected={!selectedWorktree}
-            showCreateButton={isTauri}
           />
         )}
 
@@ -388,6 +385,7 @@ export const ExpandedSidebar: FC<ExpandedSidebarProps> = ({
           longPressFiredRef={longPressFiredRef}
           occupation={occupation}
           onContextMenu={onContextMenu}
+          onOpenCreateModal={onOpenCreateModal}
           onSelectWorktree={onSelectWorktree}
           onSortOrderChange={onSortOrderChange}
           onToggleArchived={onToggleArchived}
@@ -577,12 +575,9 @@ const WorkspaceSwitcher: FC<{
 
 const MainWorkspaceCard: FC<{
   occupation: WorktreeSidebarProps['occupation'];
-  onOpenCreateModal: () => void;
   onSelectMain: () => void;
-  path: string;
   selected: boolean;
-  showCreateButton: boolean;
-}> = ({ occupation, onOpenCreateModal, onSelectMain, path, selected, showCreateButton }) => {
+}> = ({ occupation, onSelectMain, selected }) => {
   const { t } = useTranslation();
 
   return (
@@ -600,29 +595,7 @@ const MainWorkspaceCard: FC<{
             </div>
           )}
         </div>
-        {showCreateButton && (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenCreateModal();
-                  }}
-                  aria-label={t('sidebar.newWorktree')}
-                  className="h-7 w-7"
-                >
-                  <PlusIcon className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t('sidebar.newWorktree')}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
       </div>
-      <div className="text-[var(--color-text-muted)] text-xs mt-1 truncate pl-6 select-text">{path}</div>
     </div>
   );
 };
@@ -636,6 +609,7 @@ const WorktreeList: FC<{
   longPressFiredRef: MutableRefObject<boolean>;
   occupation: WorktreeSidebarProps['occupation'];
   onContextMenu: WorktreeSidebarProps['onContextMenu'];
+  onOpenCreateModal: () => void;
   onSelectWorktree: WorktreeSidebarProps['onSelectWorktree'];
   onSortOrderChange: (newOrder: string[]) => void;
   onToggleArchived: WorktreeSidebarProps['onToggleArchived'];
@@ -654,6 +628,7 @@ const WorktreeList: FC<{
   longPressFiredRef,
   occupation,
   onContextMenu,
+  onOpenCreateModal,
   onSelectWorktree,
   onSortOrderChange,
   onToggleArchived,
@@ -844,6 +819,15 @@ const WorktreeList: FC<{
             ) : null}
           </DragOverlay>
         </DndContext>
+      )}
+
+      {isTauri && (
+        <div
+          className="px-4 py-2 border-b border-[var(--color-border)] flex items-center justify-center cursor-pointer hover:bg-[var(--color-bg-elevated)] transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+          onClick={onOpenCreateModal}
+        >
+          <PlusIcon className="w-4 h-4" />
+        </div>
       )}
 
       <div
