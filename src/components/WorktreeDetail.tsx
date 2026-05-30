@@ -60,6 +60,7 @@ import type {
   WorkspaceConfig,
   EditorType,
   VaultStatus,
+  TagDefinition,
 } from '../types';
 import { ProjectEditModal } from './ProjectEditModal';
 
@@ -768,6 +769,56 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     }
   }, [mainWorkspace]);
 
+  // Tag grouping for main workspace
+  const tagGroups = useMemo(() => {
+    const tags = workspaceConfig?.tags ?? [];
+    const projects = mainWorkspace?.projects ?? [];
+    if (tags.length === 0) return null; // No tags = flat view
+
+    const groups: Array<{ tag: TagDefinition | null; projects: typeof projects }> = [];
+
+    for (const tag of tags) {
+      const tagProjects = projects.filter(p => {
+        const projectConfig = workspaceConfig?.projects.find(pc => pc.name === p.name);
+        return (projectConfig?.tags ?? []).includes(tag.id);
+      });
+      if (tagProjects.length > 0) {
+        groups.push({ tag, projects: tagProjects });
+      }
+    }
+
+    // Untagged group
+    const taggedProjectNames = new Set(
+      tags.flatMap(tag =>
+        (workspaceConfig?.projects ?? [])
+          .filter(pc => (pc.tags ?? []).includes(tag.id))
+          .map(pc => pc.name)
+      )
+    );
+    const untagged = projects.filter(p => !taggedProjectNames.has(p.name));
+    if (untagged.length > 0) {
+      groups.push({ tag: null, projects: untagged });
+    }
+
+    return groups;
+  }, [workspaceConfig, mainWorkspace]);
+
+  const COLLAPSED_TAGS_KEY = 'main_workspace_collapsed_tags';
+  const [collapsedTags, setCollapsedTags] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(COLLAPSED_TAGS_KEY) || '[]'));
+    } catch { return new Set(); }
+  });
+  const toggleCollapse = useCallback((tagId: string) => {
+    setCollapsedTags(prev => {
+      const next = new Set(prev);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
+      localStorage.setItem(COLLAPSED_TAGS_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
   const handleDeploy = useCallback(async (name: string) => {
     try {
       await onDeployToMain?.(name);
@@ -1179,8 +1230,8 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
               </div>
             ) : (
               /* Normal state: show all projects in grid layout */
-              <div style={{ display: 'grid', gridTemplateColumns: contentWidth >= 900 ? 'repeat(2, 1fr)' : '1fr', gap: '0.75rem' }}>
-                {mainWorkspace.projects.map(proj => {
+              (() => {
+                const renderProjectCard = (proj: typeof mainWorkspace.projects[0]) => {
                   const projectPath = proj.path;
                   const isSwitching = switchingBranch.includes(proj.name);
 
@@ -1196,7 +1247,28 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                   return (
                     <div key={proj.name} className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-lg p-4 group hover:border-[var(--color-border)] hover:shadow-md hover:shadow-black/10 hover:-translate-y-px transition-all duration-150">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
+                        <div className="flex items-center min-w-0">
+                          <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
+                          {(() => {
+                            const pc = workspaceConfig?.projects.find(p => p.name === proj.name);
+                            const projectTags = (pc?.tags ?? [])
+                              .map(tid => (workspaceConfig?.tags ?? []).find(tg => tg.id === tid))
+                              .filter(Boolean) as TagDefinition[];
+                            return projectTags.length > 0 ? (
+                              <div className="flex gap-1 ml-2 flex-wrap">
+                                {projectTags.map(tag => (
+                                  <span
+                                    key={tag.id}
+                                    className="px-1.5 py-0.5 rounded-full text-[10px] leading-tight"
+                                    style={{ backgroundColor: `${tag.color}22`, color: tag.color }}
+                                  >
+                                    {tag.name}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
                         <div className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
                           {workspaceConfig && onSaveConfig && (
                             <TooltipProvider delayDuration={300}>
@@ -1411,8 +1483,58 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                       )}
                     </div>
                   );
-                })}
-              </div>
+                };
+
+                const projectGrid = (projects: typeof mainWorkspace.projects) => (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: contentWidth >= 900 ? 'repeat(2, 1fr)' : '1fr',
+                    gap: '0.75rem',
+                  }}>
+                    {projects.map(renderProjectCard)}
+                  </div>
+                );
+
+                return tagGroups ? (
+                  // Grouped view
+                  <div className="space-y-4">
+                    {tagGroups.map(({ tag, projects: groupProjects }) => {
+                      const tagId = tag?.id ?? '__untagged__';
+                      const isCollapsed = collapsedTags.has(tagId);
+
+                      return (
+                        <div key={tagId}>
+                          {/* Group header */}
+                          <div
+                            className="flex items-center gap-2 mb-2 cursor-pointer select-none"
+                            onClick={() => toggleCollapse(tagId)}
+                          >
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                              {isCollapsed ? '\u25B6' : '\u25BC'}
+                            </span>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: tag?.color ?? 'var(--color-text-muted)' }}
+                            />
+                            <span className="text-sm font-medium text-[var(--color-text-primary)]">
+                              {tag?.name ?? t('tags.untagged')}
+                            </span>
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                              ({groupProjects.length})
+                            </span>
+                          </div>
+
+                          {/* Project cards grid */}
+                          {!isCollapsed && projectGrid(groupProjects)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  // Flat view (no tags defined)
+                  projectGrid(mainWorkspace.projects)
+                );
+              })()
             )}
 
           </>

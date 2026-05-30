@@ -563,6 +563,7 @@
   "themes.defaultLight": "默认浅色",
   "themes.solarizedLight": "Solarized Light",
   "themes.githubLight": "GitHub Light",
+  "tags.untagged": "无标签",
   "projectEdit.title": "项目设置 — {{name}}",
   "projectEdit.save": "保存",
   "projectEdit.cancel": "取消",

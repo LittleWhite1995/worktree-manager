@@ -572,6 +572,7 @@
   "themes.defaultLight": "Default Light",
   "themes.solarizedLight": "Solarized Light",
   "themes.githubLight": "GitHub Light",
+  "tags.untagged": "Untagged",
   "projectEdit.title": "Project Settings — {{name}}",
   "projectEdit.save": "Save",
   "projectEdit.cancel": "Cancel",
