@@ -82,7 +82,15 @@ pub fn run() {
         .on_window_event(|window, event| {
             match event {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
-                    // Check if there are active terminal sessions
+                    let is_main = window.label() == "main";
+
+                    // Secondary windows: always allow close without confirmation
+                    if !is_main {
+                        // Let the default close proceed; Destroyed event will handle cleanup
+                        return;
+                    }
+
+                    // Main window: check global state before closing
                     let terminal_count = {
                         if let Ok(manager) = PTY_MANAGER.lock() {
                             manager.session_count()
@@ -91,7 +99,6 @@ pub fn run() {
                         }
                     };
 
-                    // Check if sharing is active
                     let share_active = {
                         if let Ok(state) = SHARE_STATE.lock() {
                             state.active
@@ -105,7 +112,8 @@ pub fn run() {
                         let window = window.clone();
 
                         tauri::async_runtime::spawn(async move {
-                            // If terminals are open, ask user to confirm
+                            use tokio::time::{timeout, Duration};
+
                             if terminal_count > 0 {
                                 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
                                 let (tx, rx) = tokio::sync::oneshot::channel();
@@ -123,21 +131,35 @@ pub fn run() {
                                     .show(move |confirmed| {
                                         let _ = tx.send(confirmed);
                                     });
-                                if let Ok(false) = rx.await {
-                                    return;
+                                // Timeout: force close if dialog doesn't respond within 30s
+                                match timeout(Duration::from_secs(30), rx).await {
+                                    Ok(Ok(false)) => return,
+                                    Ok(Ok(true)) => {} // user confirmed
+                                    Ok(Err(_)) => {}   // channel dropped, proceed with close
+                                    Err(_) => {
+                                        log::warn!(
+                                            "Close confirmation dialog timed out, forcing close"
+                                        );
+                                    }
                                 }
                             }
 
-                            // Stop sharing if active
                             if share_active {
                                 log::info!("Window closing - stopping sharing first");
-                                if let Err(e) = stop_ngrok_tunnel().await {
-                                    log::warn!("Failed to stop ngrok tunnel on close: {}", e);
+                                // Timeout: don't let cleanup block close for more than 5s
+                                let cleanup = async {
+                                    if let Err(e) = stop_ngrok_tunnel().await {
+                                        log::warn!("Failed to stop ngrok tunnel on close: {}", e);
+                                    }
+                                    if let Err(e) = stop_sharing().await {
+                                        log::warn!("Failed to stop sharing on close: {}", e);
+                                    }
+                                };
+                                if timeout(Duration::from_secs(5), cleanup).await.is_err() {
+                                    log::warn!("Sharing cleanup timed out, forcing close");
+                                } else {
+                                    log::info!("Sharing stopped, closing window");
                                 }
-                                if let Err(e) = stop_sharing().await {
-                                    log::warn!("Failed to stop sharing on close: {}", e);
-                                }
-                                log::info!("Sharing stopped, closing window");
                             }
 
                             let _ = window.destroy();
@@ -187,6 +209,7 @@ pub fn run() {
             remove_project_from_config,
             sync_with_base_branch,
             push_to_remote,
+            pull_current_branch,
             merge_to_test_branch,
             merge_to_base_branch,
             get_branch_diff_stats,

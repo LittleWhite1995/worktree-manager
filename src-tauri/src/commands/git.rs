@@ -560,6 +560,15 @@ pub(crate) async fn push_to_remote(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub(crate) async fn pull_current_branch(path: String) -> Result<String, String> {
+    blocking(move || {
+        let normalized = normalize_path(&path);
+        git_ops::pull_current_branch(Path::new(&normalized))
+    })
+    .await
+}
+
+#[tauri::command]
 pub(crate) async fn merge_to_test_branch(
     path: String,
     test_branch: String,

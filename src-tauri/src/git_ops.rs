@@ -522,6 +522,57 @@ pub fn push_to_remote(path: &Path) -> Result<String, String> {
     Ok(format!("Successfully pushed {} to origin", current_branch))
 }
 
+/// Pull current branch from remote (git pull origin <current_branch>)
+pub fn pull_current_branch(path: &Path) -> Result<String, String> {
+    log::info!("[git] Pulling current branch: path={}", path.display());
+
+    // Step 1: Get current branch
+    let branch_output = git_command()
+        .arg("-C")
+        .arg(path)
+        .arg("rev-parse")
+        .arg("--abbrev-ref")
+        .arg("HEAD")
+        .output()
+        .map_err(|e| format!("Failed to get current branch: {}", e))?;
+
+    if !branch_output.status.success() {
+        log::error!("[git] Failed to get current branch at {}", path.display());
+        return Err("Failed to get current branch".to_string());
+    }
+
+    let current_branch = String::from_utf8_lossy(&branch_output.stdout)
+        .trim()
+        .to_string();
+
+    // Step 2: Pull from origin
+    log::info!("[git] Pulling branch '{}' from origin", current_branch);
+    let pull_output = git_command()
+        .arg("-C")
+        .arg(path)
+        .arg("pull")
+        .arg("origin")
+        .arg(&current_branch)
+        .output()
+        .map_err(|e| format!("Failed to execute git pull: {}", e))?;
+
+    if !pull_output.status.success() {
+        let stderr = String::from_utf8_lossy(&pull_output.stderr);
+        log::error!(
+            "[git] Pull failed for branch '{}': {}",
+            current_branch,
+            stderr
+        );
+        return Err(format!("Git pull failed: {}", stderr));
+    }
+
+    log::info!("[git] Successfully pulled '{}' from origin", current_branch);
+    Ok(format!(
+        "Successfully pulled {} from origin",
+        current_branch
+    ))
+}
+
 /// Helper to restore main worktree and checkout back to original branch on error/cleanup
 fn restore_merge_state(
     path: &Path,

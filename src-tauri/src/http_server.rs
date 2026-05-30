@@ -583,6 +583,18 @@ async fn h_push_to_remote(Json(args): Json<Value>) -> Response {
     result_json(result)
 }
 
+async fn h_pull_current_branch(Json(args): Json<Value>) -> Response {
+    let path = args["path"].as_str().unwrap_or("").to_string();
+    let normalized = normalize_path(&path);
+    let result = tokio::task::spawn_blocking(move || {
+        git_ops::pull_current_branch(std::path::Path::new(&normalized))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))
+    .and_then(|r| r);
+    result_json(result)
+}
+
 async fn h_merge_to_test_branch(Json(args): Json<Value>) -> Response {
     let path = args["path"].as_str().unwrap_or("").to_string();
     let test_branch = get_param(&args, "test_branch");
