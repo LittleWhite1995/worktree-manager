@@ -597,6 +597,8 @@
   "addProject.cloning": "克隆中...",
   "addProject.clone": "克隆",
   "addProject.cloneProject": "克隆项目",
+  "addProject.viewAll": "全部",
+  "addProject.viewByTag": "按标签",
   "addProject.cloneTab": "克隆",
   "addProject.existingTab": "添加已有",
   "addProject.selectLinkedFolders": "选择链接文件夹",

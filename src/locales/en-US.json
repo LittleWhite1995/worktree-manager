@@ -589,6 +589,8 @@
   "projectEdit.createTag": "Create New Tag",
   "projectEdit.tagManageHint": "Go to Settings for full tag management",
   "projectEdit.saved": "Project settings saved",
+  "addProject.viewAll": "All",
+  "addProject.viewByTag": "By Tag",
   "addProject.title": "Add Project",
   "addProject.repoUrl": "Repository URL",
   "addProject.repoUrlPlaceholder": "https://github.com/user/repo.git",

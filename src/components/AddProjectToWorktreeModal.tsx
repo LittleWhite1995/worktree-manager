@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react';
+import { useState, useMemo, type FC } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import {
   Dialog,
@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PlusIcon } from './Icons';
-import type { WorkspaceConfig, WorktreeListItem } from '../types';
+import type { WorkspaceConfig, WorktreeListItem, TagDefinition } from '../types';
 
 interface AddProjectToWorktreeModalProps {
   open: boolean;
@@ -38,6 +38,8 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
   const { t } = useTranslation();
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [baseBranch, setBaseBranch] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'all' | 'byTag'>('all');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   if (!config || !worktree) return null;
 
@@ -66,8 +68,57 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
     if (!open) {
       setSelectedProject(null);
       setBaseBranch('');
+      setViewMode('all');
+      setCollapsedGroups(new Set());
     }
     onOpenChange(open);
+  };
+
+  // Tag grouping logic
+  const tagGroups = useMemo(() => {
+    const tags = config?.tags ?? [];
+    if (tags.length === 0) return null;
+
+    const groups: Array<{ tag: TagDefinition | null; projects: typeof availableProjects }> = [];
+
+    for (const tag of tags) {
+      const tagProjects = availableProjects.filter(p => {
+        const pc = config?.projects.find(pc => pc.name === p.name);
+        return (pc?.tags ?? []).includes(tag.id);
+      });
+      if (tagProjects.length > 0) {
+        groups.push({ tag, projects: tagProjects });
+      }
+    }
+
+    // Untagged
+    const taggedNames = new Set(
+      tags.flatMap(tag =>
+        config!.projects.filter(pc => (pc.tags ?? []).includes(tag.id)).map(pc => pc.name)
+      )
+    );
+    const untagged = availableProjects.filter(p => !taggedNames.has(p.name));
+    if (untagged.length > 0) {
+      groups.push({ tag: null, projects: untagged });
+    }
+
+    return groups;
+  }, [config, availableProjects]);
+
+  const toggleGroupCollapse = (tagId: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
+      return next;
+    });
+  };
+
+  const getProjectTags = (projectName: string): TagDefinition[] => {
+    const pc = config?.projects.find(p => p.name === projectName);
+    return (pc?.tags ?? [])
+      .map(tid => (config?.tags ?? []).find(t => t.id === tid))
+      .filter((t): t is TagDefinition => !!t);
   };
 
   return (
@@ -95,37 +146,133 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('addProjectToWorktree.selectProject')}</label>
-                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
-                  {availableProjects.map(proj => (
-                    <div
-                      key={proj.name}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                        selectedProject === proj.name
-                          ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50"
-                          : "bg-[var(--color-bg-base)]/50 border-[var(--color-border)] hover:border-[var(--color-border)]"
-                      }`}
-                      onClick={() => handleProjectSelect(proj.name)}
+
+                {/* Tab switcher — only shown when tags exist */}
+                {tagGroups && (
+                  <div className="flex gap-0 border-b border-[var(--color-border)] mb-4">
+                    <button
+                      className={`px-4 py-2 text-sm transition-colors ${viewMode === 'all' ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)] font-medium' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+                      onClick={() => setViewMode('all')}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            selectedProject === proj.name
-                              ? "border-[var(--color-accent)] bg-[var(--color-accent)]"
-                              : "border-[var(--color-text-muted)]"
-                          }`}>
-                            {selectedProject === proj.name && (
-                              <div className="w-2 h-2 rounded-full bg-white" />
-                            )}
+                      {t('addProject.viewAll')}
+                    </button>
+                    <button
+                      className={`px-4 py-2 text-sm transition-colors ${viewMode === 'byTag' ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)] font-medium' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+                      onClick={() => setViewMode('byTag')}
+                    >
+                      {t('addProject.viewByTag')}
+                    </button>
+                  </div>
+                )}
+
+                {viewMode === 'byTag' && tagGroups ? (
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                    {tagGroups.map(({ tag, projects: groupProjects }) => {
+                      const tagId = tag?.id ?? '__untagged__';
+                      const isCollapsed = collapsedGroups.has(tagId);
+
+                      return (
+                        <div key={tagId} className="bg-[var(--color-bg-elevated)]/50 rounded-lg overflow-hidden">
+                          {/* Group header */}
+                          <div
+                            className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none hover:bg-[var(--color-bg-elevated)] transition-colors"
+                            onClick={() => toggleGroupCollapse(tagId)}
+                          >
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                              {isCollapsed ? '▶' : '▼'}
+                            </span>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: tag?.color ?? 'var(--color-text-muted)' }}
+                            />
+                            <span className="font-medium text-sm">{tag?.name ?? t('tags.untagged')}</span>
+                            <span className="text-xs text-[var(--color-text-muted)]">({groupProjects.length})</span>
                           </div>
-                          <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
+
+                          {/* Projects in this group */}
+                          {!isCollapsed && (
+                            <div className="px-2 pb-2 space-y-1">
+                              {groupProjects.map(proj => (
+                                <div
+                                  key={proj.name}
+                                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                    selectedProject === proj.name
+                                      ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50"
+                                      : "bg-[var(--color-bg-base)]/50 border-[var(--color-border)] hover:border-[var(--color-border)]"
+                                  }`}
+                                  onClick={() => handleProjectSelect(proj.name)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                        selectedProject === proj.name
+                                          ? "border-[var(--color-accent)] bg-[var(--color-accent)]"
+                                          : "border-[var(--color-text-muted)]"
+                                      }`}>
+                                        {selectedProject === proj.name && (
+                                          <div className="w-2 h-2 rounded-full bg-white" />
+                                        )}
+                                      </div>
+                                      <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
+                                    </div>
+                                    {/* Tag chips */}
+                                    <div className="flex gap-1">
+                                      {getProjectTags(proj.name).map(tag => (
+                                        <span
+                                          key={tag.id}
+                                          className="px-1.5 py-0.5 rounded-full text-[10px]"
+                                          style={{ backgroundColor: `${tag.color}22`, color: tag.color }}
+                                        >
+                                          {tag.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="text-[var(--color-text-muted)] text-xs mt-1.5 pl-7">
+                                    {t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  // Flat list view
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                    {availableProjects.map(proj => (
+                      <div
+                        key={proj.name}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                          selectedProject === proj.name
+                            ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50"
+                            : "bg-[var(--color-bg-base)]/50 border-[var(--color-border)] hover:border-[var(--color-border)]"
+                        }`}
+                        onClick={() => handleProjectSelect(proj.name)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                              selectedProject === proj.name
+                                ? "border-[var(--color-accent)] bg-[var(--color-accent)]"
+                                : "border-[var(--color-text-muted)]"
+                            }`}>
+                              {selectedProject === proj.name && (
+                                <div className="w-2 h-2 rounded-full bg-white" />
+                              )}
+                            </div>
+                            <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
+                          </div>
+                        </div>
+                        <div className="text-[var(--color-text-muted)] text-xs mt-1.5 pl-7">
+                          {t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}
                         </div>
                       </div>
-                      <div className="text-[var(--color-text-muted)] text-xs mt-1.5 pl-7">
-                        {t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {selectedProjectConfig && (
