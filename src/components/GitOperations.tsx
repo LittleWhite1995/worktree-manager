@@ -292,6 +292,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
       addLog(projectPath, { level: 'success', operation: actionName, message: result || `${actionName} completed` });
       await loadStats();
       onRefresh?.();
+      onSilentRefresh?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       addLog(projectPath, { level: 'error', operation: actionName, message: msg, detail: msg });
@@ -461,6 +462,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
       }
       await loadStats();
       onRefresh?.();
+      onSilentRefresh?.();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {
