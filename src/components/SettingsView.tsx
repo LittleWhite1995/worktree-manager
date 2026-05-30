@@ -33,11 +33,7 @@ import type { CloudStatus, PairingStatus } from '../lib/backend';
 
 const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
 
-const TAG_PRESET_COLORS = [
-  '#4caf50', '#ff9800', '#2196f3', '#e91e63',
-  '#9c27b0', '#00bcd4', '#ff5722', '#607d8b',
-  '#8bc34a', '#ffc107',
-];
+import { TAG_PRESET_COLORS } from '../constants';
 
 // ==================== VaultItemTree (recursive) ====================
 interface VaultItemTreeProps {
@@ -617,6 +613,8 @@ export const SettingsView: FC<SettingsViewProps> = ({
       })),
     }));
   }, []);
+
+  const [openColorPickerId, setOpenColorPickerId] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -1536,32 +1534,30 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       return (
                         <div key={tag.id} className="flex items-center gap-2 bg-[var(--color-bg-base)]/50 border border-[var(--color-border)]/30 rounded-lg px-3 py-2">
                           {/* Color picker - dropdown of preset colors */}
-                          <div className="relative group">
+                          <div className="relative">
                             <button
                               className="w-5 h-5 rounded-full border-2 border-[var(--color-border)] shrink-0"
                               style={{ backgroundColor: tag.color }}
-                              onClick={(e) => {
-                                // Toggle color picker popover
-                                const el = e.currentTarget.nextElementSibling;
-                                if (el) (el as HTMLElement).classList.toggle('hidden');
-                              }}
+                              aria-label={t('settings.tagColor')}
+                              onClick={() => setOpenColorPickerId(openColorPickerId === tag.id ? null : tag.id)}
                             />
-                            <div className="hidden absolute z-10 top-7 left-0 bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-lg p-2 shadow-lg grid grid-cols-5 gap-1.5">
-                              {TAG_PRESET_COLORS.map(color => (
-                                <button
-                                  key={color}
-                                  className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${
-                                    tag.color === color ? 'border-[var(--color-accent)] scale-110' : 'border-transparent'
-                                  }`}
-                                  style={{ backgroundColor: color }}
-                                  onClick={(e) => {
-                                    handleUpdateTag(tag.id, 'color', color);
-                                    // Close popover
-                                    (e.currentTarget.parentElement as HTMLElement).classList.add('hidden');
-                                  }}
-                                />
-                              ))}
-                            </div>
+                            {openColorPickerId === tag.id && (
+                              <div className="absolute z-10 top-7 left-0 bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-lg p-2 shadow-lg grid grid-cols-5 gap-1.5">
+                                {TAG_PRESET_COLORS.map(color => (
+                                  <button
+                                    key={color}
+                                    className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${
+                                      tag.color === color ? 'border-[var(--color-accent)] scale-110' : 'border-transparent'
+                                    }`}
+                                    style={{ backgroundColor: color }}
+                                    onClick={() => {
+                                      handleUpdateTag(tag.id, 'color', color);
+                                      setOpenColorPickerId(null);
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           {/* Tag name input */}

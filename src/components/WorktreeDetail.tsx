@@ -129,6 +129,7 @@ interface IdeIconButtonProps {
   editors: Array<{ id: string; name: string }>;
   defaultEditorId: string;
   onOpen: (path: string, editorId: string) => void;
+  onDefaultEditorChange?: () => void;
 }
 
 const IdeIconButton: FC<IdeIconButtonProps> = ({
@@ -137,6 +138,7 @@ const IdeIconButton: FC<IdeIconButtonProps> = ({
   editors,
   defaultEditorId,
   onOpen,
+  onDefaultEditorChange,
 }) => {
   const { t } = useTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -148,6 +150,7 @@ const IdeIconButton: FC<IdeIconButtonProps> = ({
       const prefs = JSON.parse(localStorage.getItem('project_preferred_editors') || '{}');
       prefs[projectName] = editorId;
       localStorage.setItem('project_preferred_editors', JSON.stringify(prefs));
+      onDefaultEditorChange?.();
     } catch { /* ignore */ }
   };
 
@@ -709,6 +712,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
 
   const selectedEditorName = detectedEditors.find((e: { id: string; name: string }) => e.id === selectedEditor)?.name || selectedEditor;
 
+  // Bump version to force getProjectEditor re-computation after localStorage change
+  const [editorPrefsVersion, setEditorPrefsVersion] = useState(0);
+  const handleEditorPrefsChange = useCallback(() => setEditorPrefsVersion(v => v + 1), []);
+
   // Per-project IDE preference: returns project-specific editor or global default
   // Falls back to first visible editor if the preferred one is no longer available
   const getProjectEditor = useCallback((projName: string): string => {
@@ -724,7 +731,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     // Fallback: global selected editor if still visible, otherwise first in list
     if (detectedEditors.some(e => e.id === selectedEditor)) return selectedEditor;
     return detectedEditors[0]?.id || selectedEditor;
-  }, [selectedEditor, detectedEditors]);
+  }, [selectedEditor, detectedEditors, editorPrefsVersion]);
 
   const [switchingBranch, setSwitchingBranch] = useState<string[]>([]);
   const [worktreeAction, setWorktreeAction] = useState<'syncAll' | 'pullAll' | 'refreshAll' | null>(null);
@@ -944,6 +951,8 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
       const projectPaths = selectedWorktree.projects.map(p => p.path);
       await syncAllProjectsToBase(projectPaths);
       onSilentRefresh?.();
+    } catch (e: unknown) {
+      toast('error', e instanceof Error ? e.message : String(e));
     } finally {
       setWorktreeAction(null);
     }
@@ -953,10 +962,16 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     if (!selectedWorktree) return;
     setWorktreeAction('pullAll');
     try {
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         selectedWorktree.projects.map(p => pullCurrentBranch(p.path))
       );
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        toast('error', t('detail.pullAllFailed', { count: failed.length, total: results.length }));
+      }
       onSilentRefresh?.();
+    } catch (e: unknown) {
+      toast('error', e instanceof Error ? e.message : String(e));
     } finally {
       setWorktreeAction(null);
     }
@@ -965,7 +980,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   const handleWorktreeRefreshAll = async () => {
     setWorktreeAction('refreshAll');
     try {
-      onRefresh?.();
+      await onRefresh?.();
     } finally {
       setWorktreeAction(null);
     }
@@ -1237,6 +1252,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                                   editors={detectedEditors}
                                   defaultEditorId={getProjectEditor(proj.name)}
                                   onOpen={(path, editorId) => onOpenInEditor(path, editorId as any)}
+                                  onDefaultEditorChange={handleEditorPrefsChange}
                                 />
                                 <TerminalIconButton
                                   projectPath={projectPath}
@@ -1346,6 +1362,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                               editors={detectedEditors}
                               defaultEditorId={getProjectEditor(proj.name)}
                               onOpen={(path, editorId) => onOpenInEditor(path, editorId as any)}
+                              onDefaultEditorChange={handleEditorPrefsChange}
                             />
                           )}
                           {isTauri() && (
@@ -1582,14 +1599,19 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
             workspacePath={mainWorkspace?.path ?? ''}
             workspaceConfig={workspaceConfig}
             onSave={async (updatedProject, updatedConfig) => {
-              const newConfig = {
-                ...updatedConfig,
-                projects: updatedConfig.projects.map(p =>
-                  p.name === updatedProject.name ? updatedProject : p
-                ),
-              };
-              await onSaveConfig(newConfig);
-              setEditingProject(null);
+              try {
+                const newConfig = {
+                  ...updatedConfig,
+                  projects: updatedConfig.projects.map(p =>
+                    p.name === updatedProject.name ? updatedProject : p
+                  ),
+                };
+                await onSaveConfig(newConfig);
+                onSilentRefresh?.();
+                setEditingProject(null);
+              } catch (e: unknown) {
+                toast('error', e instanceof Error ? e.message : String(e));
+              }
             }}
           />
         )}
@@ -1871,6 +1893,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                           editors={detectedEditors}
                           defaultEditorId={getProjectEditor(proj.name)}
                           onOpen={(path, editorId) => onOpenInEditor(path, editorId as any)}
+                          onDefaultEditorChange={handleEditorPrefsChange}
                         />
                         <TooltipProvider delayDuration={300}>
                           <Tooltip>

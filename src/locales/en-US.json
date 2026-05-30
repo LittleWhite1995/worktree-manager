@@ -141,6 +141,7 @@
   "detail.pullAllTip": "Pull latest for all projects",
   "detail.refreshAll": "Refresh All",
   "detail.refreshAllTip": "Fetch remote info and refresh data",
+  "detail.pullAllFailed": "{{count}}/{{total}} projects failed to pull",
   "git.commitAll": "Commit",
   "git.commitOnly": "Commit Only",
   "git.committing": "Committing...",

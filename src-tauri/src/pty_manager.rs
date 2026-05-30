@@ -868,12 +868,14 @@ impl PtyManager {
     }
 
     pub fn close_session(&mut self, id: &str, reason: &str) -> Result<(), String> {
-        if let Some(session) = self.sessions.write().unwrap().remove(id) {
+        let removed = self.sessions.write().unwrap().remove(id);
+        if let Some(session) = removed {
+            let remaining = self.sessions.read().unwrap().len();
             log::info!(
                 "[pty] Closing session '{}', reason: '{}'. Remaining sessions: {}",
                 id,
                 reason,
-                self.sessions.read().unwrap().len()
+                remaining
             );
             // Spawn a background thread so the main thread never blocks on child.wait().
             std::thread::spawn(move || {

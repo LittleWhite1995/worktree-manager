@@ -20,11 +20,7 @@ import { BranchCombobox } from './BranchCombobox';
 import { PlusIcon } from './Icons';
 import { getRemoteBranches, callBackend } from '@/lib/backend';
 import type { ProjectConfig, WorkspaceConfig, TagDefinition, ScannedFolder } from '../types';
-
-const TAG_COLOR_PRESETS = [
-  '#4caf50', '#ff9800', '#2196f3', '#e91e63', '#9c27b0',
-  '#00bcd4', '#ff5722', '#607d8b', '#8bc34a', '#ffc107',
-];
+import { TAG_PRESET_COLORS } from '../constants';
 
 interface ProjectEditModalProps {
   open: boolean;
@@ -61,7 +57,7 @@ export const ProjectEditModal: FC<ProjectEditModalProps> = ({
   // New tag creation
   const [showNewTag, setShowNewTag] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState(TAG_COLOR_PRESETS[0]);
+  const [newTagColor, setNewTagColor] = useState(TAG_PRESET_COLORS[0]);
 
   // Linked folder scanning
   const [scanResults, setScanResults] = useState<ScannedFolder[]>([]);
@@ -82,7 +78,7 @@ export const ProjectEditModal: FC<ProjectEditModalProps> = ({
       setWorkspaceTags(workspaceConfig.tags || []);
       setShowNewTag(false);
       setNewTagName('');
-      setNewTagColor(TAG_COLOR_PRESETS[0]);
+      setNewTagColor(TAG_PRESET_COLORS[0]);
       setScanResults([]);
       setNewFolder('');
     }
@@ -141,7 +137,7 @@ export const ProjectEditModal: FC<ProjectEditModalProps> = ({
     setWorkspaceTags(prev => [...prev, newTag]);
     setSelectedTags(prev => [...prev, newTag.id]);
     setNewTagName('');
-    setNewTagColor(TAG_COLOR_PRESETS[(workspaceTags.length + 1) % TAG_COLOR_PRESETS.length]);
+    setNewTagColor(TAG_PRESET_COLORS[(workspaceTags.length + 1) % TAG_PRESET_COLORS.length]);
     setShowNewTag(false);
   };
 
@@ -304,7 +300,7 @@ export const ProjectEditModal: FC<ProjectEditModalProps> = ({
                   autoFocus
                 />
                 <div className="flex gap-0.5">
-                  {TAG_COLOR_PRESETS.slice(0, 6).map(color => (
+                  {TAG_PRESET_COLORS.slice(0, 6).map(color => (
                     <button
                       key={color}
                       type="button"

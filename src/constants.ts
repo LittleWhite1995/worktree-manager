@@ -33,3 +33,10 @@ export function getTerminalMaxHeight(viewportHeight: number): number {
 export function clampTerminalHeight(height: number, viewportHeight: number): number {
   return Math.max(TERMINAL.MIN_HEIGHT, Math.min(getTerminalMaxHeight(viewportHeight), height));
 }
+
+// Tag color presets
+export const TAG_PRESET_COLORS = [
+  '#4caf50', '#ff9800', '#2196f3', '#e91e63',
+  '#9c27b0', '#00bcd4', '#ff5722', '#607d8b',
+  '#8bc34a', '#ffc107',
+];

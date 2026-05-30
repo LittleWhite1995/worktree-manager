@@ -137,6 +137,7 @@
   "detail.pullAllTip": "拉取所有项目当前分支最新代码",
   "detail.refreshAll": "全部刷新",
   "detail.refreshAllTip": "获取远程信息并刷新数据",
+  "detail.pullAllFailed": "{{count}}/{{total}} 个项目拉取失败",
   "git.commitAll": "提交",
   "git.commitOnly": "仅提交",
   "git.committing": "提交中...",

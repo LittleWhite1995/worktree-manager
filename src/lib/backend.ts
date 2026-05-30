@@ -73,7 +73,7 @@ const LONG_RUNNING_COMMANDS = new Set([
   'create_worktree', 'archive_worktree', 'restore_worktree', 'delete_archived_worktree',
   'clone_project', 'deploy_to_main', 'start_sharing', 'start_ngrok_tunnel',
   'fetch_project_remote', 'sync_with_base_branch', 'sync_all_projects_to_base',
-  'push_to_remote', 'push_sync_to_base_branch', 'merge_base_branch',
+  'push_to_remote', 'pull_current_branch', 'push_sync_to_base_branch', 'merge_base_branch',
   'download_update_via_mirror',
 ]);
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -102,10 +102,11 @@ export async function callBackend<T = unknown>(
     const { invoke } = await import('@tauri-apps/api/core');
     const result = invoke<T>(command, args);
     // Tauri IPC timeout guard: reject if backend doesn't respond
-    const timer = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`[ipc] ${command} timed out after ${timeoutMs}ms`)), timeoutMs)
-    );
-    return Promise.race([result, timer]).then(logResult, logError);
+    let timerId: ReturnType<typeof setTimeout>;
+    const timer = new Promise<never>((_, reject) => {
+      timerId = setTimeout(() => reject(new Error(`[ipc] ${command} timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
+    return Promise.race([result, timer]).then(logResult, logError).finally(() => clearTimeout(timerId));
   }
 
   const controller = new AbortController();
