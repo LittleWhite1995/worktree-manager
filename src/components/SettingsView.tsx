@@ -27,11 +27,17 @@ import { RefreshCw, Search, Mic, Eye, EyeOff, Settings, Globe, Info, Trash2, Wre
 import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
 import { BranchCombobox } from './BranchCombobox';
-import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild, FailedVaultItem } from '../types';
+import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild, FailedVaultItem, TagDefinition } from '../types';
 import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect, getCommitAiApiKey, setCommitAiApiKey as saveCommitAiApiKey, setCommitAiEnabled as saveCommitAiEnabled, getCommitAiEnabled } from '../lib/backend';
 import type { CloudStatus, PairingStatus } from '../lib/backend';
 
 const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
+
+const TAG_PRESET_COLORS = [
+  '#4caf50', '#ff9800', '#2196f3', '#e91e63',
+  '#9c27b0', '#00bcd4', '#ff5722', '#607d8b',
+  '#8bc34a', '#ffc107',
+];
 
 // ==================== VaultItemTree (recursive) ====================
 interface VaultItemTreeProps {
@@ -584,6 +590,31 @@ export const SettingsView: FC<SettingsViewProps> = ({
     setConfig(prev => ({
       ...prev,
       linked_workspace_items: prev.linked_workspace_items.filter((_, i) => i !== index),
+    }));
+  }, []);
+
+  const handleAddTag = useCallback(() => {
+    const usedColors = new Set((config.tags ?? []).map(t => t.color));
+    const nextColor = TAG_PRESET_COLORS.find(c => !usedColors.has(c)) ?? TAG_PRESET_COLORS[0];
+    const newTag: TagDefinition = { id: crypto.randomUUID(), name: '', color: nextColor };
+    setConfig(prev => ({ ...prev, tags: [...(prev.tags ?? []), newTag] }));
+  }, [config.tags]);
+
+  const handleUpdateTag = useCallback((tagId: string, field: 'name' | 'color', value: string) => {
+    setConfig(prev => ({
+      ...prev,
+      tags: (prev.tags ?? []).map(t => t.id === tagId ? { ...t, [field]: value } : t),
+    }));
+  }, []);
+
+  const handleDeleteTag = useCallback((tagId: string) => {
+    setConfig(prev => ({
+      ...prev,
+      tags: (prev.tags ?? []).filter(t => t.id !== tagId),
+      projects: prev.projects.map(p => ({
+        ...p,
+        tags: (p.tags ?? []).filter(t => t !== tagId),
+      })),
     }));
   }, []);
 
@@ -1487,6 +1518,102 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Tag Management */}
+                <div className="border-t border-[var(--color-border)]/30 pt-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+                      <Palette className="w-4 h-4" />
+                      {t('settings.tagsTitle')}
+                    </h3>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{t('settings.tagsDescription')}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(config.tags ?? []).map(tag => {
+                      const projectCount = config.projects.filter(p => (p.tags ?? []).includes(tag.id)).length;
+                      return (
+                        <div key={tag.id} className="flex items-center gap-2 bg-[var(--color-bg-base)]/50 border border-[var(--color-border)]/30 rounded-lg px-3 py-2">
+                          {/* Color picker - dropdown of preset colors */}
+                          <div className="relative group">
+                            <button
+                              className="w-5 h-5 rounded-full border-2 border-[var(--color-border)] shrink-0"
+                              style={{ backgroundColor: tag.color }}
+                              onClick={(e) => {
+                                // Toggle color picker popover
+                                const el = e.currentTarget.nextElementSibling;
+                                if (el) (el as HTMLElement).classList.toggle('hidden');
+                              }}
+                            />
+                            <div className="hidden absolute z-10 top-7 left-0 bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-lg p-2 shadow-lg grid grid-cols-5 gap-1.5">
+                              {TAG_PRESET_COLORS.map(color => (
+                                <button
+                                  key={color}
+                                  className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${
+                                    tag.color === color ? 'border-[var(--color-accent)] scale-110' : 'border-transparent'
+                                  }`}
+                                  style={{ backgroundColor: color }}
+                                  onClick={(e) => {
+                                    handleUpdateTag(tag.id, 'color', color);
+                                    // Close popover
+                                    (e.currentTarget.parentElement as HTMLElement).classList.add('hidden');
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Tag name input */}
+                          <Input
+                            type="text"
+                            value={tag.name}
+                            onChange={(e) => handleUpdateTag(tag.id, 'name', e.target.value)}
+                            placeholder={t('settings.tagName')}
+                            className="h-7 text-xs flex-1"
+                          />
+
+                          {/* Project count */}
+                          <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">
+                            {t('settings.tagProjects', { count: projectCount })}
+                          </span>
+
+                          {/* Delete button */}
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    if (projectCount > 0) {
+                                      if (!confirm(t('settings.deleteTagConfirm', { name: tag.name, count: projectCount }))) return;
+                                    }
+                                    handleDeleteTag(tag.id);
+                                  }}
+                                  className="h-6 w-6 text-[var(--color-error)]/60 hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 shrink-0"
+                                >
+                                  <TrashIcon className="w-3.5 h-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">{t('settings.deleteTag')}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Add new tag button */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAddTag}
+                    className="text-xs gap-1.5 text-[var(--color-text-secondary)]"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    {t('settings.addTag')}
+                  </Button>
                 </div>
 
                 {/* Delete Workspace */}
