@@ -48,7 +48,6 @@ import {
 import type { LogEntry } from '@/lib/operationLog';
 import { GitOperations } from './GitOperations';
 import { useToast } from './Toast';
-import { IdePickerContextMenu } from './ContextMenus';
 import { EDITORS } from '../constants';
 import { isTauri, openLink, getVaultStatus, syncAllProjectsToBase, type BranchDiffStats } from '@/lib/backend';
 import type {
@@ -134,25 +133,27 @@ const IdeIconButton: FC<IdeIconButtonProps> = ({
 }) => {
   const { t } = useTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [showEditorMenu, setShowEditorMenu] = useState(false);
   const currentEditor = editors.find((e) => e.id === defaultEditorId);
 
+  const handleSetDefaultEditor = (editorId: string) => {
+    try {
+      const prefs = JSON.parse(localStorage.getItem('project_preferred_editors') || '{}');
+      prefs[projectName] = editorId;
+      localStorage.setItem('project_preferred_editors', JSON.stringify(prefs));
+    } catch { /* ignore */ }
+  };
+
   return (
-    <>
-      <TooltipProvider delayDuration={300}>
-        <Tooltip>
-          <TooltipTrigger asChild>
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center">
             <Button
               ref={buttonRef}
               variant="ghost"
               size="icon"
               onClick={() => onOpen(projectPath, defaultEditorId)}
-              onMouseDown={(e) => {
-                if (e.button !== 2) return;
-                e.preventDefault();
-                e.stopPropagation();
-                setAnchorRect(buttonRef.current?.getBoundingClientRect() ?? null);
-              }}
               onContextMenu={(e) => e.preventDefault()}
               aria-label={t('detail.openInEditorProject', {
                 editor: currentEditor?.name ?? defaultEditorId,
@@ -162,19 +163,64 @@ const IdeIconButton: FC<IdeIconButtonProps> = ({
             >
               <EditorIcon editorId={defaultEditorId} className="w-4.5 h-4.5" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{t('detail.openInEditorLabel', { editor: currentEditor?.name ?? defaultEditorId })}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      {anchorRect && (
-        <IdePickerContextMenu
-          anchorRect={anchorRect}
-          editors={editors}
-          onSelect={(editorId) => onOpen(projectPath, editorId)}
-          onClose={() => setAnchorRect(null)}
-        />
-      )}
-    </>
+            {editors.length > 0 && (
+              <DropdownMenu open={showEditorMenu} onOpenChange={setShowEditorMenu}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-l-none px-1"
+                  >
+                    <ChevronDownIcon className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {editors.map(editor => (
+                    <div
+                      key={editor.id}
+                      className="flex items-center rounded-sm text-sm hover:bg-[var(--color-bg-elevated)] transition-colors"
+                    >
+                      {/* Radio: set as default, does NOT open IDE */}
+                      <button
+                        className="px-2 py-1.5 flex items-center justify-center hover:bg-[var(--color-bg-elevated)] transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSetDefaultEditor(editor.id);
+                        }}
+                      >
+                        <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          editor.id === defaultEditorId
+                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)]'
+                            : 'border-[var(--color-text-muted)]'
+                        }`}>
+                          {editor.id === defaultEditorId && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          )}
+                        </div>
+                      </button>
+                      {/* Divider */}
+                      <div className="w-px h-5 bg-[var(--color-border)]" />
+                      {/* Editor name: open IDE, does NOT set as default */}
+                      <button
+                        className="flex-1 min-w-0 text-left px-2 py-1.5 flex items-center gap-2 hover:bg-[var(--color-bg-elevated)] transition-colors rounded-r-sm"
+                        onClick={() => {
+                          onOpen(projectPath, editor.id);
+                          setShowEditorMenu(false);
+                        }}
+                      >
+                        <EditorIcon editorId={editor.id} className="w-4 h-4 shrink-0" />
+                        <span className="flex-1 truncate">{editor.name}</span>
+                      </button>
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{t('detail.openInEditorLabel', { editor: currentEditor?.name ?? defaultEditorId })}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
