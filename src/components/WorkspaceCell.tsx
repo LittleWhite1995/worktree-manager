@@ -220,6 +220,8 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
                   onDeployToMain={isTauri() ? mainOccupation.deployToMain : undefined}
                   onExitOccupation={mainOccupation.exitOccupation}
                   onRefreshAfterDeploy={() => { setSelectedWorktree(null); workspace.loadData(); }}
+                  workspaceConfig={workspace.config}
+                  onSaveConfig={workspace.saveConfig}
                 />
               </div>
             )}

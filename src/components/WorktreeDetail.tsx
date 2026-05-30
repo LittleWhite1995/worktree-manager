@@ -31,6 +31,7 @@ import {
   GithubIcon,
   EditorIcon,
   FileIcon,
+  SettingsIcon,
 } from './Icons';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -55,9 +56,12 @@ import type {
   MainWorkspaceStatus,
   MainWorkspaceOccupation,
   ProjectStatus,
+  ProjectConfig,
+  WorkspaceConfig,
   EditorType,
   VaultStatus,
 } from '../types';
+import { ProjectEditModal } from './ProjectEditModal';
 
 const StatusBadges: FC<{ project: ProjectStatus }> = ({ project }) => {
   const { t } = useTranslation();
@@ -112,6 +116,8 @@ interface WorktreeDetailProps {
   onDeployToMain?: (name: string) => Promise<any>;
   onExitOccupation?: (force?: boolean) => Promise<any>;
   onRefreshAfterDeploy?: () => void;
+  workspaceConfig?: WorkspaceConfig | null;
+  onSaveConfig?: (config: WorkspaceConfig) => Promise<void>;
 }
 
 // --- IdeIconButton ---
@@ -645,6 +651,8 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   onDeployToMain,
   onExitOccupation,
   onRefreshAfterDeploy,
+  workspaceConfig,
+  onSaveConfig,
 }) => {
   const { t } = useTranslation();
   // Live stats from GitOperations, keyed by project path
@@ -656,6 +664,9 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
       return { ...prev, [path]: stats };
     });
   }, []);
+
+  // Project edit modal state
+  const [editingProject, setEditingProject] = useState<ProjectConfig | null>(null);
 
   // Dynamic editor list from system detection (auto-detected on startup)
   const readDetectedEditors = useCallback((): Array<{ id: string; name: string }> => {
@@ -1187,6 +1198,24 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
                         <div className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
+                          {workspaceConfig && onSaveConfig && (
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => {
+                                      const projectConfig = workspaceConfig.projects.find(p => p.name === proj.name);
+                                      if (projectConfig) setEditingProject(projectConfig);
+                                    }}
+                                    className="p-1 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                                  >
+                                    <SettingsIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">{t('detail.projectSettings')}</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {isTauri() && (
                             <TooltipProvider delayDuration={300}>
                               <Tooltip>
@@ -1387,6 +1416,26 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
             )}
 
           </>
+
+        {editingProject && workspaceConfig && onSaveConfig && (
+          <ProjectEditModal
+            open={!!editingProject}
+            onOpenChange={(open) => { if (!open) setEditingProject(null); }}
+            project={editingProject}
+            workspacePath={mainWorkspace?.path ?? ''}
+            workspaceConfig={workspaceConfig}
+            onSave={async (updatedProject, updatedConfig) => {
+              const newConfig = {
+                ...updatedConfig,
+                projects: updatedConfig.projects.map(p =>
+                  p.name === updatedProject.name ? updatedProject : p
+                ),
+              };
+              await onSaveConfig(newConfig);
+              setEditingProject(null);
+            }}
+          />
+        )}
       </div>
     );
   }
