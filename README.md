@@ -8,76 +8,56 @@
 
 Work on multiple branches simultaneously, across multiple repos, without `stash`, `clone`, or context-switching pain.
 
-Desktop app + browser remote access. Built with Tauri 2, React 19, and Rust.
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/guoyongchang/worktree-manager)](https://github.com/guoyongchang/worktree-manager/releases)
-[![CI](https://github.com/guoyongchang/worktree-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/guoyongchang/worktree-manager/actions/workflows/ci.yml)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/guoyongchang/worktree-manager/releases)
+[![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
+
+<p align="center">
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-screenshots">Screenshots</a> •
+  <a href="#-faq">FAQ</a> •
+  <a href="README.zh-CN.md">中文</a>
+</p>
 
 [**Download**](https://github.com/guoyongchang/worktree-manager/releases) |
 [Documentation](https://guoyongchang.github.io/worktree-manager/) |
-[MCP Integration](docs/MCP.md) |
-[中文](README.zh-CN.md)
+[MCP Integration](docs/MCP.md)
 
 </div>
 
 ---
 
-## The Problem
+## Why Worktree Manager?
 
 You're deep in a feature branch. Fifteen files changed. Dev server running. Then Slack pings: **production is down**.
 
-Traditional workflow: `git stash` &rarr; switch branch &rarr; `npm install` (different lockfile) &rarr; wait for rebuild &rarr; fix the bug &rarr; switch back &rarr; `git stash pop` &rarr; pray for no conflicts &rarr; restart dev server. **15 minutes minimum**, while production burns.
+**Without Worktree Manager** — `git stash` → switch branch → `npm install` → wait for rebuild → fix → switch back → `git stash pop` → pray for no conflicts → restart dev server. **15 minutes minimum.**
 
-**With Worktree Manager**: click "New Worktree", type `hotfix-payment`, done. Your feature branch dev server keeps running. Dependencies are shared via symlink &mdash; instant setup. Fix, push, archive. **30 seconds of switching cost.**
+**With Worktree Manager** — Click "New Worktree", type `hotfix-payment`, done. Your feature branch keeps running. Dependencies are shared via symlink — instant setup. Fix, push, archive. **30 seconds.**
 
-## Key Features
+---
 
-### Parallel Branch Development
+## 📸 Screenshots
 
-Work on multiple branches at the same time in isolated directories. Each worktree has its own file tree, but shares the same `.git` data. No cloning, no stashing.
+| Main Interface | Create Worktree |
+| :---: | :---: |
+| ![Main Interface](docs/screenshots/main-view.png) | ![Create Worktree](docs/screenshots/new-worktree.png) |
 
-### Multi-Repo Workspaces
+| Terminal & AI Coding | Browser Remote Access |
+| :---: | :---: |
+| ![Terminal](docs/screenshots/use-example-1.png) | ![Remote Access](docs/screenshots/remote-access.png) |
 
-Group related repositories (frontend + backend + shared libs) into a single workspace. Create a worktree and **all repos switch together** &mdash; no more "I forgot to switch the API repo" debugging sessions.
+| Voice Input & AI Refine |
+| :---: |
+| ![Voice Input](docs/screenshots/voice-and-refine.png) |
 
-### Smart Symlinks
+---
 
-Automatically symlink `node_modules`, `.next`, `vendor`, `target`, and other heavy directories when creating worktrees. Zero extra disk space. Zero dependency reinstall time.
+## 🚀 Quick Start
 
-### One-Click Git Operations
-
-Sync with base branch, merge to test, pull, push &mdash; all from the UI. Real-time diff stats show how many commits you're ahead/behind. Batch-trigger operations across all projects in a worktree.
-
-### Built-in Terminal
-
-Full terminal emulator (xterm.js + PTY) per worktree. Split your workflow without leaving the app. Shell integration, search, voice input, and per-project terminal tabs.
-
-### Browser Remote Access
-
-Share your workspace over the network. Password-protected, with optional ngrok tunneling for public access. View code, run terminal commands, and manage worktrees from any browser &mdash; no client installation needed.
-
-### IDE Integration
-
-One-click open in VS Code, Cursor, or IntelliJ IDEA. Auto-detects installed editors with native app icons.
-
-### Safe Archiving
-
-When a branch is done, archive the worktree. Pre-archive checks catch uncommitted changes, unpushed commits, and running processes. Restore anytime with one click.
-
-### AI-Ready (MCP)
-
-Built-in [Model Context Protocol](docs/MCP.md) server lets AI assistants (Claude Code, Cursor, Codex) create worktrees, check status, and run git operations through natural language.
-
-### Tag-Based Organization
-
-Tag projects by team, domain, or stack. Filter and batch-select by tags when creating worktrees. Visual tag chips throughout the UI.
-
-## Quick Start
-
-### Download (Recommended)
-
-Grab the latest release for your platform:
+### Download
 
 | Platform | Download |
 |----------|----------|
@@ -85,17 +65,107 @@ Grab the latest release for your platform:
 | Windows  | [`-setup.exe`](https://github.com/guoyongchang/worktree-manager/releases/latest) |
 | Linux    | [`.AppImage` / `.deb`](https://github.com/guoyongchang/worktree-manager/releases/latest) |
 
-**Only requirement: Git 2.0+.** No Node.js or Rust needed at runtime.
+> **Only requirement: Git 2.0+.** No Node.js or Rust needed at runtime.
 
 ### Get Started in 3 Steps
 
-1. **Create a Workspace** &mdash; Point to your project directory or create a new one
-2. **Add Projects** &mdash; Import repos via GitHub shorthand (`owner/repo`), SSH, or HTTPS
-3. **Create Worktrees** &mdash; Click "+", name your branch, select projects, go
+1. **Create a Workspace** — Point to your project directory or create a new one
+2. **Add Projects** — Import repos via GitHub shorthand (`owner/repo`), SSH, or HTTPS
+3. **Create Worktrees** — Click "+", name your branch, select projects, go
 
-## How It Works
+That's it. Your worktree is ready with all dependencies symlinked and terminals pre-configured.
 
-Worktree Manager builds on Git's native [`git worktree`](https://git-scm.com/docs/git-worktree) feature, which lets you check out multiple branches into separate directories while sharing a single `.git` database.
+---
+
+## ✨ Features
+
+### Core
+
+| Feature | Description |
+|---------|-------------|
+| 🌿 **Parallel Branches** | Work on multiple branches at the same time in isolated directories, sharing the same `.git` data |
+| 📦 **Multi-Repo Workspaces** | Group related repos (frontend + backend + shared libs) — create a worktree and all repos switch together |
+| 🔗 **Smart Symlinks** | Auto-link `node_modules`, `.next`, `vendor`, `target` etc. Zero disk waste, zero reinstall |
+| 🏷️ **Tag Organization** | Tag projects by team, domain, or stack. Filter and batch-select when creating worktrees |
+
+### Git Operations
+
+| Feature | Description |
+|---------|-------------|
+| 🔄 **One-Click Operations** | Sync, merge to test, pull, push — all from the UI with real-time diff stats |
+| 📊 **Branch Insights** | See how many commits you're ahead/behind at a glance |
+| ⚡ **Batch Actions** | Trigger operations across all projects in a worktree simultaneously |
+| 📝 **AI Commit Messages** | Generate commit messages with Qwen AI (optional) |
+
+### Terminal & Remote
+
+| Feature | Description |
+|---------|-------------|
+| 💻 **Built-in Terminal** | Full terminal emulator (xterm.js + PTY) with shell integration and search |
+| 🎤 **Voice Input** | Speak to type in terminal — powered by Dashscope ASR with AI text refinement |
+| 🌐 **Browser Remote** | Share your workspace over the network with password protection |
+| 🔒 **ngrok Tunneling** | Optional public access via ngrok — no port forwarding needed |
+
+### Integrations
+
+| Feature | Description |
+|---------|-------------|
+| 🖥️ **IDE Integration** | One-click open in VS Code, Cursor, or IntelliJ IDEA |
+| 🤖 **AI-Ready (MCP)** | Built-in [MCP server](docs/MCP.md) — let Claude Code, Cursor, or Codex manage worktrees via natural language |
+| 📁 **Safe Archiving** | Pre-archive checks catch uncommitted changes and running processes. Restore anytime |
+
+---
+
+## ❓ FAQ
+
+<details>
+<summary><strong>What is a Git worktree?</strong></summary>
+
+A Git worktree lets you check out multiple branches into separate directories while sharing a single `.git` database. Unlike cloning, worktrees share history, refs, and hooks — no extra disk space for repository data. [Learn more](https://git-scm.com/docs/git-worktree)
+
+</details>
+
+<details>
+<summary><strong>How does the symlink feature work?</strong></summary>
+
+When creating a worktree, Worktree Manager automatically creates symlinks for directories you specify (e.g., `node_modules`, `.next`, `target`). These point to the main project's directories, so you never need to reinstall dependencies. You can configure which folders to link per project.
+
+</details>
+
+<details>
+<summary><strong>Can I use it with a single repo?</strong></summary>
+
+Absolutely. While multi-repo workspaces are a key feature, Worktree Manager works perfectly with a single repository too.
+
+</details>
+
+<details>
+<summary><strong>Does browser remote access require installing anything on the remote machine?</strong></summary>
+
+No. The remote machine only needs a modern browser. Everything runs through the web interface — terminal, file browsing, git operations, worktree management.
+
+</details>
+
+<details>
+<summary><strong>Is my data safe when sharing via browser?</strong></summary>
+
+Yes. Browser access is password-protected with challenge-response authentication (no plaintext passwords over the wire). You can also limit access to LAN-only or use ngrok for secure tunneling.
+
+</details>
+
+<details>
+<summary><strong>What does the MCP integration do?</strong></summary>
+
+The built-in [Model Context Protocol](docs/MCP.md) server lets AI coding assistants (Claude Code, Cursor, Codex) create worktrees, check status, and run git operations through natural language — without leaving your AI chat. See [MCP docs](docs/MCP.md) for setup.
+
+</details>
+
+---
+
+## 📂 How It Works
+
+<details>
+<summary>Workspace directory structure</summary>
 
 ```
 workspace/
@@ -115,11 +185,12 @@ workspace/
         └── ...
 ```
 
-**Shared items** (`.claude`, `CLAUDE.md`, config files) are automatically symlinked across all worktrees so AI assistants and tooling configs stay in sync.
+Shared items (`.claude`, `CLAUDE.md`, config files) are automatically symlinked across all worktrees so AI assistants and tooling configs stay in sync.
 
-## Configuration
+</details>
 
-### Workspace Config (`.worktree-manager.json`)
+<details>
+<summary>Workspace config example (<code>.worktree-manager.json</code>)</summary>
 
 ```jsonc
 {
@@ -143,7 +214,10 @@ workspace/
 }
 ```
 
-### Adding Projects
+</details>
+
+<details>
+<summary>Adding projects — supported formats</summary>
 
 | Format | Example |
 |--------|---------|
@@ -152,7 +226,11 @@ workspace/
 | SSH (custom port) | `ssh://git@gitlab.com:1022/org/repo.git` |
 | HTTPS | `https://github.com/facebook/react.git` |
 
-## Building from Source
+</details>
+
+---
+
+## 🔧 Building from Source
 
 <details>
 <summary>For contributors and developers</summary>
@@ -174,30 +252,17 @@ npm run tauri build
 npm run contracts
 ```
 
+**Tech Stack:** Tauri 2 · React 19 · TypeScript 5 · Tailwind CSS 4 · Rust (axum, git2, tokio) · xterm.js
+
 See [TESTING.md](docs/TESTING.md) for the testing strategy.
 
 </details>
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | Tauri 2 |
-| Frontend | React 19 + TypeScript 5 |
-| Styling | Tailwind CSS 4 + Radix UI |
-| Build | Vite 7 |
-| Backend | Rust (axum, git2, tokio) |
-| Terminal | xterm.js + portable-pty |
+---
 
 ## Contributing
 
 Contributions are welcome! Please open an issue first to discuss what you'd like to change.
-
-1. Fork the repo
-2. Create your branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
 
 ## License
 
@@ -207,10 +272,10 @@ Contributions are welcome! Please open an issue first to discuss what you'd like
 
 <div align="center">
 
-**If Worktree Manager saves you time, consider giving it a star!**
+**If Worktree Manager saves you time, consider giving it a ⭐!**
 
-[Report Bug](https://github.com/guoyongchang/worktree-manager/issues) &middot;
-[Request Feature](https://github.com/guoyongchang/worktree-manager/issues) &middot;
+[Report Bug](https://github.com/guoyongchang/worktree-manager/issues) ·
+[Request Feature](https://github.com/guoyongchang/worktree-manager/issues) ·
 [Documentation](https://guoyongchang.github.io/worktree-manager/)
 
 </div>

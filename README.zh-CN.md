@@ -8,88 +8,64 @@
 
 多分支并行开发，多仓库联动，告别 `stash`、`clone` 和上下文切换的痛苦。
 
-桌面端 + 浏览器远程访问。基于 Tauri 2 + React 19 + Rust 构建。
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/guoyongchang/worktree-manager)](https://github.com/guoyongchang/worktree-manager/releases)
-[![CI](https://github.com/guoyongchang/worktree-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/guoyongchang/worktree-manager/actions/workflows/ci.yml)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/guoyongchang/worktree-manager/releases)
+[![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-orange.svg)](https://tauri.app/)
+
+<p align="center">
+  <a href="#-快速开始">快速开始</a> •
+  <a href="#-核心功能">核心功能</a> •
+  <a href="#-截图">截图</a> •
+  <a href="#-常见问题">FAQ</a> •
+  <a href="README.md">English</a>
+</p>
 
 [**下载**](https://github.com/guoyongchang/worktree-manager/releases) |
 [文档](https://guoyongchang.github.io/worktree-manager/) |
-[MCP 集成](docs/MCP.md) |
-[English](README.md)
+[MCP 集成](docs/MCP.md)
 
 </div>
 
 ---
 
-## 痛点场景
+## 为什么需要 Worktree Manager？
 
 ### 线上着火，但你手里的活还没提交
 
 你正在 `feature/checkout-v2` 上重构结算流程，改了十几个文件，`npm run dev` 跑着热更新。这时候 Slack 弹出告警：线上支付回调 500 了。
 
-传统做法：`git stash` &rarr; 切分支 &rarr; `npm install`（依赖版本不同，得重装）&rarr; 等构建 &rarr; 修 bug &rarr; 切回来 &rarr; `git stash pop` &rarr; 祈祷没冲突 &rarr; 重启 dev server。**15 分钟起步**，线上还在报错。
+**没有 Worktree Manager** — `git stash` → 切分支 → `npm install`（依赖版本不同，得重装） → 等构建 → 修 bug → 切回来 → `git stash pop` → 祈祷没冲突 → 重启 dev server。**15 分钟起步。**
 
-**用 Worktree Manager**：点「新建」，输入 `hotfix-payment`，完成。你的 feature 分支 dev server 还在跑，`node_modules` 通过 symlink 共享，秒级就绪。**切换成本 30 秒。**
+**有 Worktree Manager** — 点「新建」，输入 `hotfix-payment`，完成。Feature 分支 dev server 还在跑，`node_modules` 通过 symlink 共享，秒级就绪。**切换成本 30 秒。**
 
 ### 前后端联调，分支对不上就炸
 
-前后端分仓，做「会员体系」时两个仓库都要切到 `feature/membership`。同事让你看一个 `feature/search` 的问题，你切了前端忘了切后端——白屏、404，排查半天发现是分支没对齐。
+前后端分仓，做「会员体系」时两个仓库都要切到 `feature/membership`。同事让你看一个 `feature/search` 的问题，你切了前端忘了切后端 —— 白屏、404，排查半天发现是分支没对齐。
 
-**用 Worktree Manager**：一个 worktree 绑定多个仓库，切换 worktree 就是切换整套环境，不存在「只切了一半」。
+**用 Worktree Manager** — 一个 worktree 绑定多个仓库，切换 worktree 就是切换整套环境，不存在「只切了一半」。
 
-### 提测合并全靠命令行肌肉记忆
+---
 
-需求完了要合 `test` 分支：`checkout test` &rarr; `pull` &rarr; `merge feature/xxx` &rarr; 解冲突 &rarr; `push` &rarr; 切回来。一天提测三四个需求，这套操作重复到麻木。
+## 📸 截图
 
-**用 Worktree Manager**：项目卡片直接有「合并到 test」「同步 base」「推送」按钮，一键操作，不离开当前分支。
+| 主界面 | 创建 Worktree |
+| :---: | :---: |
+| ![主界面](docs/screenshots/main-view.png) | ![创建 Worktree](docs/screenshots/new-worktree.png) |
 
-## 核心功能
+| 终端 & AI 编程 | 浏览器远程访问 |
+| :---: | :---: |
+| ![终端](docs/screenshots/use-example-1.png) | ![远程访问](docs/screenshots/remote-access.png) |
 
-### 多分支并行
+| 语音输入 & AI 精炼 |
+| :---: |
+| ![语音输入](docs/screenshots/voice-and-refine.png) |
 
-同时在多个分支上工作，互不干扰。每个 worktree 有独立的文件目录，共享同一个 `.git` 数据。不用 `stash`，不用 `clone` 多份。
+---
 
-### 多仓库工作区
+## 🚀 快速开始
 
-将相关仓库（前端 + 后端 + 公共库）组成一个工作区。创建 worktree 时**所有仓库同步切换**，不会再出现「忘了切 API 仓库」的问题。
-
-### 智能 Symlink
-
-创建 worktree 时自动链接 `node_modules`、`.next`、`vendor`、`target` 等大目录。零额外磁盘占用，零依赖重装时间。
-
-### 一键 Git 操作
-
-同步 base 分支、合并到 test、拉取、推送——全在界面上完成。实时 diff 统计显示领先/落后多少个 commit。支持批量触发 worktree 内所有项目的操作。
-
-### 内置终端
-
-完整的终端模拟器（xterm.js + PTY），每个 worktree 独立会话。Shell 集成、搜索、语音输入、按项目分标签。
-
-### 浏览器远程访问
-
-通过网络分享你的工作区。密码保护，可选 ngrok 隧道穿透内网。在任意浏览器中查看代码、运行终端命令、管理 worktree——无需安装客户端。
-
-### IDE 集成
-
-一键用 VS Code、Cursor 或 IntelliJ IDEA 打开任意 worktree。自动检测已安装的编辑器并显示原生图标。
-
-### 安全归档
-
-分支开发完毕后归档 worktree。归档前自动检查未提交更改、未推送 commit、运行中的进程。随时一键恢复。
-
-### AI 就绪（MCP）
-
-内置 [Model Context Protocol](docs/MCP.md) 服务器，让 AI 助手（Claude Code、Cursor、Codex）通过自然语言创建 worktree、查看状态、执行 git 操作。
-
-### 标签分组
-
-按团队、领域或技术栈给项目打标签。创建 worktree 时按标签筛选和批量选择，项目卡片全局显示标签。
-
-## 快速开始
-
-### 直接下载（推荐）
+### 下载
 
 | 平台 | 下载 |
 |------|------|
@@ -97,17 +73,107 @@
 | Windows | [`-setup.exe`](https://github.com/guoyongchang/worktree-manager/releases/latest) |
 | Linux | [`.AppImage` / `.deb`](https://github.com/guoyongchang/worktree-manager/releases/latest) |
 
-**唯一要求：Git 2.0+。** 运行时不需要 Node.js 或 Rust。
+> **唯一要求：Git 2.0+。** 运行时不需要 Node.js 或 Rust。
 
 ### 三步上手
 
-1. **创建工作区** &mdash; 导入你的项目目录，或新建一个 Workspace
-2. **添加项目** &mdash; 通过 GitHub 简写（`owner/repo`）、SSH 或 HTTPS 添加仓库
-3. **新建 Worktree** &mdash; 点击「+」，输入分支名，选择项目，开始开发
+1. **创建工作区** — 导入你的项目目录，或新建一个 Workspace
+2. **添加项目** — 通过 GitHub 简写（`owner/repo`）、SSH 或 HTTPS 添加仓库
+3. **新建 Worktree** — 点击「+」，输入分支名，选择项目，开始开发
 
-## 工作原理
+就这么简单。Worktree 创建后自动链接依赖、配置终端，开箱即用。
 
-Worktree Manager 基于 Git 原生的 [`git worktree`](https://git-scm.com/docs/git-worktree) 能力，在同一仓库中将多个分支检出到独立目录，共享 `.git` 数据。
+---
+
+## ✨ 核心功能
+
+### 基础能力
+
+| 功能 | 说明 |
+|------|------|
+| 🌿 **多分支并行** | 同时在多个分支上工作，互不干扰，共享 `.git` 数据 |
+| 📦 **多仓库工作区** | 将前端 + 后端 + 公共库组成工作区，切换 worktree 所有仓库同步切换 |
+| 🔗 **智能 Symlink** | 自动链接 `node_modules`、`.next`、`vendor`、`target`，零磁盘浪费 |
+| 🏷️ **标签分组** | 按团队、领域或技术栈打标签，创建 worktree 时按标签筛选 |
+
+### Git 操作
+
+| 功能 | 说明 |
+|------|------|
+| 🔄 **一键操作** | 同步 base、合并到 test、拉取、推送，全在界面完成 |
+| 📊 **分支洞察** | 一眼看到领先/落后多少个 commit |
+| ⚡ **批量触发** | 一键对 worktree 内所有项目执行操作 |
+| 📝 **AI 提交信息** | 使用 Qwen AI 自动生成 commit message（可选） |
+
+### 终端 & 远程
+
+| 功能 | 说明 |
+|------|------|
+| 💻 **内置终端** | 完整终端模拟器（xterm.js + PTY），支持 Shell 集成和搜索 |
+| 🎤 **语音输入** | 对着终端说话即可输入，Dashscope ASR + AI 文本精炼 |
+| 🌐 **浏览器远程** | 通过网络分享工作区，密码保护 |
+| 🔒 **ngrok 穿透** | 可选 ngrok 隧道，无需端口映射即可公网访问 |
+
+### 集成
+
+| 功能 | 说明 |
+|------|------|
+| 🖥️ **IDE 集成** | 一键用 VS Code、Cursor 或 IntelliJ IDEA 打开 |
+| 🤖 **AI 就绪 (MCP)** | 内置 [MCP 服务器](docs/MCP.md)，让 Claude Code、Cursor、Codex 通过自然语言管理 worktree |
+| 📁 **安全归档** | 归档前检查未提交更改和运行中的进程，随时一键恢复 |
+
+---
+
+## ❓ 常见问题
+
+<details>
+<summary><strong>什么是 Git worktree？</strong></summary>
+
+Git worktree 可以将同一仓库的多个分支检出到独立目录，共享 `.git` 数据。不需要克隆多份仓库，不占额外磁盘空间。[了解更多](https://git-scm.com/docs/git-worktree)
+
+</details>
+
+<details>
+<summary><strong>Symlink 是怎么工作的？</strong></summary>
+
+创建 worktree 时，Worktree Manager 会自动为你指定的目录（如 `node_modules`、`.next`、`target`）创建符号链接，指向主项目的对应目录。这样你永远不需要重新安装依赖。可以按项目单独配置需要链接的目录。
+
+</details>
+
+<details>
+<summary><strong>只有一个仓库也能用吗？</strong></summary>
+
+当然。多仓库工作区是亮点功能，但单仓库一样好用。
+
+</details>
+
+<details>
+<summary><strong>浏览器远程访问需要在远程机器装东西吗？</strong></summary>
+
+不需要。远程机器只需要一个现代浏览器。终端、文件浏览、git 操作、worktree 管理全在网页完成。
+
+</details>
+
+<details>
+<summary><strong>通过浏览器分享安全吗？</strong></summary>
+
+安全。浏览器访问采用 challenge-response 认证（不在网络上传输明文密码）。可以限制仅局域网访问，或使用 ngrok 安全隧道。
+
+</details>
+
+<details>
+<summary><strong>MCP 集成能做什么？</strong></summary>
+
+内置 [Model Context Protocol](docs/MCP.md) 服务器，让 AI 编程助手（Claude Code、Cursor、Codex）通过自然语言创建 worktree、查看状态、执行 git 操作 —— 不用离开 AI 聊天窗口。详见 [MCP 文档](docs/MCP.md)。
+
+</details>
+
+---
+
+## 📂 工作原理
+
+<details>
+<summary>工作区目录结构</summary>
 
 ```
 workspace/
@@ -127,11 +193,12 @@ workspace/
         └── ...
 ```
 
-**共享文件**（`.claude`、`CLAUDE.md`、配置文件）自动 symlink 到所有 worktree，AI 助手和工具配置始终保持同步。
+共享文件（`.claude`、`CLAUDE.md`、配置文件）自动 symlink 到所有 worktree，AI 助手和工具配置始终保持同步。
 
-## 配置
+</details>
 
-### 工作区配置（`.worktree-manager.json`）
+<details>
+<summary>配置文件示例（<code>.worktree-manager.json</code>）</summary>
 
 ```jsonc
 {
@@ -155,16 +222,11 @@ workspace/
 }
 ```
 
-### 添加项目
+</details>
 
-| 格式 | 示例 |
-|------|------|
-| GitHub 简写 | `facebook/react` |
-| SSH | `git@github.com:facebook/react.git` |
-| SSH（自定义端口） | `ssh://git@gitlab.com:1022/org/repo.git` |
-| HTTPS | `https://github.com/facebook/react.git` |
+---
 
-## 从源码构建
+## 🔧 从源码构建
 
 <details>
 <summary>面向贡献者和开发者</summary>
@@ -186,30 +248,17 @@ npm run tauri build
 npm run contracts
 ```
 
+**技术栈：** Tauri 2 · React 19 · TypeScript 5 · Tailwind CSS 4 · Rust (axum, git2, tokio) · xterm.js
+
 详见 [TESTING.md](docs/TESTING.md) 了解测试策略。
 
 </details>
 
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 框架 | Tauri 2 |
-| 前端 | React 19 + TypeScript 5 |
-| 样式 | Tailwind CSS 4 + Radix UI |
-| 构建 | Vite 7 |
-| 后端 | Rust（axum, git2, tokio） |
-| 终端 | xterm.js + portable-pty |
+---
 
 ## 参与贡献
 
 欢迎贡献！请先开一个 issue 讨论你想改的内容。
-
-1. Fork 本仓库
-2. 创建特性分支（`git checkout -b feature/amazing-feature`）
-3. 提交更改
-4. 推送分支
-5. 发起 Pull Request
 
 ## 许可证
 
@@ -219,10 +268,10 @@ npm run contracts
 
 <div align="center">
 
-**如果 Worktree Manager 为你节省了时间，请给个 Star！**
+**如果 Worktree Manager 为你节省了时间，请给个 ⭐！**
 
-[报告 Bug](https://github.com/guoyongchang/worktree-manager/issues) &middot;
-[功能建议](https://github.com/guoyongchang/worktree-manager/issues) &middot;
+[报告 Bug](https://github.com/guoyongchang/worktree-manager/issues) ·
+[功能建议](https://github.com/guoyongchang/worktree-manager/issues) ·
 [文档](https://guoyongchang.github.io/worktree-manager/)
 
 </div>
