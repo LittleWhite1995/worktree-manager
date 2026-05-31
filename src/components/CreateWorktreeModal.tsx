@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { WorkspaceConfig } from '../types';
+import type { WorkspaceConfig, TagDefinition } from '../types';
 import { containsNonAscii, generateFolderAlias } from '../lib/bip39-words';
 
 // Git branch name rules: no spaces, ~, ^, :, \, .., *, ?, [, leading/trailing dots, @{
@@ -124,7 +124,7 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
       return { valid: false, error: t('createWorktree.invalidPatterns') };
     }
     return { valid: true, error: '' };
-  }, [worktreeName]);
+  }, [worktreeName, t]);
 
   const aliasValidation = useMemo(() => {
     if (!useFolderAlias) return { valid: true, error: '' };
@@ -132,12 +132,60 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
     if (!trimmed) return { valid: false, error: t('createWorktree.aliasRequired') };
     if (!FOLDER_ALIAS_VALID.test(trimmed)) return { valid: false, error: t('createWorktree.aliasInvalid') };
     return { valid: true, error: '' };
-  }, [useFolderAlias, folderAlias]);
+  }, [useFolderAlias, folderAlias, t]);
 
   const canSubmit = nameValidation.valid && aliasValidation.valid && selectedProjects.size > 0 && !creating;
 
   const handleRegenerate = () => {
     onFolderAliasChange(generateFolderAlias());
+  };
+
+  // Tag grouping
+  const [viewMode, setViewMode] = useState<'all' | 'byTag'>('all');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const tagGroups = useMemo(() => {
+    if (!config) return null;
+    const tags = config.tags ?? [];
+    if (tags.length === 0) return null;
+
+    const groups: Array<{ tag: TagDefinition | null; projects: typeof config.projects }> = [];
+
+    for (const tag of tags) {
+      const tagProjects = config!.projects.filter(p => (p.tags ?? []).includes(tag.id));
+      if (tagProjects.length > 0) {
+        groups.push({ tag, projects: tagProjects });
+      }
+    }
+
+    // Untagged
+    const taggedNames = new Set(
+      tags.flatMap(tag =>
+        config!.projects.filter(p => (p.tags ?? []).includes(tag.id)).map(p => p.name)
+      )
+    );
+    const untagged = config!.projects.filter(p => !taggedNames.has(p.name));
+    if (untagged.length > 0) {
+      groups.push({ tag: null, projects: untagged });
+    }
+
+    return groups;
+  }, [config]);
+
+  const toggleGroupCollapse = (tagId: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
+      return next;
+    });
+  };
+
+  const getProjectTags = (projectName: string): TagDefinition[] => {
+    const pc = config?.projects.find(p => p.name === projectName);
+    return (pc?.tags ?? [])
+      .map(tid => (config?.tags ?? []).find(t => t.id === tid))
+      .filter((t): t is TagDefinition => !!t);
   };
 
   if (!config) return null;
@@ -216,50 +264,177 @@ export const CreateWorktreeModal: FC<CreateWorktreeModalProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{t('createWorktree.selectProjects')}</label>
-            <div className="space-y-2">
-              {config.projects.map(proj => (
-                <div
-                  key={proj.name}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                    selectedProjects.has(proj.name)
-                      ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50"
-                      : "bg-[var(--color-bg-base)]/50 border-[var(--color-border)] hover:border-[var(--color-border)]"
-                  }`}
-                  onClick={() => onToggleProject(proj.name, proj.base_branch)}
+
+            {/* Tab switcher — only shown when tags exist */}
+            {tagGroups && (
+              <div className="flex gap-0 border-b border-[var(--color-border)] mb-4">
+                <button
+                  className={`px-4 py-2 text-sm transition-colors ${viewMode === 'all' ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)] font-medium' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+                  onClick={() => setViewMode('all')}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={selectedProjects.has(proj.name)}
-                        onChange={() => {}}
-                      />
-                      <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
-                    </div>
-                    {selectedProjects.has(proj.name) && (
-                      <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                        <span className="text-xs text-[var(--color-text-secondary)]">Base:</span>
-                        <Select
-                          value={selectedProjects.get(proj.name) || proj.base_branch}
-                          onValueChange={(value) => onUpdateBaseBranch(proj.name, value)}
-                        >
-                          <SelectTrigger className="h-7 w-24 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={proj.base_branch}>{proj.base_branch}</SelectItem>
-                            {proj.base_branch !== "uat" && <SelectItem value="uat">uat</SelectItem>}
-                            {proj.base_branch !== "master" && <SelectItem value="master">master</SelectItem>}
-                            {proj.base_branch !== "test" && <SelectItem value="test">test</SelectItem>}
-                            {proj.base_branch !== "staging" && <SelectItem value="staging">staging</SelectItem>}
-                          </SelectContent>
-                        </Select>
+                  {t('addProject.viewAll')}
+                </button>
+                <button
+                  className={`px-4 py-2 text-sm transition-colors ${viewMode === 'byTag' ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-accent)] font-medium' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+                  onClick={() => setViewMode('byTag')}
+                >
+                  {t('addProject.viewByTag')}
+                </button>
+              </div>
+            )}
+
+            {viewMode === 'byTag' && tagGroups ? (
+              <div className="space-y-2">
+                {tagGroups.map(({ tag, projects: groupProjects }) => {
+                  const tagId = tag?.id ?? '__untagged__';
+                  const isCollapsed = collapsedGroups.has(tagId);
+                  const selectedCount = groupProjects.filter(p => selectedProjects.has(p.name)).length;
+
+                  const allSelected = selectedCount === groupProjects.length;
+
+                  const handleToggleGroup = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    for (const proj of groupProjects) {
+                      if (allSelected) {
+                        // Deselect all: only toggle those currently selected
+                        if (selectedProjects.has(proj.name)) onToggleProject(proj.name, proj.base_branch);
+                      } else {
+                        // Select all: only toggle those not yet selected
+                        if (!selectedProjects.has(proj.name)) onToggleProject(proj.name, proj.base_branch);
+                      }
+                    }
+                  };
+
+                  return (
+                    <div key={tagId} className="bg-[var(--color-bg-elevated)]/50 rounded-lg overflow-hidden">
+                      <div
+                        className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none hover:bg-[var(--color-bg-elevated)] transition-colors"
+                        onClick={() => toggleGroupCollapse(tagId)}
+                      >
+                        <span className="text-xs text-[var(--color-text-muted)]">
+                          {isCollapsed ? '▶' : '▼'}
+                        </span>
+                        <Checkbox
+                          checked={allSelected}
+                          onChange={() => {}}
+                          onClick={handleToggleGroup}
+                          className={selectedCount > 0 && !allSelected ? 'opacity-60' : ''}
+                        />
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: tag?.color ?? 'var(--color-text-muted)' }}
+                        />
+                        <span className="font-medium text-sm text-[var(--color-text-primary)]">{tag?.name ?? t('tags.untagged')}</span>
+                        <span className="text-xs text-[var(--color-text-muted)]">
+                          ({selectedCount}/{groupProjects.length})
+                        </span>
                       </div>
-                    )}
+
+                      {!isCollapsed && (
+                        <div className="px-2 pb-2 space-y-1">
+                          {groupProjects.map(proj => (
+                            <div
+                              key={proj.name}
+                              className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                selectedProjects.has(proj.name)
+                                  ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50"
+                                  : "bg-[var(--color-bg-base)]/50 border-[var(--color-border)] hover:border-[var(--color-border)]"
+                              }`}
+                              onClick={() => onToggleProject(proj.name, proj.base_branch)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Checkbox checked={selectedProjects.has(proj.name)} onChange={() => {}} />
+                                  <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
+                                </div>
+                                {selectedProjects.has(proj.name) && (
+                                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                    <span className="text-xs text-[var(--color-text-secondary)]">Base:</span>
+                                    <Select
+                                      value={selectedProjects.get(proj.name) || proj.base_branch}
+                                      onValueChange={(value) => onUpdateBaseBranch(proj.name, value)}
+                                    >
+                                      <SelectTrigger className="h-7 w-24 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value={proj.base_branch}>{proj.base_branch}</SelectItem>
+                                        {proj.base_branch !== "uat" && <SelectItem value="uat">uat</SelectItem>}
+                                        {proj.base_branch !== "master" && <SelectItem value="master">master</SelectItem>}
+                                        {proj.base_branch !== "test" && <SelectItem value="test">test</SelectItem>}
+                                        {proj.base_branch !== "staging" && <SelectItem value="staging">staging</SelectItem>}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-[var(--color-text-muted)] text-xs mt-1.5 pl-7">{t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {config.projects.map(proj => (
+                  <div
+                    key={proj.name}
+                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                      selectedProjects.has(proj.name)
+                        ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50"
+                        : "bg-[var(--color-bg-base)]/50 border-[var(--color-border)] hover:border-[var(--color-border)]"
+                    }`}
+                    onClick={() => onToggleProject(proj.name, proj.base_branch)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Checkbox checked={selectedProjects.has(proj.name)} onChange={() => {}} />
+                        <div>
+                          <span className="font-medium text-[var(--color-text-primary)]">{proj.name}</span>
+                          {getProjectTags(proj.name).length > 0 && (
+                            <div className="flex gap-1 mt-0.5">
+                              {getProjectTags(proj.name).map(tag => (
+                                <span
+                                  key={tag.id}
+                                  className="px-1.5 py-0.5 rounded-full text-[10px]"
+                                  style={{ backgroundColor: `${tag.color}22`, color: tag.color }}
+                                >
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {selectedProjects.has(proj.name) && (
+                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                          <span className="text-xs text-[var(--color-text-secondary)]">Base:</span>
+                          <Select
+                            value={selectedProjects.get(proj.name) || proj.base_branch}
+                            onValueChange={(value) => onUpdateBaseBranch(proj.name, value)}
+                          >
+                            <SelectTrigger className="h-7 w-24 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={proj.base_branch}>{proj.base_branch}</SelectItem>
+                              {proj.base_branch !== "uat" && <SelectItem value="uat">uat</SelectItem>}
+                              {proj.base_branch !== "master" && <SelectItem value="master">master</SelectItem>}
+                              {proj.base_branch !== "test" && <SelectItem value="test">test</SelectItem>}
+                              {proj.base_branch !== "staging" && <SelectItem value="staging">staging</SelectItem>}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-[var(--color-text-muted)] text-xs mt-1.5 pl-7">{t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}</div>
                   </div>
-                  <div className="text-[var(--color-text-muted)] text-xs mt-1.5 pl-7">{t('addProjectToWorktree.defaultBranch')}: {proj.base_branch} · {t('addProjectToWorktree.testBranch')}: {proj.test_branch}</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         {creating && (

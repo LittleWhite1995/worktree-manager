@@ -14,6 +14,7 @@ import {
   CloseIcon,
   MaximizeIcon,
   RestoreIcon,
+  VerticalExpandIcon,
   MicIcon,
   EditorIcon,
 } from './Icons';
@@ -270,6 +271,8 @@ interface TerminalPanelProps {
   isFullscreen?: boolean;
   fillContainer?: boolean;
   onToggleFullscreen?: () => void;
+  fullscreenMode?: false | 'vertical' | 'full';
+  onSetFullscreenMode?: (mode: false | 'vertical' | 'full') => void;
   voiceStatus?: VoiceStatus;
   voiceError?: string | null;
   voiceWarning?: string | null;
@@ -302,9 +305,11 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   onCloseAllTabs,
   onToggle,
   onCollapse,
-  isFullscreen = false,
+  isFullscreen: isFullscreenProp = false,
   fillContainer = false,
   onToggleFullscreen,
+  fullscreenMode = false,
+  onSetFullscreenMode,
   voiceStatus = 'idle',
   voiceError,
   voiceWarning,
@@ -322,6 +327,11 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
   onRevealInFinder,
   selectedEditor,
 }) => {
+  // Derive effective fullscreen state: new fullscreenMode prop takes priority over legacy isFullscreen
+  const isFullscreen = fullscreenMode ? fullscreenMode === 'full' : isFullscreenProp;
+  const isVerticalFullscreen = fullscreenMode === 'vertical';
+  const isAnyFullscreen = isFullscreen || isVerticalFullscreen;
+
   const { t } = useTranslation();
   const [showError, setShowError] = useState<string | null>(null);
   const [showWarning, setShowWarning] = useState<string | null>(null);
@@ -438,11 +448,11 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
   return (
     <div
-      className={`border-t border-[var(--color-border)] flex flex-col ${fillContainer ? 'flex-1 min-h-0 border-t-0 bg-[var(--color-bg-base)]' : visible ? 'shrink' : 'shrink-0'} ${isFullscreen ? 'absolute inset-0 z-50 border-t-0 bg-[var(--color-bg-base)]' : ''}`}
-      style={isFullscreen || fillContainer ? undefined : { height: visible ? height : 32, minHeight: visible ? 100 : undefined }}
+      className={`border-t border-[var(--color-border)] flex flex-col ${fillContainer || isVerticalFullscreen ? 'flex-1 min-h-0 border-t-0 bg-[var(--color-bg-base)]' : visible ? 'shrink' : 'shrink-0'} ${isFullscreen ? 'absolute inset-0 z-50 border-t-0 bg-[var(--color-bg-base)]' : ''}`}
+      style={isAnyFullscreen || fillContainer ? undefined : { height: visible ? height : 32, minHeight: visible ? 100 : undefined }}
     >
-      {/* Resize handle - hidden in fullscreen */}
-      {visible && !isFullscreen && (
+      {/* Resize handle - hidden in any fullscreen */}
+      {visible && !isAnyFullscreen && (
         <div
           className="h-3 flex items-center justify-center cursor-ns-resize shrink-0 group touch-none"
           onMouseDown={(e) => {
@@ -547,7 +557,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
           </div>
         </div>
         {/* Quick action badges + Worktree name badge (fullscreen only) */}
-        {isFullscreen && selectedWorktreeName && (() => {
+        {isAnyFullscreen && selectedWorktreeName && (() => {
           const activeTab = terminalTabs.find(tab => tab.path === activeTerminalTab);
           const activePath = activeTerminalTab || '';
           // Resolve project-specific IDE or fall back to global selectedEditor
@@ -707,27 +717,62 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
                 </Tooltip>
               </TooltipProvider>
             )}
-            {onToggleFullscreen && (
+            {onSetFullscreenMode ? (
+              <>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onSetFullscreenMode(isVerticalFullscreen ? false : 'vertical'); }}
+                        className={`p-1.5 rounded transition-colors ${isVerticalFullscreen ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]' : 'hover:bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+                        aria-label={isVerticalFullscreen ? t('terminal.exitFullscreen') : t('terminal.verticalFullscreen')}
+                      >
+                        <VerticalExpandIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{isVerticalFullscreen ? t('terminal.exitFullscreen') : t('terminal.verticalFullscreen')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onSetFullscreenMode(isFullscreen ? false : 'full'); }}
+                        className={`p-1.5 rounded transition-colors ${isFullscreen ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]' : 'hover:bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+                        aria-label={isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}
+                      >
+                        {isFullscreen ? (
+                          <RestoreIcon className="w-3.5 h-3.5" />
+                        ) : (
+                          <MaximizeIcon className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </>
+            ) : onToggleFullscreen && (
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
                       className="p-1.5 hover:bg-[var(--color-bg-elevated)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                      aria-label={isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}
+                      aria-label={isAnyFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}
                     >
-                      {isFullscreen ? (
+                      {isAnyFullscreen ? (
                         <RestoreIcon className="w-3.5 h-3.5" />
                       ) : (
                         <MaximizeIcon className="w-3.5 h-3.5" />
                       )}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">{isFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}</TooltipContent>
+                  <TooltipContent side="bottom">{isAnyFullscreen ? t('terminal.exitFullscreen') : t('terminal.fullscreen')}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
-            {!isFullscreen && (
+            {!isAnyFullscreen && (
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>

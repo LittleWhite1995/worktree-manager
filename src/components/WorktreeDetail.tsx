@@ -28,10 +28,10 @@ import {
   CheckIcon,
   TrashIcon,
   FolderOpenIcon,
-  GithubIcon,
   EditorIcon,
   FileIcon,
   SettingsIcon,
+  DownloadIcon,
 } from './Icons';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -47,10 +47,10 @@ import {
   markAsRead,
 } from '@/lib/operationLog';
 import type { LogEntry } from '@/lib/operationLog';
-import { GitOperations } from './GitOperations';
+import { GitOperations, type GitOperationsHandle } from './GitOperations';
 import { useToast } from './Toast';
 import { EDITORS } from '../constants';
-import { isTauri, openLink, getVaultStatus, syncAllProjectsToBase, pullCurrentBranch, type BranchDiffStats } from '@/lib/backend';
+import { isTauri, getVaultStatus, type BranchDiffStats } from '@/lib/backend';
 import type {
   WorktreeListItem,
   MainWorkspaceStatus,
@@ -534,22 +534,6 @@ const statusBorderColor: Record<ReturnType<typeof getProjectStatus>, string> = {
   sync: 'border-l-[var(--color-accent)]',
 };
 
-/** Convert a git remote URL (SSH or HTTPS) to a web-browsable URL. */
-function gitUrlToWebUrl(remoteUrl: string): string | null {
-  if (!remoteUrl) return null;
-  let url = remoteUrl.trim();
-  // SSH: git@github.com:user/repo.git → https://github.com/user/repo
-  const sshMatch = url.match(/^git@([^:]+):(.+?)(\.git)?$/);
-  if (sshMatch) return `https://${sshMatch[1]}/${sshMatch[2]}`;
-  // HTTPS: https://github.com/user/repo.git → https://github.com/user/repo
-  if (url.startsWith('http')) {
-    url = url.replace(/\.git$/, '');
-    return url;
-  }
-  return null;
-}
-
-
 const PathDisplay: FC<{ path: string }> = ({ path }) => {
   const [copied, setCopied] = useState(false);
 
@@ -659,6 +643,9 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
   onSaveConfig,
 }) => {
   const { t } = useTranslation();
+  // Refs to GitOperations instances for batch triggering (sync/pull/refresh all)
+  const gitOpsRefs = useRef<Map<string, GitOperationsHandle>>(new Map());
+
   // Live stats from GitOperations, keyed by project path
   const [projectStats, setProjectStats] = useState<Record<string, BranchDiffStats>>({});
   const handleStatsChanged = useCallback((path: string, stats: BranchDiffStats) => {
@@ -905,54 +892,57 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     onRefresh?.();
   }, [mainWorkspace?.projects, onSwitchBranch, toast, t, onRefresh]);
 
-  // Sync all projects to BASE (concurrent)
-  const [syncingBase, setSyncingBase] = useState(false);
-  const handleSyncAllBase = useCallback(async () => {
+  // Batch actions for main workspace (sync/pull/refresh via GitOperations refs)
+  const [mainAction, setMainAction] = useState<'sync' | 'pull' | 'refresh' | null>(null);
+
+  const getMainGitOps = () => {
     const projects = mainWorkspace?.projects ?? [];
-    if (projects.length === 0) return;
-    setSyncingBase(true);
+    return projects
+      .map(p => gitOpsRefs.current.get(p.path))
+      .filter(Boolean) as GitOperationsHandle[];
+  };
+
+  const handleSyncAllBase = async () => {
+    const ops = getMainGitOps();
+    if (ops.length === 0) return;
+    setMainAction('sync');
     try {
-      const results = await syncAllProjectsToBase(projects.map(p => p.path));
-      let successCount = 0;
-      let skippedCount = 0;
-      let failedCount = 0;
-      for (const r of results) {
-        if (r.status === 'success') {
-          successCount++;
-          toast('success', `${r.project_name}: ${r.message}`);
-        } else if (r.status === 'skipped') {
-          skippedCount++;
-          toast('warning', `${r.project_name}: ${r.message}`);
-        } else {
-          failedCount++;
-          toast('error', `${r.project_name}: ${r.message}`);
-        }
-      }
-      // Summary toast
-      const summaryParts = [];
-      if (successCount > 0) summaryParts.push(t('detail.syncBaseSuccess', { count: successCount }));
-      if (skippedCount > 0) summaryParts.push(t('detail.syncBaseSkipped', { count: skippedCount }));
-      if (failedCount > 0) summaryParts.push(t('detail.syncBaseFailed', { count: failedCount }));
-      if (summaryParts.length > 0) {
-        toast('info', summaryParts.join(', '));
-      }
-    } catch (e: any) {
-      toast('error', String(e?.message || e));
+      await Promise.allSettled(ops.map(op => op.triggerSync()));
     } finally {
-      setSyncingBase(false);
-      onRefresh?.();
+      setMainAction(null);
     }
-  }, [mainWorkspace?.projects, toast, t, onRefresh]);
+  };
+
+  const handlePullAllMain = async () => {
+    const ops = getMainGitOps();
+    if (ops.length === 0) return;
+    setMainAction('pull');
+    try {
+      await Promise.allSettled(ops.map(op => op.triggerPull()));
+    } finally {
+      setMainAction(null);
+    }
+  };
+
+  const handleRefreshAllMain = async () => {
+    const ops = getMainGitOps();
+    if (ops.length === 0) return;
+    setMainAction('refresh');
+    try {
+      await Promise.allSettled(ops.map(op => op.triggerRefresh()));
+    } finally {
+      setMainAction(null);
+    }
+  };
 
   const handleWorktreeSyncAll = async () => {
     if (!selectedWorktree) return;
     setWorktreeAction('syncAll');
     try {
-      const projectPaths = selectedWorktree.projects.map(p => p.path);
-      await syncAllProjectsToBase(projectPaths);
-      onSilentRefresh?.();
-    } catch (e: unknown) {
-      toast('error', e instanceof Error ? e.message : String(e));
+      const ops = selectedWorktree.projects
+        .map(p => gitOpsRefs.current.get(p.path))
+        .filter(Boolean) as GitOperationsHandle[];
+      await Promise.allSettled(ops.map(op => op.triggerSync()));
     } finally {
       setWorktreeAction(null);
     }
@@ -962,25 +952,23 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
     if (!selectedWorktree) return;
     setWorktreeAction('pullAll');
     try {
-      const results = await Promise.allSettled(
-        selectedWorktree.projects.map(p => pullCurrentBranch(p.path))
-      );
-      const failed = results.filter(r => r.status === 'rejected');
-      if (failed.length > 0) {
-        toast('error', t('detail.pullAllFailed', { count: failed.length, total: results.length }));
-      }
-      onSilentRefresh?.();
-    } catch (e: unknown) {
-      toast('error', e instanceof Error ? e.message : String(e));
+      const ops = selectedWorktree.projects
+        .map(p => gitOpsRefs.current.get(p.path))
+        .filter(Boolean) as GitOperationsHandle[];
+      await Promise.allSettled(ops.map(op => op.triggerPull()));
     } finally {
       setWorktreeAction(null);
     }
   };
 
   const handleWorktreeRefreshAll = async () => {
+    if (!selectedWorktree) return;
     setWorktreeAction('refreshAll');
     try {
-      await onRefresh?.();
+      const ops = selectedWorktree.projects
+        .map(p => gitOpsRefs.current.get(p.path))
+        .filter(Boolean) as GitOperationsHandle[];
+      await Promise.allSettled(ops.map(op => op.triggerRefresh()));
     } finally {
       setWorktreeAction(null);
     }
@@ -1066,13 +1054,43 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                     <TooltipTrigger asChild>
                       <button
                         className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50"
-                        disabled={syncingBase}
+                        disabled={mainAction !== null}
                         onClick={handleSyncAllBase}
                       >
-                        {syncingBase ? <SyncIcon className="w-3.5 h-3.5 animate-spin" /> : <SyncIcon className="w-3.5 h-3.5" />}
+                        {mainAction === 'sync' ? <SyncIcon className="w-3.5 h-3.5 animate-spin" /> : <SyncIcon className="w-3.5 h-3.5" />}
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">{t('detail.syncAllBaseTip')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50 border-l border-[var(--color-border)]"
+                        disabled={mainAction !== null}
+                        onClick={handlePullAllMain}
+                      >
+                        {mainAction === 'pull' ? <SyncIcon className="w-3.5 h-3.5 animate-spin" /> : <DownloadIcon className="w-3.5 h-3.5" />}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('detail.pullAllTip')}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50 border-l border-[var(--color-border)]"
+                        disabled={mainAction !== null}
+                        onClick={handleRefreshAllMain}
+                      >
+                        {mainAction === 'refresh' ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <RefreshIcon className="w-3.5 h-3.5" />}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{t('detail.refreshAllTip')}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 {(['base', 'test', 'head'] as const).map((tab) => (
@@ -1266,6 +1284,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                         </div>
                         <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
                           <GitOperations
+                            ref={(handle) => {
+                              if (handle) gitOpsRefs.current.set(projectPath, handle);
+                              else gitOpsRefs.current.delete(projectPath);
+                            }}
                             projectPath={projectPath}
                             projectName={proj.name}
                             baseBranch={proj.base_branch}
@@ -1478,6 +1500,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                       {/* Git operations */}
                       <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
                         <GitOperations
+                          ref={(handle) => {
+                            if (handle) gitOpsRefs.current.set(proj.path, handle);
+                            else gitOpsRefs.current.delete(proj.path);
+                          }}
                           projectPath={proj.path}
                           projectName={proj.name}
                           baseBranch={proj.base_branch}
@@ -1682,8 +1708,8 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                               onClick={handleWorktreePullAll}
                             >
                               {worktreeAction === 'pullAll'
-                                ? <span style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><SyncIcon className="w-3.5 h-3.5 animate-spin" /></span>
-                                : <span style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><SyncIcon className="w-3.5 h-3.5" /></span>}
+                                ? <SyncIcon className="w-3.5 h-3.5 animate-spin" />
+                                : <DownloadIcon className="w-3.5 h-3.5" />}
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="bottom">{t('detail.pullAllTip')}</TooltipContent>
@@ -1883,7 +1909,6 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <StatusBadges project={liveProj} />
-                      <div className="text-xs text-[var(--color-text-muted)] mt-0.5 select-text">{t('detail.branchInfo', { base: proj.base_branch, test: proj.test_branch })}</div>
                     </div>
                     {isTauri() && (
                       <div className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
@@ -1910,26 +1935,6 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                             <TooltipContent side="bottom">{t('detail.revealInFinder')}</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        {(() => {
-                          const webUrl = gitUrlToWebUrl(proj.remote_url);
-                          return webUrl ? (
-                            <TooltipProvider delayDuration={300}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => openLink(webUrl)}
-                                    className="h-7 w-7"
-                                  >
-                                    <GithubIcon className="w-4.5 h-4.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">{t('detail.openRemoteRepo', 'Open in Browser')}</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          ) : null;
-                        })()}
                         <TerminalIconButton
                           projectPath={proj.path}
                           projectName={proj.name}
@@ -1942,6 +1947,10 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                 </div>
                 <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
                   <GitOperations
+                    ref={(handle) => {
+                      if (handle) gitOpsRefs.current.set(proj.path, handle);
+                      else gitOpsRefs.current.delete(proj.path);
+                    }}
                     projectPath={proj.path}
                     projectName={proj.name}
                     baseBranch={proj.base_branch}

@@ -137,7 +137,7 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
           className="h-full bg-[var(--color-bg-base)] text-[var(--color-text-primary)] flex overflow-hidden"
           style={{ display: viewMode === 'main' ? 'flex' : 'none' }}
         >
-          {!terminalFullscreen && (
+          {terminalFullscreen !== 'full' && (
             <WorktreeSidebar
               cellId={cellId}
               isPrimary={isPrimary}
@@ -240,11 +240,10 @@ export function WorkspaceCell({ initialWorkspacePath, closable, onClose }: Works
               onCloseAllTabs={terminalHook.handleCloseAllTerminalTabs}
               onToggle={terminalHook.handleToggleTerminal}
               onCollapse={() => terminalHook.setTerminalVisible(false)}
-              isFullscreen={terminalFullscreen}
-              onToggleFullscreen={() => {
-                const next = !terminalFullscreen;
-                setTerminalFullscreen(next);
-                if (next && !terminalHook.terminalVisible) {
+              fullscreenMode={terminalFullscreen}
+              onSetFullscreenMode={(mode) => {
+                setTerminalFullscreen(mode);
+                if (mode && !terminalHook.terminalVisible) {
                   terminalHook.handleToggleTerminal();
                 }
               }}

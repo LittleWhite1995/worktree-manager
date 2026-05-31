@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type FC } from 'react';
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { addLog } from '@/lib/operationLog';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import {
   WarningIcon,
   CloseIcon,
   TerminalIcon,
+  DownloadIcon,
 } from './Icons';
 import { Pencil, HelpCircle } from 'lucide-react';
 import {
@@ -92,7 +93,13 @@ interface GitOperationsProps {
   onStatsChanged?: (stats: BranchDiffStats) => void;
 }
 
-export const GitOperations: FC<GitOperationsProps> = ({
+export interface GitOperationsHandle {
+  triggerSync: () => Promise<void>;
+  triggerPull: () => Promise<void>;
+  triggerRefresh: () => Promise<void>;
+}
+
+export const GitOperations = forwardRef<GitOperationsHandle, GitOperationsProps>(({
   projectPath,
   projectName,
   baseBranch,
@@ -105,7 +112,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
   onOpenTerminal,
   autoRefreshSlot,
   onStatsChanged,
-}) => {
+}, ref) => {
   const { t } = useTranslation();
   const [stats, setStats] = useState<BranchDiffStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -202,7 +209,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
     } finally {
       if (version === loadStatsVersionRef.current && !silent) setLoading(false);
     }
-  }, [projectPath, baseBranch, testBranch]);
+  }, [projectPath, baseBranch, testBranch, onStatsChanged]);
 
   const checkBranches = useCallback(async () => {
     try {
@@ -303,6 +310,12 @@ export const GitOperations: FC<GitOperationsProps> = ({
       setActiveAction(null);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    triggerSync: () => runGitAction('sync', () => syncWithBaseBranch(projectPath, baseBranch)),
+    triggerPull: () => runGitAction('pull', () => pullCurrentBranch(projectPath)),
+    triggerRefresh: () => handleRefresh(),
+  }));
 
   const handleRefresh = async () => {
     try {
@@ -576,7 +589,7 @@ export const GitOperations: FC<GitOperationsProps> = ({
             disabled={loading || actionsDisabled}
             className="text-xs min-w-0"
           >
-            <span className="inline-flex mr-1 shrink-0" style={{ transform: 'scaleX(-1)' }}><SyncIcon className="w-3 h-3" /></span>
+            <DownloadIcon className="w-3 h-3 mr-1 shrink-0" />
             <span className="truncate">{activeAction === 'pull' ? t('git.pulling') : t('git.pull')}</span>
           </Button>
 
@@ -831,4 +844,6 @@ export const GitOperations: FC<GitOperationsProps> = ({
 
     </div>
   );
-};
+});
+
+GitOperations.displayName = 'GitOperations';

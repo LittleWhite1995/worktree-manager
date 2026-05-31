@@ -823,10 +823,11 @@ const WorktreeList: FC<{
 
       {isTauri && (
         <div
-          className="px-4 py-2 border-b border-[var(--color-border)] flex items-center justify-center cursor-pointer hover:bg-[var(--color-bg-elevated)] transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+          className="mx-3 my-2 py-1.5 rounded-md border border-dashed border-[var(--color-accent)]/40 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-[var(--color-accent)]/10 hover:border-[var(--color-accent)] transition-colors text-[var(--color-accent)]/70 hover:text-[var(--color-accent)]"
           onClick={onOpenCreateModal}
         >
-          <PlusIcon className="w-4 h-4" />
+          <PlusIcon className="w-3.5 h-3.5" />
+          <span className="text-xs font-medium">{t('sidebar.newWorktree')}</span>
         </div>
       )}
 

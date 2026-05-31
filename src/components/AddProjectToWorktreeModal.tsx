@@ -41,13 +41,48 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
   const [viewMode, setViewMode] = useState<'all' | 'byTag'>('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  if (!config || !worktree) return null;
-
   // Filter out projects already in the worktree
-  const existingProjectNames = new Set(worktree.projects.map(p => p.name));
-  const availableProjects = config.projects.filter(p => !existingProjectNames.has(p.name));
+  const availableProjects = useMemo(() => {
+    if (!config || !worktree) return [];
+    const existingProjectNames = new Set(worktree.projects.map(p => p.name));
+    return config.projects.filter(p => !existingProjectNames.has(p.name));
+  }, [config, worktree]);
 
   const selectedProjectConfig = availableProjects.find(p => p.name === selectedProject);
+
+  // Tag grouping logic
+  const tagGroups = useMemo(() => {
+    if (!config) return null;
+    const tags = config.tags ?? [];
+    if (tags.length === 0) return null;
+
+    const groups: Array<{ tag: TagDefinition | null; projects: typeof availableProjects }> = [];
+
+    for (const tag of tags) {
+      const tagProjects = availableProjects.filter(p => {
+        const pc = config.projects.find(pc => pc.name === p.name);
+        return (pc?.tags ?? []).includes(tag.id);
+      });
+      if (tagProjects.length > 0) {
+        groups.push({ tag, projects: tagProjects });
+      }
+    }
+
+    // Untagged
+    const taggedNames = new Set(
+      tags.flatMap(tag =>
+        config.projects.filter(pc => (pc.tags ?? []).includes(tag.id)).map(pc => pc.name)
+      )
+    );
+    const untagged = availableProjects.filter(p => !taggedNames.has(p.name));
+    if (untagged.length > 0) {
+      groups.push({ tag: null, projects: untagged });
+    }
+
+    return groups;
+  }, [config, availableProjects]);
+
+  if (!config || !worktree) return null;
 
   const handleProjectSelect = (name: string) => {
     setSelectedProject(name);
@@ -73,37 +108,6 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
     }
     onOpenChange(open);
   };
-
-  // Tag grouping logic
-  const tagGroups = useMemo(() => {
-    const tags = config?.tags ?? [];
-    if (tags.length === 0) return null;
-
-    const groups: Array<{ tag: TagDefinition | null; projects: typeof availableProjects }> = [];
-
-    for (const tag of tags) {
-      const tagProjects = availableProjects.filter(p => {
-        const pc = config?.projects.find(pc => pc.name === p.name);
-        return (pc?.tags ?? []).includes(tag.id);
-      });
-      if (tagProjects.length > 0) {
-        groups.push({ tag, projects: tagProjects });
-      }
-    }
-
-    // Untagged
-    const taggedNames = new Set(
-      tags.flatMap(tag =>
-        config!.projects.filter(pc => (pc.tags ?? []).includes(tag.id)).map(pc => pc.name)
-      )
-    );
-    const untagged = availableProjects.filter(p => !taggedNames.has(p.name));
-    if (untagged.length > 0) {
-      groups.push({ tag: null, projects: untagged });
-    }
-
-    return groups;
-  }, [config, availableProjects]);
 
   const toggleGroupCollapse = (tagId: string) => {
     setCollapsedGroups(prev => {
@@ -185,7 +189,7 @@ export const AddProjectToWorktreeModal: FC<AddProjectToWorktreeModalProps> = ({
                               className="w-2.5 h-2.5 rounded-full shrink-0"
                               style={{ backgroundColor: tag?.color ?? 'var(--color-text-muted)' }}
                             />
-                            <span className="font-medium text-sm">{tag?.name ?? t('tags.untagged')}</span>
+                            <span className="font-medium text-sm text-[var(--color-text-primary)]">{tag?.name ?? t('tags.untagged')}</span>
                             <span className="text-xs text-[var(--color-text-muted)]">({groupProjects.length})</span>
                           </div>
 

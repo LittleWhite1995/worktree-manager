@@ -30,8 +30,8 @@ export interface UseAppShellStateReturn {
   setSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   mobileView: "list" | "detail";
   setMobileView: React.Dispatch<React.SetStateAction<"list" | "detail">>;
-  terminalFullscreen: boolean;
-  setTerminalFullscreen: React.Dispatch<React.SetStateAction<boolean>>;
+  terminalFullscreen: false | 'vertical' | 'full';
+  setTerminalFullscreen: React.Dispatch<React.SetStateAction<false | 'vertical' | 'full'>>;
   showShortcutHelp: boolean;
   setShowShortcutHelp: React.Dispatch<React.SetStateAction<boolean>>;
   terminalTabMenu: TerminalTabMenuState | null;
@@ -67,7 +67,7 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string, sh
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobileWeb);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
-  const [terminalFullscreen, setTerminalFullscreen] = useState(false);
+  const [terminalFullscreen, setTerminalFullscreen] = useState<false | 'vertical' | 'full'>(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [terminalTabMenu, setTerminalTabMenu] = useState<TerminalTabMenuState | null>(null);
   const [selectedWorktree, setSelectedWorktree] = useState<WorktreeListItem | null>(null);
@@ -89,6 +89,15 @@ export function useAppShellState(t: TFunction, initialWorkspacePath?: string, sh
     setSelectedWorktree,
   );
   const updater = useUpdater();
+
+  // Exit terminal fullscreen when switching worktree or workspace
+  const prevSelectedRef = useRef(selectedWorktree);
+  useEffect(() => {
+    if (prevSelectedRef.current !== selectedWorktree && terminalFullscreen) {
+      setTerminalFullscreen(false);
+    }
+    prevSelectedRef.current = selectedWorktree;
+  }, [selectedWorktree, terminalFullscreen, setTerminalFullscreen]);
 
   useEffect(() => {
     if (isTauri()) return;

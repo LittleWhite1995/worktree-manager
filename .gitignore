@@ -14,6 +14,7 @@ dist-ssr
 
 .claude/
 .memory-staging/
+.superpowers/brainstorm/
 docs/superpowers/
 
 # Requirement docs (internal)

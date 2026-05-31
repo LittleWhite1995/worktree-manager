@@ -38,6 +38,8 @@ import {
   QrCode,
   Code,
   FolderOpen,
+  Download,
+  ChevronsUpDown,
 } from 'lucide-react';
 
 interface IconProps {
@@ -208,6 +210,14 @@ export const CodeIcon: FC<IconProps> = ({ className = "w-4 h-4" }) => (
 
 export const FolderOpenIcon: FC<IconProps> = ({ className = "w-4 h-4" }) => (
   <FolderOpen className={className} />
+);
+
+export const DownloadIcon: FC<IconProps> = ({ className = "w-4 h-4" }) => (
+  <Download className={className} />
+);
+
+export const VerticalExpandIcon: FC<IconProps> = ({ className = "w-4 h-4" }) => (
+  <ChevronsUpDown className={className} />
 );
 
 export const FileIcon: FC<IconProps> = ({ className = "w-4 h-4" }) => (
