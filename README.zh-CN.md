@@ -39,6 +39,22 @@
 
 **有 Worktree Manager** — 点「新建」，输入 `hotfix-payment`，完成。Feature 分支 dev server 还在跑，`node_modules` 通过 symlink 共享，秒级就绪。**切换成本 30 秒。**
 
+### 多仓库工作区 & 并行 AI 开发
+
+将相关仓库组成一个**工作区**，新建 Worktree 时所有项目一起创建 `git worktree`。每个 Worktree 拥有独立终端 —— 可以同时在不同分支上运行 Claude Code、Codex 或 Cursor，互不冲突。
+
+<p align="center">
+<img src="docs/gif/card1-multi-repo.gif" width="680" alt="多仓库工作区 — 一键切换所有仓库，每个 worktree 运行独立 AI 代理">
+</p>
+
+### 零成本上下文切换
+
+开发到一半突发 P0？新建 `hotfix-payment` Worktree → AI 辅助修复 → 合并到 main → 归档 → 切回去。**未提交的代码、终端输出、dev server —— 一切都还在。**
+
+<p align="center">
+<img src="docs/gif/card2-hotfix-story.gif" width="680" alt="零成本上下文切换 — hotfix 不丢失任何工作">
+</p>
+
 ### 前后端联调，分支对不上就炸
 
 前后端分仓，做「会员体系」时两个仓库都要切到 `feature/membership`。同事让你看一个 `feature/search` 的问题，你切了前端忘了切后端 —— 白屏、404，排查半天发现是分支没对齐。

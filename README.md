@@ -37,6 +37,22 @@ You're deep in a feature branch. Fifteen files changed. Dev server running. Then
 
 **With Worktree Manager** — Click "New Worktree", type `hotfix-payment`, done. Your feature branch keeps running. Dependencies are shared via symlink — instant setup. Fix, push, archive. **30 seconds.**
 
+### Multi-Repo Workspaces & Parallel AI Development
+
+Group related repos into a **Workspace**. Creating a Worktree creates a `git worktree` across all linked projects at once. Each Worktree gets its own terminal — run Claude Code, Codex, or Cursor in parallel across different branches without conflicts.
+
+<p align="center">
+<img src="docs/gif/card1-multi-repo.gif" width="680" alt="Multi-Repo Workspaces — one click switches all repos, each worktree runs its own AI agent">
+</p>
+
+### Zero-Cost Context Switching
+
+P0 alert mid-development? Create a `hotfix-payment` Worktree → AI-assisted fix → merge to main → archive → switch back. **Uncommitted code, terminal output, dev servers — everything stays intact.**
+
+<p align="center">
+<img src="docs/gif/card2-hotfix-story.gif" width="680" alt="Zero-cost context switching — hotfix without losing any work">
+</p>
+
 ---
 
 ## 📸 Screenshots
