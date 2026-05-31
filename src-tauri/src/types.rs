@@ -164,6 +164,12 @@ pub struct GlobalConfig {
     pub dashscope_base_url: Option<String>,
     #[serde(default = "default_true")]
     pub voice_refine_enabled: bool,
+    #[serde(default)]
+    pub voice_refine_base_url: Option<String>,
+    #[serde(default)]
+    pub voice_asr_model: Option<String>,
+    #[serde(default)]
+    pub voice_refine_model: Option<String>,
     #[serde(default = "default_prefix_templates")]
     pub commit_prefix_templates: Vec<String>,
     #[serde(default = "default_true")]
@@ -220,6 +226,9 @@ impl Default for GlobalConfig {
             dashscope_api_key: None,
             dashscope_base_url: None,
             voice_refine_enabled: true,
+            voice_refine_base_url: None,
+            voice_asr_model: None,
+            voice_refine_model: None,
             commit_prefix_templates: default_prefix_templates(),
             commit_prefix_enabled: true,
             default_prefix_index: 0,

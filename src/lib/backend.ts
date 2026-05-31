@@ -639,6 +639,34 @@ export async function setVoiceRefineEnabled(enabled: boolean): Promise<void> {
   return callBackend<void>('set_voice_refine_enabled', { enabled });
 }
 
+export async function getVoiceRefineBaseUrl(): Promise<string | null> {
+  return callBackend<string | null>('get_voice_refine_base_url');
+}
+
+export async function setVoiceRefineBaseUrl(url: string): Promise<void> {
+  return callBackend<void>('set_voice_refine_base_url', { url });
+}
+
+export async function getVoiceAsrModel(): Promise<string | null> {
+  return callBackend<string | null>('get_voice_asr_model');
+}
+
+export async function setVoiceAsrModel(model: string): Promise<void> {
+  return callBackend<void>('set_voice_asr_model', { model });
+}
+
+export async function getVoiceRefineModel(): Promise<string | null> {
+  return callBackend<string | null>('get_voice_refine_model');
+}
+
+export async function setVoiceRefineModel(model: string): Promise<void> {
+  return callBackend<void>('set_voice_refine_model', { model });
+}
+
+export async function listDashscopeModels(): Promise<string[]> {
+  return callBackend<string[]>('list_dashscope_models');
+}
+
 export async function checkDashscopeApiKey(): Promise<boolean> {
   return callBackend<boolean>('check_dashscope_api_key');
 }

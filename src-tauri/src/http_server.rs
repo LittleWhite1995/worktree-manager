@@ -2152,6 +2152,37 @@ async fn h_set_voice_refine_enabled(Json(args): Json<Value>) -> Response {
     ))
 }
 
+async fn h_get_voice_refine_base_url() -> Response {
+    result_json(crate::commands::voice::get_voice_refine_base_url_inner())
+}
+
+async fn h_set_voice_refine_base_url(Json(args): Json<Value>) -> Response {
+    let url = args["url"].as_str().unwrap_or("").to_string();
+    result_ok(crate::commands::voice::set_voice_refine_base_url_inner(url))
+}
+
+async fn h_get_voice_asr_model() -> Response {
+    result_json(crate::commands::voice::get_voice_asr_model_inner())
+}
+
+async fn h_set_voice_asr_model(Json(args): Json<Value>) -> Response {
+    let model = args["model"].as_str().unwrap_or("").to_string();
+    result_ok(crate::commands::voice::set_voice_asr_model_inner(model))
+}
+
+async fn h_get_voice_refine_model() -> Response {
+    result_json(crate::commands::voice::get_voice_refine_model_inner())
+}
+
+async fn h_set_voice_refine_model(Json(args): Json<Value>) -> Response {
+    let model = args["model"].as_str().unwrap_or("").to_string();
+    result_ok(crate::commands::voice::set_voice_refine_model_inner(model))
+}
+
+async fn h_list_dashscope_models() -> Response {
+    result_json(crate::commands::voice::list_dashscope_models_inner().await)
+}
+
 // -- Cloud connection --
 
 async fn h_cloud_get_status() -> Response {

@@ -183,6 +183,121 @@ pub(crate) async fn set_voice_refine_enabled(enabled: bool) -> Result<(), String
     set_voice_refine_enabled_inner(enabled)
 }
 
+// ==================== Voice Refine Base URL ====================
+
+const DEFAULT_REFINE_BASE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+pub(crate) fn get_voice_refine_base_url_inner() -> Result<Option<String>, String> {
+    let config = load_global_config();
+    Ok(config.voice_refine_base_url)
+}
+
+pub(crate) fn set_voice_refine_base_url_inner(url: String) -> Result<(), String> {
+    let mut config = load_global_config();
+    config.voice_refine_base_url = if url.is_empty() { None } else { Some(url) };
+    save_global_config_internal(&config)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn get_voice_refine_base_url() -> Result<Option<String>, String> {
+    get_voice_refine_base_url_inner()
+}
+
+#[tauri::command]
+pub(crate) async fn set_voice_refine_base_url(url: String) -> Result<(), String> {
+    set_voice_refine_base_url_inner(url)
+}
+
+// ==================== Voice Model Config ====================
+
+pub(crate) fn get_voice_asr_model_inner() -> Result<Option<String>, String> {
+    let config = load_global_config();
+    Ok(config.voice_asr_model)
+}
+
+pub(crate) fn set_voice_asr_model_inner(model: String) -> Result<(), String> {
+    let mut config = load_global_config();
+    config.voice_asr_model = if model.is_empty() { None } else { Some(model) };
+    save_global_config_internal(&config)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn get_voice_asr_model() -> Result<Option<String>, String> {
+    get_voice_asr_model_inner()
+}
+
+#[tauri::command]
+pub(crate) async fn set_voice_asr_model(model: String) -> Result<(), String> {
+    set_voice_asr_model_inner(model)
+}
+
+pub(crate) fn get_voice_refine_model_inner() -> Result<Option<String>, String> {
+    let config = load_global_config();
+    Ok(config.voice_refine_model)
+}
+
+pub(crate) fn set_voice_refine_model_inner(model: String) -> Result<(), String> {
+    let mut config = load_global_config();
+    config.voice_refine_model = if model.is_empty() { None } else { Some(model) };
+    save_global_config_internal(&config)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn get_voice_refine_model() -> Result<Option<String>, String> {
+    get_voice_refine_model_inner()
+}
+
+#[tauri::command]
+pub(crate) async fn set_voice_refine_model(model: String) -> Result<(), String> {
+    set_voice_refine_model_inner(model)
+}
+
+// ==================== Dashscope Models List ====================
+
+pub(crate) async fn list_dashscope_models_inner() -> Result<Vec<String>, String> {
+    let config = load_global_config();
+    let api_key = config.dashscope_api_key.ok_or("未配置 Dashscope API Key")?;
+    let base_url = config
+        .voice_refine_base_url
+        .unwrap_or_else(|| DEFAULT_REFINE_BASE_URL.to_string());
+    let url = format!("{}/models", base_url.trim_end_matches('/'));
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch models: {}", e))?;
+
+    if !resp.status().is_success() {
+        let msg = resp.text().await.unwrap_or_default();
+        return Err(format!("Models API error: {}", msg));
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Parse models response error: {}", e))?;
+
+    let mut models: Vec<String> = body["data"]
+        .as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+        .collect();
+    models.sort();
+    Ok(models)
+}
+
+#[tauri::command]
+pub(crate) async fn list_dashscope_models() -> Result<Vec<String>, String> {
+    list_dashscope_models_inner().await
+}
+
 // ==================== Voice Session Commands ====================
 
 pub(crate) async fn voice_start_inner(sample_rate: Option<u32>) -> Result<(), String> {
@@ -250,7 +365,7 @@ pub(crate) async fn voice_start_inner(sample_rate: Option<u32>) -> Result<(), St
             "task_group": "audio",
             "task": "asr",
             "function": "recognition",
-            "model": "paraformer-realtime-v2",
+            "model": config.voice_asr_model.as_deref().unwrap_or("paraformer-realtime-v2"),
             "parameters": {
                 "format": "pcm",
                 "sample_rate": actual_sample_rate,
@@ -578,15 +693,15 @@ pub(crate) async fn call_ai_chat(
             .ok_or("未配置 Commit AI API Key，请在设置中配置")?;
         let url = config
             .dashscope_base_url
-            .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
+            .unwrap_or_else(|| DEFAULT_REFINE_BASE_URL.to_string());
         (key, url)
     } else {
         let key = config
             .dashscope_api_key
             .ok_or("未配置 AI 能力（无云端连接且无本地 API Key）")?;
         let url = config
-            .dashscope_base_url
-            .unwrap_or_else(|| "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string());
+            .voice_refine_base_url
+            .unwrap_or_else(|| DEFAULT_REFINE_BASE_URL.to_string());
         (key, url)
     };
 
@@ -624,23 +739,40 @@ pub(crate) async fn call_ai_chat(
 
 // ==================== AI Text Refinement (Qwen LLM) ====================
 
-const REFINE_SYSTEM_PROMPT: &str = "\
-你是一个纯文本清理工具。用户会在 <raw></raw> 标签中给你一段语音识别原文，你只需要清理后原样输出。\n\
-\n\
-规则：\n\
-- 去除语气词（嗯、呃、那个、就是、然后）和口语填充词\n\
-- 去除多余标点和重复表达\n\
-- 严禁修改语义、回答问题、补充信息、计算结果\n\
-- 疑问句必须保持疑问句，陈述句保持陈述句\n\
-- 终端命令（git, npm, cd 等）保留原始格式\n\
-- 只输出清理后的纯文本，不加解释、引号、前缀或标签\n\
-\n\
-示例：\n\
-输入: <raw>嗯那个1加5等于几呢？</raw>\n\
-输出: 1加5等于几？\n\
-\n\
-输入: <raw>呃就是说git push到那个origin main上面</raw>\n\
-输出: git push origin main";
+const REFINE_SYSTEM_PROMPT: &str = r#"你是一个语音转文字的排版工具（类似 Typeless）。用户在 <raw></raw> 中给你语音识别原文，你负责清理和排版，然后原样输出。
+
+## 清理规则
+- 去除语气词（嗯、呃、那个、就是、然后、对、啊）和口语填充词
+- 去除重复表达和多余停顿
+- 修正明显的语音识别错误（同音字纠错）
+- 补充合理的标点符号
+
+## 排版规则
+- 当用户说出"第一/第二/第三"或"首先/其次/最后"等序号词时，格式化为编号列表
+- 当内容包含明显的多个要点时，用换行分隔
+- 终端命令（git, npm, cd 等）保留原始格式，用 backtick 包裹
+
+## 严格禁止
+- 严禁回答问题、计算结果、补充信息、给出建议
+- 严禁改变语义——疑问句保持疑问句，陈述句保持陈述句
+- 严禁添加解释、引号、前缀、XML 标签或任何额外内容
+- 你不是 AI 助手，不要尝试理解或执行用户的意图，只做排版
+
+## 示例
+输入: <raw>嗯那个1加1等于几呢</raw>
+输出: 1加1等于几？
+
+输入: <raw>呃就是说git push到那个origin main上面</raw>
+输出: `git push origin main`
+
+输入: <raw>我觉得有三个问题啊第一就是性能不太好第二是那个界面有点丑然后第三个就是文档太少了</raw>
+输出: 我觉得有三个问题：
+1. 性能不太好
+2. 界面有点丑
+3. 文档太少了
+
+输入: <raw>帮我把那个删除按钮的颜色改成红色然后把确认弹窗的文案改成你确定要删除吗</raw>
+输出: 把删除按钮的颜色改成红色，把确认弹窗的文案改成"你确定要删除吗？""#;
 
 pub(crate) async fn voice_refine_text_inner(text: String) -> Result<String, String> {
     let trimmed = text.trim();
@@ -654,7 +786,12 @@ pub(crate) async fn voice_refine_text_inner(text: String) -> Result<String, Stri
         serde_json::json!({"role": "user", "content": user_content}),
     ];
 
-    let result = call_ai_chat(messages, None, 0.0, "voice_refine").await?;
+    let config = crate::config::load_global_config();
+    let refine_model = config
+        .voice_refine_model
+        .as_deref()
+        .unwrap_or("qwen3.7-max");
+    let result = call_ai_chat(messages, Some(refine_model), 0.0, "voice_refine").await?;
     Ok(if result.is_empty() {
         trimmed.to_string()
     } else {

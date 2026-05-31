@@ -28,7 +28,7 @@ import { BackIcon, PlusIcon, TrashIcon } from './Icons';
 import { useTheme } from '../hooks/useTheme';
 import { BranchCombobox } from './BranchCombobox';
 import type { WorkspaceRef, WorkspaceConfig, ProjectConfig, ScannedFolder, VaultStatus, VaultItemChild, FailedVaultItem, TagDefinition } from '../types';
-import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, voiceStart, voiceStop, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect, getCommitAiApiKey, setCommitAiApiKey as saveCommitAiApiKey, setCommitAiEnabled as saveCommitAiEnabled, getCommitAiEnabled } from '../lib/backend';
+import { getAppVersion, getAppIcon, getNgrokToken, setNgrokToken as saveNgrokToken, getDashscopeApiKey, setDashscopeApiKey as saveDashscopeApiKey, getDashscopeBaseUrl, setDashscopeBaseUrl as saveDashscopeBaseUrl, getVoiceRefineEnabled, setVoiceRefineEnabled as saveVoiceRefineEnabled, getVoiceAsrModel, setVoiceAsrModel as saveVoiceAsrModel, getVoiceRefineModel, setVoiceRefineModel as saveVoiceRefineModel, voiceStart, voiceStop, voiceRefineText, isTauri, getPlatform, getRemoteBranches, openLink, callBackend, loadWorkspaceConfigByPath, saveWorkspaceConfigByPath, getVaultStatus, vaultLink, listVaultItemChildren, getCommitPrefixConfig, setCommitPrefixConfig, getGitUserGlobalConfig, setGitUserGlobalConfig, getSkipGitHooks, setSkipGitHooks as saveSkipGitHooks, getShellIntegrationEnabled, setShellIntegrationEnabled as saveShellIntegrationEnabled, cloudGetStatus, cloudStartPairing, cloudCheckPairingStatus, cloudApprovePairing, cloudRejectPairing, cloudDisconnect, getCommitAiApiKey, setCommitAiApiKey as saveCommitAiApiKey, setCommitAiEnabled as saveCommitAiEnabled, getCommitAiEnabled, listDashscopeModels, getVoiceRefineBaseUrl, setVoiceRefineBaseUrl as saveVoiceRefineBaseUrl } from '../lib/backend';
 import type { CloudStatus, PairingStatus } from '../lib/backend';
 
 const isWindowsPowerShellId = (id?: string) => id === 'powershell' || id === 'pwsh';
@@ -730,6 +730,22 @@ export const SettingsView: FC<SettingsViewProps> = ({
   const [voiceRefineEnabled, setVoiceRefineEnabled] = useState(true);
   const [voiceRefineLoaded, setVoiceRefineLoaded] = useState(false);
 
+  // Voice model config
+  const [voiceAsrModel, setVoiceAsrModel] = useState('');
+  const [voiceRefineModel, setVoiceRefineModel] = useState('');
+  const [voiceModelsLoaded, setVoiceModelsLoaded] = useState(false);
+
+  // Refine base URL state
+  const DEFAULT_REFINE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+  const [refineBaseUrl, setRefineBaseUrl] = useState('');
+  const [refineUrlSaving, setRefineUrlSaving] = useState(false);
+  const [refineUrlSaved, setRefineUrlSaved] = useState(false);
+  const [refineUrlError, setRefineUrlError] = useState<string | null>(null);
+
+  // Refine test
+  const [refineTesting, setRefineTesting] = useState(false);
+  const [refineTestResult, setRefineTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   // Commit AI key state
   const [commitAiKey, setCommitAiKey] = useState('');
   const [commitAiKeyMasked, setCommitAiKeyMasked] = useState(false);
@@ -969,6 +985,10 @@ export const SettingsView: FC<SettingsViewProps> = ({
       setVoiceRefineEnabled(v);
       setVoiceRefineLoaded(true);
     }).catch(() => setVoiceRefineLoaded(true));
+    getVoiceAsrModel().then(m => setVoiceAsrModel(m || '')).catch(() => {});
+    getVoiceRefineModel().then(m => setVoiceRefineModel(m || '')).catch(() => {});
+    getVoiceRefineBaseUrl().then(u => setRefineBaseUrl(u || '')).catch(() => {});
+    setVoiceModelsLoaded(true);
   }, [loadMicDevices]);
 
   // When navigating to voice section, request mic permission to get device labels
@@ -1999,7 +2019,8 @@ export const SettingsView: FC<SettingsViewProps> = ({
             {activeSection === 'voice' && dashscopeKeyLoaded && (
               <div>
                 <h2 className="text-lg font-medium mb-4">{t('settings.voiceTitle')}</h2>
-                <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 rounded-lg p-4 space-y-3">
+                {/* Shared: API Key + Mic */}
+                <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 rounded-lg p-4 space-y-3 mb-4">
                   {/* Microphone */}
                   <div>
                     <label className="block text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.micDevice')}</label>
@@ -2030,17 +2051,6 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       </div>
                     )}
                   </div>
-                  {/* Voice Refine Toggle */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="text-sm text-[var(--color-text-secondary)]">{t('settings.voiceRefineLabel')}</label>
-                      <p className="text-xs text-[var(--color-text-muted)]">{t('settings.voiceRefineDesc')}</p>
-                    </div>
-                    <button type="button" onClick={() => { const newVal = !voiceRefineEnabled; setVoiceRefineEnabled(newVal); saveVoiceRefineEnabled(newVal).catch(() => { }); }}
-                      disabled={!voiceRefineLoaded}
-                      className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${voiceRefineEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-muted)]'}`}
-                    ><span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${voiceRefineEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} /></button>
-                  </div>
                   {/* Dashscope API Key */}
                   <div>
                     <label className="block text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.dashscopeKeyLabel')}</label>
@@ -2059,8 +2069,19 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       >{dashscopeSaving ? t('common.saving') : dashscopeSaved ? t('settings.savedSuccess') : t('common.save')}</Button>
                     </div>
                     {dashscopeError && <p className="text-sm text-[var(--color-error)] mt-1">{dashscopeError}</p>}
+                    <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                      {t('settings.voiceHint')}
+                      <button type="button" className="text-[var(--color-accent)] hover:text-[var(--color-accent)] ml-1 underline cursor-pointer transition-colors"
+                        onClick={() => openLink('https://dashscope.console.aliyun.com/apiKey')}
+                      >{t('settings.getApiKey')}</button>
+                    </p>
                   </div>
-                  {/* Dashscope Base URL */}
+                </div>
+
+                {/* ASR Section */}
+                <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">{t('settings.voiceAsrTitle')}</h3>
+                <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 rounded-lg p-4 space-y-3 mb-4">
+                  {/* ASR WebSocket URL */}
                   <div>
                     <label className="block text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.wsAddressLabel')}</label>
                     <div className="flex gap-2">
@@ -2081,7 +2102,25 @@ export const SettingsView: FC<SettingsViewProps> = ({
                     {dashscopeUrlError && <p className="text-sm text-[var(--color-error)] mt-1">{dashscopeUrlError}</p>}
                     <p className="text-xs text-[var(--color-text-muted)] mt-1">{t('settings.wsAddressHint', { url: DEFAULT_DASHSCOPE_URL })}</p>
                   </div>
-                  {/* Connection Test */}
+                  {/* ASR Model */}
+                  {voiceModelsLoaded && (
+                    <div>
+                      <label className="block text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.voiceAsrModel')}</label>
+                      <BranchCombobox
+                        value={voiceAsrModel}
+                        onChange={(v) => { setVoiceAsrModel(v); saveVoiceAsrModel(v.trim()); }}
+                        onLoadBranches={async () => [
+                          'paraformer-realtime-v2',
+                          'paraformer-realtime-v1',
+                          'paraformer-realtime-8k-v2',
+                          'paraformer-realtime-8k-v1',
+                        ]}
+                        placeholder="paraformer-realtime-v2"
+                      />
+                      <p className="text-xs text-[var(--color-text-muted)] mt-1">{t('settings.voiceAsrModelHint')}</p>
+                    </div>
+                  )}
+                  {/* ASR Test */}
                   <div className="flex items-center gap-3">
                     <Button variant="secondary" size="sm" disabled={dashscopeTesting || !dashscopeKey.trim()}
                       onClick={async () => { setDashscopeTesting(true); setDashscopeTestResult(null); try { await saveDashscopeApiKey(dashscopeKey.trim()); if (dashscopeUrl.trim()) { await saveDashscopeBaseUrl(dashscopeUrl.trim()); } await voiceStart(16000); await voiceStop(); setDashscopeTestResult({ ok: true, message: t('settings.connectionSuccess') }); } catch (e) { setDashscopeTestResult({ ok: false, message: String(e) }); } finally { setDashscopeTesting(false); setTimeout(() => setDashscopeTestResult(null), 4000); } }}
@@ -2092,13 +2131,80 @@ export const SettingsView: FC<SettingsViewProps> = ({
                       <span className={`text-sm ${dashscopeTestResult.ok ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>{dashscopeTestResult.message}</span>
                     )}
                   </div>
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {t('settings.voiceHint')}
-                    <button type="button" className="text-[var(--color-accent)] hover:text-[var(--color-accent)] ml-1 underline cursor-pointer transition-colors"
-                      onClick={() => openLink('https://dashscope.console.aliyun.com/apiKey')}
-                    >{t('settings.getApiKey')}</button>
-                  </p>
                 </div>
+
+                {/* Refine Section */}
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-[var(--color-text-primary)]">{t('settings.voiceRefineTitle')}</h3>
+                  <button type="button" onClick={() => { const newVal = !voiceRefineEnabled; setVoiceRefineEnabled(newVal); saveVoiceRefineEnabled(newVal).catch(() => { }); }}
+                    disabled={!voiceRefineLoaded}
+                    className={`relative inline-flex h-5 w-8 items-center rounded-full transition-colors ${voiceRefineEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-muted)]'}`}
+                  ><span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${voiceRefineEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} /></button>
+                </div>
+                {voiceRefineEnabled && (
+                  <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)]/50 rounded-lg p-4 space-y-3">
+                    <p className="text-xs text-[var(--color-text-muted)]">{t('settings.voiceRefineDesc')}</p>
+                    {/* Refine Base URL */}
+                    <div>
+                      <label className="block text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.refineBaseUrlLabel')}</label>
+                      <div className="flex gap-2">
+                        <Input type="text" value={refineBaseUrl}
+                          onChange={(e) => { setRefineBaseUrl(e.target.value); setRefineUrlSaved(false); }}
+                          placeholder={DEFAULT_REFINE_URL} className="flex-1"
+                        />
+                        <Button variant="secondary" size="sm" disabled={refineUrlSaving}
+                          onClick={async () => { setRefineUrlSaving(true); setRefineUrlError(null); try { await saveVoiceRefineBaseUrl(refineBaseUrl.trim()); setRefineUrlSaved(true); setTimeout(() => setRefineUrlSaved(false), 2000); } catch (e) { setRefineUrlError(String(e)); } finally { setRefineUrlSaving(false); } }}
+                        >{refineUrlSaving ? t('common.saving') : refineUrlSaved ? t('settings.savedSuccess') : t('common.save')}</Button>
+                        {refineBaseUrl && refineBaseUrl !== DEFAULT_REFINE_URL && (
+                          <Button variant="ghost" size="sm"
+                            onClick={async () => { setRefineBaseUrl(''); setRefineUrlError(null); try { await saveVoiceRefineBaseUrl(''); setRefineUrlSaved(true); setTimeout(() => setRefineUrlSaved(false), 2000); } catch (e) { setRefineUrlError(String(e)); } }}
+                            className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                          >{t('settings.restoreDefault')}</Button>
+                        )}
+                      </div>
+                      {refineUrlError && <p className="text-sm text-[var(--color-error)] mt-1">{refineUrlError}</p>}
+                      <p className="text-xs text-[var(--color-text-muted)] mt-1">{t('settings.refineBaseUrlHint', { url: DEFAULT_REFINE_URL })}</p>
+                    </div>
+                    {/* Refine Model */}
+                    {voiceModelsLoaded && (
+                      <div>
+                        <label className="block text-sm text-[var(--color-text-secondary)] mb-1">{t('settings.voiceRefineModel')}</label>
+                        <BranchCombobox
+                          value={voiceRefineModel}
+                          onChange={(v) => { setVoiceRefineModel(v); saveVoiceRefineModel(v.trim()); }}
+                          onLoadBranches={async () => {
+                            const models = await listDashscopeModels();
+                            return models.filter(m => m.includes('qwen'));
+                          }}
+                          placeholder="qwen3.7-max"
+                        />
+                        <p className="text-xs text-[var(--color-text-muted)] mt-1">{t('settings.voiceRefineModelHint')}</p>
+                      </div>
+                    )}
+                    {/* Refine Test */}
+                    <div className="flex items-center gap-3">
+                      <Button variant="secondary" size="sm" disabled={refineTesting || !dashscopeKey.trim()}
+                        onClick={async () => {
+                          setRefineTesting(true); setRefineTestResult(null);
+                          try {
+                            const result = await voiceRefineText('嗯那个就是我想说的就是这个功能还是蛮好用的然后呃我觉得可以的');
+                            setRefineTestResult({ ok: true, message: `${t('settings.refineTestSuccess')}: "${result}"` });
+                          } catch (e) {
+                            setRefineTestResult({ ok: false, message: String(e) });
+                          } finally {
+                            setRefineTesting(false);
+                            setTimeout(() => setRefineTestResult(null), 8000);
+                          }
+                        }}
+                      >
+                        {refineTesting ? (<><div className="w-3 h-3 border border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />{t('settings.testing')}</>) : t('settings.testRefine')}
+                      </Button>
+                      {refineTestResult && (
+                        <span className={`text-sm ${refineTestResult.ok ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}`}>{refineTestResult.message}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
