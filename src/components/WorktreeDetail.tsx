@@ -1228,7 +1228,23 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                   .filter(proj => occupation.original_branches[proj.name])
                   .map(proj => {
                     const projectPath = proj.path;
-                    const projAsStatus = {
+                    const liveStats = projectStats[proj.path];
+                    const projAsStatus = liveStats ? {
+                      name: proj.name,
+                      path: proj.path,
+                      current_branch: proj.current_branch,
+                      base_branch: proj.base_branch,
+                      test_branch: proj.test_branch,
+                      has_uncommitted: liveStats.changed_files > 0,
+                      uncommitted_count: liveStats.changed_files,
+                      is_merged_to_test: false,
+                      is_merged_to_base: proj.is_merged_to_base,
+                      ahead_of_base: liveStats.ahead,
+                      behind_base: liveStats.behind,
+                      ahead_of_test: liveStats.ahead_of_test,
+                      unpushed_commits: liveStats.unpushed_commits,
+                      remote_url: '',
+                    } : {
                       name: proj.name,
                       path: proj.path,
                       current_branch: proj.current_branch,
@@ -1295,6 +1311,7 @@ export const WorktreeDetail: FC<WorktreeDetailProps> = ({
                             currentBranch={proj.current_branch}
                             onRefresh={onRefresh}
                             onOpenTerminal={onOpenTerminalPanel}
+                            onStatsChanged={(stats) => handleStatsChanged(projectPath, stats)}
                           />
                         </div>
                       </div>
