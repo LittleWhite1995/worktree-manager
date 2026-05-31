@@ -142,6 +142,16 @@ export const GitOperations = forwardRef<GitOperationsHandle, GitOperationsProps>
   const activeActionRef = useRef(activeAction);
   const autoRefreshInFlightRef = useRef(false);
   const loadStatsVersionRef = useRef(0);
+  const onStatsChangedRef = useRef(onStatsChanged);
+  const onSilentRefreshRef = useRef(onSilentRefresh);
+
+  useEffect(() => {
+    onStatsChangedRef.current = onStatsChanged;
+  }, [onStatsChanged]);
+
+  useEffect(() => {
+    onSilentRefreshRef.current = onSilentRefresh;
+  }, [onSilentRefresh]);
 
   useEffect(() => {
     fetchingSyncingRef.current = fetchingSyncing;
@@ -198,7 +208,7 @@ export const GitOperations = forwardRef<GitOperationsHandle, GitOperationsProps>
       }
       console.log('[GitOps] diff stats:', { projectPath, baseBranch, testBranch, result });
       setStats(result);
-      onStatsChanged?.(result);
+      onStatsChangedRef.current?.(result);
     } catch (err) {
       if (version !== loadStatsVersionRef.current) return;
       if (!silent) {
@@ -209,7 +219,7 @@ export const GitOperations = forwardRef<GitOperationsHandle, GitOperationsProps>
     } finally {
       if (version === loadStatsVersionRef.current && !silent) setLoading(false);
     }
-  }, [projectPath, baseBranch, testBranch, onStatsChanged]);
+  }, [projectPath, baseBranch, testBranch]);
 
   const checkBranches = useCallback(async () => {
     try {
@@ -264,7 +274,7 @@ export const GitOperations = forwardRef<GitOperationsHandle, GitOperationsProps>
       autoRefreshInFlightRef.current = true;
       try {
         await Promise.all([
-          onSilentRefresh?.(),
+          onSilentRefreshRef.current?.(),
           loadStats(true),
         ]);
       } finally {
@@ -283,7 +293,7 @@ export const GitOperations = forwardRef<GitOperationsHandle, GitOperationsProps>
       clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [autoRefreshSlot, onSilentRefresh, loadStats]);
+  }, [autoRefreshSlot, loadStats]);
 
   const runGitAction = async (
     action: typeof activeAction,
