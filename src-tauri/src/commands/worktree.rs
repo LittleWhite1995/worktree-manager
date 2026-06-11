@@ -16,8 +16,8 @@ use crate::types::{
     WorktreeListItem,
 };
 use crate::utils::{
-    friendly_fs_error, git_command, normalize_path, run_git_command_with_timeout,
-    scan_dir_for_linkable_folders,
+    friendly_fs_error, git_command, mask_url_credentials, normalize_path,
+    run_git_command_with_timeout, scan_dir_for_linkable_folders, validate_git_ref_name,
 };
 
 /// Cross-platform symlink creation.
@@ -712,18 +712,24 @@ fn setup_project_worktree(
     proj_req: &CreateProjectRequest,
     proj_config: &ProjectConfig,
 ) -> Result<(), String> {
+    validate_git_ref_name(worktree_name)?;
+    validate_git_ref_name(&proj_req.base_branch)?;
+
     let main_proj_path = root.join("projects").join(&proj_req.name);
     let wt_proj_path = worktree_path.join("projects").join(&proj_req.name);
 
     // Fetch origin first (with timeout)
     log::info!("[worktree] Project '{}': git fetch origin", proj_req.name);
-    run_git_command_with_timeout(&["fetch", "origin"], main_proj_path.to_str().unwrap())?;
+    run_git_command_with_timeout(
+        &["fetch", "origin"],
+        main_proj_path.to_string_lossy().as_ref(),
+    )?;
 
     // Check if branch already exists
     let branch_check = git_command()
         .args([
             "-C",
-            main_proj_path.to_str().unwrap(),
+            main_proj_path.to_string_lossy().as_ref(),
             "branch",
             "--list",
             worktree_name,
@@ -752,10 +758,10 @@ fn setup_project_worktree(
         git_command()
             .args([
                 "-C",
-                main_proj_path.to_str().unwrap(),
+                main_proj_path.to_string_lossy().as_ref(),
                 "worktree",
                 "add",
-                wt_proj_path.to_str().unwrap(),
+                wt_proj_path.to_string_lossy().as_ref(),
                 worktree_name,
             ])
             .output()
@@ -769,13 +775,13 @@ fn setup_project_worktree(
         git_command()
             .args([
                 "-C",
-                main_proj_path.to_str().unwrap(),
+                main_proj_path.to_string_lossy().as_ref(),
                 "worktree",
                 "add",
                 "--track",
                 "-b",
                 worktree_name,
-                wt_proj_path.to_str().unwrap(),
+                wt_proj_path.to_string_lossy().as_ref(),
                 &format!("origin/{}", worktree_name),
             ])
             .output()
@@ -790,10 +796,10 @@ fn setup_project_worktree(
         git_command()
             .args([
                 "-C",
-                main_proj_path.to_str().unwrap(),
+                main_proj_path.to_string_lossy().as_ref(),
                 "worktree",
                 "add",
-                wt_proj_path.to_str().unwrap(),
+                wt_proj_path.to_string_lossy().as_ref(),
                 "-b",
                 worktree_name,
                 &format!("origin/{}", proj_req.base_branch),
@@ -804,10 +810,11 @@ fn setup_project_worktree(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr_for_log = mask_url_credentials(&stderr);
         log::error!(
             "[worktree] FAILED: git worktree add for project '{}': {}",
             proj_req.name,
-            stderr
+            stderr_for_log
         );
         return Err(format!(
             "Failed to create worktree for {}: {}",
@@ -829,7 +836,7 @@ fn setup_project_worktree(
         );
         let push_output = run_git_command_with_timeout(
             &["push", "-u", "origin", worktree_name],
-            wt_proj_path.to_str().unwrap(),
+            wt_proj_path.to_string_lossy().as_ref(),
         );
 
         match push_output {
@@ -842,11 +849,12 @@ fn setup_project_worktree(
             }
             Ok(output) => {
                 let stderr = String::from_utf8_lossy(&output.stderr);
+                let stderr_for_log = mask_url_credentials(&stderr);
                 log::warn!(
                     "[worktree] Project '{}': git push -u origin {} failed (worktree created successfully): {}",
                     proj_req.name,
                     worktree_name,
-                    stderr
+                    stderr_for_log
                 );
             }
             Err(e) => {
@@ -883,7 +891,7 @@ fn setup_project_worktree(
             git_command()
                 .args([
                     "-C",
-                    wt_proj_path.to_str().unwrap(),
+                    wt_proj_path.to_string_lossy().as_ref(),
                     "rm",
                     "--cached",
                     "-r",
@@ -901,8 +909,25 @@ pub fn create_worktree_impl(
     window_label: &str,
     request: CreateWorktreeRequest,
 ) -> Result<String, String> {
-    let (workspace_path, config) =
-        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+    validate_git_ref_name(&request.name)?;
+    // 目录名同样必须校验：folder_name 会拼进磁盘路径，未校验则 `../` 可逃逸出 worktrees 目录。
+    if let Some(folder) = &request.folder_name {
+        validate_git_ref_name(folder)?;
+    }
+    for project in &request.projects {
+        validate_git_ref_name(&project.base_branch)?;
+    }
+
+    let workspace_path =
+        crate::config::get_window_workspace_path(window_label).ok_or("No workspace selected")?;
+
+    // 串行化同一 workspace 的生命周期操作，防止并发同名创建留下半注册目录等竞态。
+    let lifecycle_lock = crate::state::workspace_lifecycle_lock(&workspace_path);
+    let _lifecycle_guard = lifecycle_lock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // 锁内读取最新配置。
+    let config = crate::config::load_workspace_config(&workspace_path);
 
     let root = PathBuf::from(&workspace_path);
 
@@ -1058,8 +1083,16 @@ pub(crate) async fn create_worktree(
 }
 
 pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), String> {
-    let (workspace_path, config) =
-        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+    let workspace_path =
+        crate::config::get_window_workspace_path(window_label).ok_or("No workspace selected")?;
+
+    // 串行化同一 workspace 的生命周期操作，防止并发竞态破坏配置/git 状态。
+    let lifecycle_lock = crate::state::workspace_lifecycle_lock(&workspace_path);
+    let _lifecycle_guard = lifecycle_lock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // 锁内读取最新配置，防止并发生命周期操作之间丢更新。
+    let config = crate::config::load_workspace_config(&workspace_path);
 
     let root = PathBuf::from(&workspace_path);
     let worktree_path = root.join(&config.worktrees_dir).join(&name);
@@ -1121,10 +1154,10 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                 let output = git_command()
                     .args([
                         "-C",
-                        main_proj_path.to_str().unwrap(),
+                        main_proj_path.to_string_lossy().as_ref(),
                         "worktree",
                         "remove",
-                        proj_path.to_str().unwrap(),
+                        proj_path.to_string_lossy().as_ref(),
                         "--force",
                     ])
                     .output();
@@ -1137,10 +1170,12 @@ pub fn archive_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                         );
                     }
                     Ok(o) => {
+                        let stderr_for_log =
+                            mask_url_credentials(&String::from_utf8_lossy(&o.stderr));
                         log::warn!(
                             "[worktree] git worktree remove for '{}' returned non-zero: {}",
                             proj_name,
-                            String::from_utf8_lossy(&o.stderr)
+                            stderr_for_log
                         );
                     }
                     Err(e) => {
@@ -1301,8 +1336,18 @@ pub(crate) async fn check_worktree_status(
 }
 
 pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), String> {
-    let (workspace_path, config) =
-        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+    validate_git_ref_name(&name)?;
+
+    let workspace_path =
+        crate::config::get_window_workspace_path(window_label).ok_or("No workspace selected")?;
+
+    // 串行化同一 workspace 的生命周期操作，防止 restore vs delete TOCTOU 竞态。
+    let lifecycle_lock = crate::state::workspace_lifecycle_lock(&workspace_path);
+    let _lifecycle_guard = lifecycle_lock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // 锁内读取最新配置，防止并发丢更新。
+    let config = crate::config::load_workspace_config(&workspace_path);
 
     let root = PathBuf::from(&workspace_path);
     let worktree_path = root.join(&config.worktrees_dir).join(&name);
@@ -1355,7 +1400,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                 let branch_check = git_command()
                     .args([
                         "-C",
-                        main_proj_path.to_str().unwrap(),
+                        main_proj_path.to_string_lossy().as_ref(),
                         "branch",
                         "--list",
                         branch_name,
@@ -1374,7 +1419,12 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
 
                 // Prune stale worktrees first
                 git_command()
-                    .args(["-C", main_proj_path.to_str().unwrap(), "worktree", "prune"])
+                    .args([
+                        "-C",
+                        main_proj_path.to_string_lossy().as_ref(),
+                        "worktree",
+                        "prune",
+                    ])
                     .output()
                     .ok();
 
@@ -1388,10 +1438,10 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                     git_command()
                         .args([
                             "-C",
-                            main_proj_path.to_str().unwrap(),
+                            main_proj_path.to_string_lossy().as_ref(),
                             "worktree",
                             "add",
-                            wt_proj_path.to_str().unwrap(),
+                            wt_proj_path.to_string_lossy().as_ref(),
                             branch_name,
                         ])
                         .output()
@@ -1403,6 +1453,15 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                         .find(|p| p.name == proj_name)
                         .map(|p| p.base_branch.clone())
                         .unwrap_or_else(|| "uat".to_string());
+                    if let Err(e) = validate_git_ref_name(&base_branch) {
+                        log::error!(
+                            "[worktree] Invalid base branch '{}' for project '{}': {}",
+                            base_branch,
+                            proj_name,
+                            e
+                        );
+                        continue;
+                    }
 
                     log::info!(
                         "Re-adding worktree for {} with new branch {} from origin/{}",
@@ -1413,10 +1472,10 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                     git_command()
                         .args([
                             "-C",
-                            main_proj_path.to_str().unwrap(),
+                            main_proj_path.to_string_lossy().as_ref(),
                             "worktree",
                             "add",
-                            wt_proj_path.to_str().unwrap(),
+                            wt_proj_path.to_string_lossy().as_ref(),
                             "-b",
                             branch_name,
                             &format!("origin/{}", base_branch),
@@ -1430,7 +1489,7 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                         // Set upstream for the branch so git push works without -u flag
                         let push_output = run_git_command_with_timeout(
                             &["push", "-u", "origin", branch_name],
-                            wt_proj_path.to_str().unwrap(),
+                            wt_proj_path.to_string_lossy().as_ref(),
                         );
                         match push_output {
                             Ok(p) if p.status.success() => {
@@ -1442,11 +1501,12 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                             }
                             Ok(p) => {
                                 let stderr = String::from_utf8_lossy(&p.stderr);
+                                let stderr_for_log = mask_url_credentials(&stderr);
                                 log::warn!(
                                     "[worktree] Project '{}': git push -u origin {} failed (worktree restored successfully): {}",
                                     proj_name,
                                     branch_name,
-                                    stderr
+                                    stderr_for_log
                                 );
                             }
                             Err(e) => {
@@ -1461,7 +1521,12 @@ pub fn restore_worktree_impl(window_label: &str, name: String) -> Result<(), Str
                     }
                     Ok(o) => {
                         let stderr = String::from_utf8_lossy(&o.stderr);
-                        log::error!("Failed to re-add worktree for {}: {}", proj_name, stderr);
+                        let stderr_for_log = mask_url_credentials(&stderr);
+                        log::error!(
+                            "Failed to re-add worktree for {}: {}",
+                            proj_name,
+                            stderr_for_log
+                        );
                     }
                     Err(e) => {
                         log::error!(
@@ -1530,8 +1595,16 @@ pub(crate) async fn restore_worktree(window: tauri::Window, name: String) -> Res
 }
 
 pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result<(), String> {
-    let (workspace_path, config) =
-        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+    let workspace_path =
+        crate::config::get_window_workspace_path(window_label).ok_or("No workspace selected")?;
+
+    // 串行化同一 workspace 的生命周期操作，防止 delete vs restore TOCTOU、double-delete 竞态。
+    let lifecycle_lock = crate::state::workspace_lifecycle_lock(&workspace_path);
+    let _lifecycle_guard = lifecycle_lock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // 锁内读取最新配置，防止并发丢更新。
+    let config = crate::config::load_workspace_config(&workspace_path);
 
     let root = PathBuf::from(&workspace_path);
     let worktree_path = root.join(&config.worktrees_dir).join(&name);
@@ -1553,6 +1626,7 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
         .get(folder_key)
         .map(|s| s.as_str())
         .unwrap_or(folder_key);
+    validate_git_ref_name(branch_name)?;
     log::info!(
         "[worktree] Deleting archived worktree '{}' (branch: {}) in workspace '{}'",
         name,
@@ -1581,9 +1655,20 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
         }
     }
 
-    // Step 2: Delete associated local branches for each project
+    // Step 2: 先删除目录（原子性关键）。worktree 工作树可从分支重建，是可逆性更高的一步；
+    // 若 remove_dir_all 失败则直接返回——此时分支尚未删除、配置未改，worktree 仍标记 archived
+    // 可恢复，彻底避免“分支已删（丢 commits）但目录删除失败”的数据丢失。
     log::info!(
-        "[worktree] Step 2/3: Deleting local branch '{}' from projects",
+        "[worktree] Step 2/3: Removing directory {}",
+        worktree_path.display()
+    );
+    fs::remove_dir_all(&worktree_path)
+        .map_err(|e| friendly_fs_error("删除归档 Worktree 失败", &e))?;
+
+    // Step 3: 仅在目录删除确认成功后才删除分支（不可逆操作放最后）。
+    // 个别项目分支删除失败不影响整体一致性（worktree 目录已不存在，后续会清理 archived 标记）。
+    log::info!(
+        "[worktree] Step 3/3: Deleting local branch '{}' from projects",
         branch_name
     );
     let projects_path = root.join("projects");
@@ -1599,7 +1684,7 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
                 let output = git_command()
                     .args([
                         "-C",
-                        proj_path.to_str().unwrap(),
+                        proj_path.to_string_lossy().as_ref(),
                         "branch",
                         "-D",
                         branch_name,
@@ -1621,14 +1706,6 @@ pub fn delete_archived_worktree_impl(window_label: &str, name: String) -> Result
             }
         }
     }
-
-    // Step 3: Remove the directory
-    log::info!(
-        "[worktree] Step 3/3: Removing directory {}",
-        worktree_path.display()
-    );
-    fs::remove_dir_all(&worktree_path)
-        .map_err(|e| friendly_fs_error("删除归档 Worktree 失败", &e))?;
 
     // Clean up mapping entry if exists
     if mapping.contains_key(folder_key) {
@@ -1671,8 +1748,18 @@ pub fn add_project_to_worktree_impl(
     window_label: &str,
     request: AddProjectToWorktreeRequest,
 ) -> Result<(), String> {
-    let (workspace_path, config) =
-        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+    validate_git_ref_name(&request.base_branch)?;
+
+    let workspace_path =
+        crate::config::get_window_workspace_path(window_label).ok_or("No workspace selected")?;
+
+    // 串行化同一 workspace 的生命周期操作，避免与 archive/delete 同一 worktree 交叉竞态。
+    let lifecycle_lock = crate::state::workspace_lifecycle_lock(&workspace_path);
+    let _lifecycle_guard = lifecycle_lock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // 锁内读取最新配置，防止并发丢更新。
+    let config = crate::config::load_workspace_config(&workspace_path);
 
     let root = PathBuf::from(&workspace_path);
     let worktree_path = root
@@ -1733,6 +1820,7 @@ pub fn add_project_to_worktree_impl(
         .get(&request.worktree_name)
         .cloned()
         .unwrap_or_else(|| request.worktree_name.clone());
+    validate_git_ref_name(&branch_name)?;
 
     log::info!(
         "[worktree] Adding project '{}' to worktree '{}' (branch: '{}', base_branch: {})",
@@ -1747,13 +1835,16 @@ pub fn add_project_to_worktree_impl(
         "[worktree] Step 1/3: git fetch origin for project '{}'",
         request.project_name
     );
-    run_git_command_with_timeout(&["fetch", "origin"], main_proj_path.to_str().unwrap())?;
+    run_git_command_with_timeout(
+        &["fetch", "origin"],
+        main_proj_path.to_string_lossy().as_ref(),
+    )?;
 
     // Check if branch already exists
     let branch_check = git_command()
         .args([
             "-C",
-            main_proj_path.to_str().unwrap(),
+            main_proj_path.to_string_lossy().as_ref(),
             "branch",
             "--list",
             &branch_name,
@@ -1785,10 +1876,10 @@ pub fn add_project_to_worktree_impl(
         git_command()
             .args([
                 "-C",
-                main_proj_path.to_str().unwrap(),
+                main_proj_path.to_string_lossy().as_ref(),
                 "worktree",
                 "add",
-                wt_proj_path.to_str().unwrap(),
+                wt_proj_path.to_string_lossy().as_ref(),
                 &branch_name,
             ])
             .output()
@@ -1802,13 +1893,13 @@ pub fn add_project_to_worktree_impl(
         git_command()
             .args([
                 "-C",
-                main_proj_path.to_str().unwrap(),
+                main_proj_path.to_string_lossy().as_ref(),
                 "worktree",
                 "add",
                 "--track",
                 "-b",
                 &branch_name,
-                wt_proj_path.to_str().unwrap(),
+                wt_proj_path.to_string_lossy().as_ref(),
                 &format!("origin/{}", branch_name),
             ])
             .output()
@@ -1823,10 +1914,10 @@ pub fn add_project_to_worktree_impl(
         git_command()
             .args([
                 "-C",
-                main_proj_path.to_str().unwrap(),
+                main_proj_path.to_string_lossy().as_ref(),
                 "worktree",
                 "add",
-                wt_proj_path.to_str().unwrap(),
+                wt_proj_path.to_string_lossy().as_ref(),
                 "-b",
                 &branch_name,
                 &format!("origin/{}", request.base_branch),
@@ -1837,10 +1928,11 @@ pub fn add_project_to_worktree_impl(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr_for_log = mask_url_credentials(&stderr);
         log::error!(
             "[worktree] FAILED: git worktree add for project '{}': {}",
             request.project_name,
-            stderr
+            stderr_for_log
         );
         return Err(format!(
             "Failed to add project {} to worktree: {}",
@@ -1860,7 +1952,7 @@ pub fn add_project_to_worktree_impl(
         // IDEs from defaulting to push to the base branch (uat/main).
         let push_output = run_git_command_with_timeout(
             &["push", "-u", "origin", &branch_name],
-            wt_proj_path.to_str().unwrap(),
+            wt_proj_path.to_string_lossy().as_ref(),
         );
         match push_output {
             Ok(p) if p.status.success() => {
@@ -1872,11 +1964,12 @@ pub fn add_project_to_worktree_impl(
             }
             Ok(p) => {
                 let stderr = String::from_utf8_lossy(&p.stderr);
+                let stderr_for_log = mask_url_credentials(&stderr);
                 log::warn!(
                     "[worktree] Project '{}': git push -u origin {} failed (project added successfully): {}",
                     request.project_name,
                     branch_name,
-                    stderr
+                    stderr_for_log
                 );
             }
             Err(e) => {
@@ -1912,7 +2005,7 @@ pub fn add_project_to_worktree_impl(
             git_command()
                 .args([
                     "-C",
-                    wt_proj_path.to_str().unwrap(),
+                    wt_proj_path.to_string_lossy().as_ref(),
                     "rm",
                     "--cached",
                     "-r",
@@ -1976,8 +2069,16 @@ pub fn deploy_to_main_impl(
     window_label: &str,
     worktree_name: String,
 ) -> Result<DeployToMainResult, String> {
-    let (workspace_path, config) =
-        get_window_workspace_config(window_label).ok_or("No workspace selected")?;
+    let workspace_path =
+        crate::config::get_window_workspace_path(window_label).ok_or("No workspace selected")?;
+
+    // 串行化同一 workspace 的生命周期操作。
+    let lifecycle_lock = crate::state::workspace_lifecycle_lock(&workspace_path);
+    let _lifecycle_guard = lifecycle_lock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // 锁内读取最新配置，防止并发丢更新。
+    let config = crate::config::load_workspace_config(&workspace_path);
 
     // Check not already occupied
     if let Some(existing) = load_occupation_state(&workspace_path) {
@@ -2067,7 +2168,12 @@ pub fn deploy_to_main_impl(
             proj_name
         );
         let detach_output = git_command()
-            .args(["-C", wt_proj_path.to_str().unwrap(), "checkout", "--detach"])
+            .args([
+                "-C",
+                wt_proj_path.to_string_lossy().as_ref(),
+                "checkout",
+                "--detach",
+            ])
             .output();
 
         match &detach_output {
@@ -2076,10 +2182,11 @@ pub fn deploy_to_main_impl(
             }
             Ok(o) => {
                 let stderr = String::from_utf8_lossy(&o.stderr);
+                let stderr_for_log = mask_url_credentials(&stderr);
                 log::error!(
                     "[deploy] Failed to detach HEAD in '{}': {}",
                     proj_name,
-                    stderr
+                    stderr_for_log
                 );
                 failed_projects.push(DeployProjectError {
                     project_name: proj_name.clone(),
@@ -2110,7 +2217,7 @@ pub fn deploy_to_main_impl(
         let switch_output = git_command()
             .args([
                 "-C",
-                main_proj_path.to_str().unwrap(),
+                main_proj_path.to_string_lossy().as_ref(),
                 "checkout",
                 wt_branch,
             ])
@@ -2127,11 +2234,12 @@ pub fn deploy_to_main_impl(
             }
             Ok(o) => {
                 let stderr = String::from_utf8_lossy(&o.stderr);
+                let stderr_for_log = mask_url_credentials(&stderr);
                 log::error!(
                     "[deploy] Failed to switch main '{}' to '{}': {}",
                     proj_name,
                     wt_branch,
-                    stderr
+                    stderr_for_log
                 );
                 failed_projects.push(DeployProjectError {
                     project_name: proj_name.clone(),
@@ -2251,13 +2359,18 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
         // If force, fully discard all changes (staged, tracked, and untracked)
         if force {
             git_command()
-                .args(["-C", main_proj_path.to_str().unwrap(), "reset", "HEAD"])
+                .args([
+                    "-C",
+                    main_proj_path.to_string_lossy().as_ref(),
+                    "reset",
+                    "HEAD",
+                ])
                 .output()
                 .ok();
             git_command()
                 .args([
                     "-C",
-                    main_proj_path.to_str().unwrap(),
+                    main_proj_path.to_string_lossy().as_ref(),
                     "checkout",
                     "--",
                     ".",
@@ -2265,7 +2378,12 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
                 .output()
                 .ok();
             git_command()
-                .args(["-C", main_proj_path.to_str().unwrap(), "clean", "-fd"])
+                .args([
+                    "-C",
+                    main_proj_path.to_string_lossy().as_ref(),
+                    "clean",
+                    "-fd",
+                ])
                 .output()
                 .ok();
         }
@@ -2273,7 +2391,7 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
         let output = git_command()
             .args([
                 "-C",
-                main_proj_path.to_str().unwrap(),
+                main_proj_path.to_string_lossy().as_ref(),
                 "checkout",
                 original_branch,
             ])
@@ -2308,7 +2426,12 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
         );
 
         let output = git_command()
-            .args(["-C", wt_proj_path.to_str().unwrap(), "checkout", branch])
+            .args([
+                "-C",
+                wt_proj_path.to_string_lossy().as_ref(),
+                "checkout",
+                branch,
+            ])
             .output();
 
         match output {
@@ -2317,10 +2440,11 @@ pub fn exit_main_occupation_impl(window_label: &str, force: bool) -> Result<(), 
             }
             Ok(o) => {
                 let stderr = String::from_utf8_lossy(&o.stderr);
+                let stderr_for_log = mask_url_credentials(&stderr);
                 log::warn!(
                     "[deploy] Failed to re-attach worktree '{}': {}",
                     proj_name,
-                    stderr
+                    stderr_for_log
                 );
             }
             Err(e) => {
@@ -2384,7 +2508,9 @@ pub fn get_main_occupation_impl(
 
     // Auto-cleanup: if occupation exists but no window is using this workspace, clear it
     if occupation.is_some() {
-        let windows = WINDOW_WORKSPACES.lock().unwrap();
+        let windows = WINDOW_WORKSPACES
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let is_in_use = windows.values().any(|p| *p == workspace_path);
         drop(windows);
 
@@ -2409,4 +2535,1359 @@ pub(crate) async fn get_main_occupation(
     tokio::task::spawn_blocking(move || get_main_occupation_impl(&label))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{load_workspace_config, save_workspace_config_internal};
+    use crate::state::WINDOW_WORKSPACES;
+    use crate::types::WorkspaceConfig;
+    use serial_test::serial;
+    use std::process::Command;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tempfile::TempDir;
+
+    static NEXT_WINDOW_ID: AtomicUsize = AtomicUsize::new(0);
+
+    fn run_git(repo: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .output()
+            .expect("run git command");
+        assert!(
+            output.status.success(),
+            "git {:?} failed in {}\nstdout:\n{}\nstderr:\n{}",
+            args,
+            repo.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn git_output(repo: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .output()
+            .expect("run git command");
+        assert!(
+            output.status.success(),
+            "git {:?} failed in {}\nstdout:\n{}\nstderr:\n{}",
+            args,
+            repo.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    }
+
+    fn make_test_repo() -> TempDir {
+        let temp = tempfile::tempdir().expect("create temp repo");
+        let repo = temp.path();
+
+        run_git(repo, &["init"]);
+        run_git(repo, &["checkout", "-b", "main"]);
+        run_git(repo, &["config", "user.email", "test@example.com"]);
+        run_git(repo, &["config", "user.name", "Test User"]);
+        std::fs::write(repo.join("README.md"), "initial\n").expect("write initial file");
+        run_git(repo, &["add", "README.md"]);
+        run_git(repo, &["commit", "-m", "initial commit"]);
+        run_git(repo, &["branch", "test"]);
+
+        temp
+    }
+
+    fn init_bare_repo(origin_path: &Path) {
+        let output = Command::new("git")
+            .args(["init", "--bare"])
+            .arg(origin_path)
+            .output()
+            .expect("init bare origin");
+        assert!(
+            output.status.success(),
+            "git init --bare {} failed\nstdout:\n{}\nstderr:\n{}",
+            origin_path.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn clone_repo(origin_path: &Path, clone_path: &Path) {
+        let output = Command::new("git")
+            .arg("clone")
+            .arg(origin_path)
+            .arg(clone_path)
+            .output()
+            .expect("clone repo");
+        assert!(
+            output.status.success(),
+            "git clone {} {} failed\nstdout:\n{}\nstderr:\n{}",
+            origin_path.display(),
+            clone_path.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn make_origin_backed_project(workspace: &Path, name: &str) -> PathBuf {
+        let seed = make_test_repo();
+        let origins_dir = workspace.join("origins");
+        std::fs::create_dir_all(&origins_dir).expect("create origins dir");
+        let origin_path = origins_dir.join(format!("{name}.git"));
+        init_bare_repo(&origin_path);
+
+        run_git(
+            seed.path(),
+            &["remote", "add", "origin", origin_path.to_str().unwrap()],
+        );
+        run_git(seed.path(), &["push", "origin", "main"]);
+        run_git(seed.path(), &["push", "origin", "test"]);
+        run_git(&origin_path, &["symbolic-ref", "HEAD", "refs/heads/main"]);
+
+        let projects_dir = workspace.join("projects");
+        std::fs::create_dir_all(&projects_dir).expect("create projects dir");
+        let project_path = projects_dir.join(name);
+        clone_repo(&origin_path, &project_path);
+        run_git(&project_path, &["config", "user.email", "test@example.com"]);
+        run_git(&project_path, &["config", "user.name", "Test User"]);
+        run_git(&project_path, &["fetch", "origin"]);
+        project_path
+    }
+
+    fn project_config(name: &str) -> ProjectConfig {
+        ProjectConfig {
+            name: name.to_string(),
+            base_branch: "main".to_string(),
+            test_branch: "test".to_string(),
+            merge_strategy: "merge".to_string(),
+            linked_folders: vec![],
+            commit_prefix_index: None,
+            git_user_name: None,
+            git_user_email: None,
+            tags: vec![],
+        }
+    }
+
+    fn workspace_config(projects: Vec<ProjectConfig>) -> WorkspaceConfig {
+        WorkspaceConfig {
+            name: "Test Workspace".to_string(),
+            worktrees_dir: "worktrees".to_string(),
+            projects,
+            ..WorkspaceConfig::default()
+        }
+    }
+
+    fn bind_workspace(workspace: &Path, config: &WorkspaceConfig) -> String {
+        let label = format!(
+            "worktree-test-window-{}",
+            NEXT_WINDOW_ID.fetch_add(1, Ordering::SeqCst)
+        );
+        let workspace_path = workspace.to_string_lossy().to_string();
+        save_workspace_config_internal(&workspace_path, config).expect("save workspace config");
+        WINDOW_WORKSPACES
+            .lock()
+            .expect("lock window workspaces")
+            .insert(label.clone(), workspace_path);
+        label
+    }
+
+    #[serial]
+    #[test]
+    fn create_list_status_and_archive_worktree_with_local_git_fixture() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let project_path = make_origin_backed_project(workspace.path(), "demo");
+        assert!(project_path.join(".git").exists());
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("demo")]),
+        );
+
+        let created_path = create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "feature_roundtrip".to_string(),
+                folder_name: None,
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .expect("create worktree");
+        let worktree_path = PathBuf::from(&created_path);
+        let wt_project_path = worktree_path.join("projects").join("demo");
+
+        assert!(wt_project_path.exists());
+        assert_eq!(
+            git_output(&wt_project_path, &["branch", "--show-current"]),
+            "feature_roundtrip"
+        );
+
+        let active = list_worktrees_impl(&label, false).expect("list active worktrees");
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].name, "feature_roundtrip");
+        assert!(!active[0].is_archived);
+        assert_eq!(active[0].projects.len(), 1);
+        assert_eq!(active[0].projects[0].name, "demo");
+        assert_eq!(active[0].projects[0].current_branch, "feature_roundtrip");
+        assert_eq!(active[0].projects[0].base_branch, "main");
+
+        let archive_status = check_worktree_status_impl(&label, "feature_roundtrip".to_string())
+            .expect("check archive status");
+        assert_eq!(archive_status.name, "feature_roundtrip");
+        assert!(archive_status.can_archive, "{archive_status:?}");
+        assert!(archive_status.errors.is_empty(), "{archive_status:?}");
+        assert_eq!(archive_status.projects.len(), 1);
+        assert_eq!(archive_status.projects[0].branch_name, "feature_roundtrip");
+
+        archive_worktree_impl(&label, "feature_roundtrip".to_string()).expect("archive worktree");
+
+        let workspace_path = workspace.path().to_string_lossy().to_string();
+        let saved = load_workspace_config(&workspace_path);
+        assert!(saved
+            .archived_worktrees
+            .contains(&"feature_roundtrip".to_string()));
+
+        let visible_after_archive =
+            list_worktrees_impl(&label, false).expect("list non-archived worktrees");
+        assert!(visible_after_archive.is_empty());
+
+        let archived = list_worktrees_impl(&label, true).expect("list archived worktrees");
+        assert_eq!(archived.len(), 1);
+        assert_eq!(archived[0].name, "feature_roundtrip");
+        assert!(archived[0].is_archived);
+        assert!(archived[0].projects.is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn restore_worktree_reregisters_existing_archived_project_and_clears_archive_flag() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let project_path = make_origin_backed_project(workspace.path(), "demo");
+        run_git(&project_path, &["branch", "restore_feature"]);
+
+        let mut config = workspace_config(vec![project_config("demo")]);
+        config.archived_worktrees = vec!["restore_feature".to_string()];
+        let label = bind_workspace(workspace.path(), &config);
+
+        let placeholder_project = workspace
+            .path()
+            .join("worktrees")
+            .join("restore_feature")
+            .join("projects")
+            .join("demo");
+        std::fs::create_dir_all(&placeholder_project).expect("create archived placeholder");
+        std::fs::write(placeholder_project.join("placeholder.txt"), "archived\n")
+            .expect("write placeholder file");
+
+        restore_worktree_impl(&label, "restore_feature".to_string()).expect("restore worktree");
+
+        assert_eq!(
+            git_output(&placeholder_project, &["branch", "--show-current"]),
+            "restore_feature"
+        );
+        assert!(placeholder_project.join(".git").exists());
+
+        let workspace_path = workspace.path().to_string_lossy().to_string();
+        let saved = load_workspace_config(&workspace_path);
+        assert!(!saved
+            .archived_worktrees
+            .contains(&"restore_feature".to_string()));
+    }
+
+    #[serial]
+    #[test]
+    fn create_worktree_rejects_invalid_name_before_workspace_lookup() {
+        let err = create_worktree_impl(
+            "unbound-window",
+            CreateWorktreeRequest {
+                name: "-upload-pack=sh".to_string(),
+                folder_name: None,
+                projects: vec![],
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(err, "无效的分支名");
+    }
+
+    #[serial]
+    #[test]
+    fn list_worktrees_returns_empty_when_worktrees_dir_is_missing() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let label = bind_workspace(workspace.path(), &workspace_config(vec![]));
+
+        let items = list_worktrees_impl(&label, false).expect("list worktrees");
+
+        assert!(items.is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn archive_worktree_reports_missing_worktree() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let label = bind_workspace(workspace.path(), &workspace_config(vec![]));
+
+        let err = archive_worktree_impl(&label, "missing_feature".to_string()).unwrap_err();
+
+        assert_eq!(err, "Worktree does not exist");
+    }
+
+    #[serial]
+    #[test]
+    fn restore_worktree_rejects_invalid_name_before_workspace_lookup() {
+        let err = restore_worktree_impl("unbound-window", "bad..name".to_string()).unwrap_err();
+
+        assert_eq!(err, "无效的分支名");
+    }
+
+    #[serial]
+    #[test]
+    fn terminate_worktree_locking_process_rejects_path_traversal_name() {
+        let err = terminate_worktree_locking_process_impl(
+            "unbound-window",
+            "../feature".to_string(),
+            123,
+            "start".to_string(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err, "Invalid worktree name");
+    }
+
+    #[serial]
+    #[test]
+    fn scan_linked_folders_internal_reports_missing_path() {
+        let missing = tempfile::tempdir()
+            .expect("create temp dir")
+            .path()
+            .join("missing-project");
+
+        let err = scan_linked_folders_internal(&missing.to_string_lossy()).unwrap_err();
+
+        assert_eq!(err, format!("Path does not exist: {}", missing.display()));
+    }
+
+    #[serial]
+    #[test]
+    fn load_and_save_worktree_mapping_round_trip_display_name() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let mapping_path = temp.path().join("mapping.json");
+        let mut mapping = HashMap::new();
+        mapping.insert("folder_alias".to_string(), "Display Name".to_string());
+
+        save_worktree_mapping(&mapping_path, &mapping);
+        let loaded = load_worktree_mapping(&mapping_path);
+
+        assert_eq!(
+            loaded.get("folder_alias").map(String::as_str),
+            Some("Display Name")
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn create_worktree_tracks_remote_branch_with_alias_links_color_and_scanning() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let project_path = make_origin_backed_project(workspace.path(), "demo");
+        run_git(&project_path, &["checkout", "-b", "remote_feature"]);
+        std::fs::write(project_path.join("remote.txt"), "remote branch\n")
+            .expect("write remote branch file");
+        run_git(&project_path, &["add", "remote.txt"]);
+        run_git(&project_path, &["commit", "-m", "remote branch commit"]);
+        run_git(&project_path, &["push", "-u", "origin", "remote_feature"]);
+        run_git(&project_path, &["checkout", "main"]);
+        run_git(&project_path, &["branch", "-D", "remote_feature"]);
+        run_git(&project_path, &["fetch", "origin"]);
+
+        std::fs::create_dir(project_path.join("node_modules")).expect("create linked folder");
+        std::fs::write(
+            project_path.join("node_modules").join("cache.txt"),
+            "cache\n",
+        )
+        .expect("write linked folder file");
+        std::fs::write(workspace.path().join(".env"), "A=1\n").expect("write workspace file");
+        std::fs::create_dir(workspace.path().join("vault_shared")).expect("create vault item");
+
+        let mut config = workspace_config(vec![project_config("demo")]);
+        config.projects[0].linked_folders = vec!["node_modules".to_string()];
+        config.linked_workspace_items = vec![".env".to_string()];
+        config.vault_linked_workspace_items = vec!["vault_shared".to_string(), ".env".to_string()];
+        let label = bind_workspace(workspace.path(), &config);
+
+        let created_path = create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "remote_feature".to_string(),
+                folder_name: Some("remote_folder".to_string()),
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .expect("create aliased worktree from remote branch");
+        let worktree_path = PathBuf::from(created_path);
+        let wt_project_path = worktree_path.join("projects").join("demo");
+
+        assert_eq!(
+            git_output(&wt_project_path, &["branch", "--show-current"]),
+            "remote_feature"
+        );
+        assert!(wt_project_path.join("remote.txt").exists());
+        assert!(worktree_path.join(".env").symlink_metadata().is_ok());
+        assert!(worktree_path
+            .join("vault_shared")
+            .symlink_metadata()
+            .is_ok());
+        assert!(wt_project_path
+            .join("node_modules")
+            .symlink_metadata()
+            .is_ok());
+
+        let main_status = get_main_workspace_status_impl(&label).expect("main status");
+        assert_eq!(main_status.name, "Test Workspace");
+        assert_eq!(main_status.projects.len(), 1);
+        assert_eq!(main_status.projects[0].current_branch, "main");
+        assert_eq!(
+            main_status.projects[0].linked_folders,
+            vec!["node_modules".to_string()]
+        );
+
+        let scanned =
+            scan_linked_folders_internal(&project_path.to_string_lossy()).expect("scan folders");
+        let node_modules = scanned
+            .iter()
+            .find(|folder| folder.relative_path == "node_modules")
+            .expect("node_modules scan result");
+        assert_eq!(node_modules.display_name, "node_modules");
+        assert!(node_modules.is_recommended);
+
+        let listed = list_worktrees_impl(&label, false).expect("list worktrees");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].name, "remote_folder");
+        assert_eq!(listed[0].display_name.as_deref(), Some("remote_feature"));
+        assert!(listed[0].color.is_none());
+
+        update_worktree_color_impl(
+            &label,
+            "remote_folder".to_string(),
+            Some(crate::types::WorktreeColor::Blue),
+        )
+        .expect("set color");
+        let listed = list_worktrees_impl(&label, false).expect("list colored worktree");
+        assert_eq!(listed[0].color, Some(crate::types::WorktreeColor::Blue));
+
+        update_worktree_color_impl(&label, "remote_folder".to_string(), None)
+            .expect("remove color");
+        let listed = list_worktrees_impl(&label, false).expect("list uncolored worktree");
+        assert!(listed[0].color.is_none());
+    }
+
+    #[serial]
+    #[test]
+    fn archive_and_delete_aliased_worktree_removes_directory_mapping_and_local_branch() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let project_path = make_origin_backed_project(workspace.path(), "demo");
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("demo")]),
+        );
+
+        let created_path = create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "delete_feature".to_string(),
+                folder_name: Some("delete_folder".to_string()),
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .expect("create worktree to delete");
+        let worktree_path = PathBuf::from(created_path);
+        assert!(worktree_path.exists());
+        assert!(!git_output(&project_path, &["branch", "--list", "delete_feature"]).is_empty());
+
+        archive_worktree_impl(&label, "delete_folder".to_string()).expect("archive worktree");
+        let workspace_path = workspace.path().to_string_lossy().to_string();
+        let archived = load_workspace_config(&workspace_path);
+        assert!(archived
+            .archived_worktrees
+            .contains(&"delete_folder".to_string()));
+        assert!(worktree_path.exists());
+
+        delete_archived_worktree_impl(&label, "delete_folder".to_string())
+            .expect("delete archived worktree");
+
+        assert!(!worktree_path.exists());
+        let saved = load_workspace_config(&workspace_path);
+        assert!(!saved
+            .archived_worktrees
+            .contains(&"delete_folder".to_string()));
+        assert!(git_output(&project_path, &["branch", "--list", "delete_feature"]).is_empty());
+        let mapping =
+            load_worktree_mapping(&workspace.path().join("worktrees").join("mapping.json"));
+        assert!(!mapping.contains_key("delete_folder"));
+    }
+
+    #[serial]
+    #[test]
+    fn add_project_to_aliased_worktree_uses_mapped_branch_and_reports_conflicts() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        make_origin_backed_project(workspace.path(), "demo");
+        let api_path = make_origin_backed_project(workspace.path(), "api");
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("demo"), project_config("api")]),
+        );
+
+        create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "mapped_feature".to_string(),
+                folder_name: Some("mapped_folder".to_string()),
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .expect("create initial worktree");
+
+        add_project_to_worktree_impl(
+            &label,
+            AddProjectToWorktreeRequest {
+                worktree_name: "mapped_folder".to_string(),
+                project_name: "api".to_string(),
+                base_branch: "main".to_string(),
+            },
+        )
+        .expect("add api project to worktree");
+
+        let api_in_worktree = workspace
+            .path()
+            .join("worktrees")
+            .join("mapped_folder")
+            .join("projects")
+            .join("api");
+        assert_eq!(
+            git_output(&api_in_worktree, &["branch", "--show-current"]),
+            "mapped_feature"
+        );
+        assert!(!git_output(&api_path, &["branch", "--list", "mapped_feature"]).is_empty());
+
+        let duplicate = add_project_to_worktree_impl(
+            &label,
+            AddProjectToWorktreeRequest {
+                worktree_name: "mapped_folder".to_string(),
+                project_name: "api".to_string(),
+                base_branch: "main".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(
+            duplicate.contains("already exists in worktree"),
+            "{duplicate}"
+        );
+
+        let missing = add_project_to_worktree_impl(
+            &label,
+            AddProjectToWorktreeRequest {
+                worktree_name: "mapped_folder".to_string(),
+                project_name: "missing".to_string(),
+                base_branch: "main".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(
+            missing.contains("does not exist in main workspace"),
+            "{missing}"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn worktree_status_reports_dirty_project_before_archive() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        make_origin_backed_project(workspace.path(), "demo");
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("demo")]),
+        );
+        let created_path = create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "dirty_feature".to_string(),
+                folder_name: None,
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .expect("create worktree");
+        let wt_project_path = PathBuf::from(created_path).join("projects").join("demo");
+        std::fs::write(wt_project_path.join("README.md"), "dirty\n").expect("dirty readme");
+
+        let status = check_worktree_status_impl(&label, "dirty_feature".to_string())
+            .expect("check dirty worktree status");
+
+        assert_eq!(status.name, "dirty_feature");
+        assert!(!status.can_archive, "{status:?}");
+        assert_eq!(status.projects.len(), 1);
+        assert!(status.projects[0].has_uncommitted);
+        assert!(
+            status.errors.iter().any(|error| error.contains("demo")),
+            "{status:?}"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn deploy_to_main_and_exit_occupation_round_trip_with_force_cleanup() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        make_origin_backed_project(workspace.path(), "demo");
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("demo")]),
+        );
+        let created_path = create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "occupy_feature".to_string(),
+                folder_name: None,
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .expect("create worktree");
+        let workspace_path = workspace.path().to_string_lossy().to_string();
+        let main_project_path = workspace.path().join("projects").join("demo");
+        let wt_project_path = PathBuf::from(created_path).join("projects").join("demo");
+
+        let deployed =
+            deploy_to_main_impl(&label, "occupy_feature".to_string()).expect("deploy to main");
+
+        assert!(deployed.success, "{deployed:?}");
+        assert_eq!(deployed.switched_projects, vec!["demo".to_string()]);
+        let occupation = load_occupation_state(&workspace_path).expect("occupation state saved");
+        assert_eq!(occupation.worktree_name, "occupy_feature");
+        assert_eq!(
+            occupation.original_branches.get("demo").map(String::as_str),
+            Some("main")
+        );
+        assert_eq!(
+            occupation.worktree_branches.get("demo").map(String::as_str),
+            Some("occupy_feature")
+        );
+        assert_eq!(
+            git_output(&main_project_path, &["branch", "--show-current"]),
+            "occupy_feature"
+        );
+        assert_eq!(
+            git_output(&wt_project_path, &["rev-parse", "--abbrev-ref", "HEAD"]),
+            "HEAD"
+        );
+        assert!(get_main_occupation_impl(&label)
+            .expect("get occupation")
+            .is_some());
+
+        std::fs::write(main_project_path.join("dirty.txt"), "dirty\n").expect("dirty main");
+        let err = exit_main_occupation_impl(&label, false).unwrap_err();
+        assert!(err.contains("uncommitted changes"), "{err}");
+        assert!(load_occupation_state(&workspace_path).is_some());
+
+        exit_main_occupation_impl(&label, true).expect("force exit occupation");
+
+        assert!(load_occupation_state(&workspace_path).is_none());
+        assert_eq!(
+            git_output(&main_project_path, &["branch", "--show-current"]),
+            "main"
+        );
+        assert_eq!(
+            git_output(&wt_project_path, &["branch", "--show-current"]),
+            "occupy_feature"
+        );
+        assert!(!main_project_path.join("dirty.txt").exists());
+        assert!(get_main_occupation_impl(&label)
+            .expect("get cleared occupation")
+            .is_none());
+    }
+
+    #[serial]
+    #[test]
+    fn create_worktree_reports_nonexistent_base_branch_and_existing_directory_conflict() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        make_origin_backed_project(workspace.path(), "demo");
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("demo")]),
+        );
+
+        let missing_base = create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "missing_base_feature".to_string(),
+                folder_name: None,
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "does-not-exist".to_string(),
+                }],
+            },
+        )
+        .unwrap_err();
+        assert!(
+            missing_base.contains("Failed to create worktree for demo"),
+            "{missing_base}"
+        );
+        assert!(
+            missing_base.contains("origin/does-not-exist")
+                || missing_base.contains("invalid reference"),
+            "{missing_base}"
+        );
+
+        let conflict_project_path = workspace
+            .path()
+            .join("worktrees")
+            .join("conflict_feature")
+            .join("projects")
+            .join("demo");
+        std::fs::create_dir_all(&conflict_project_path).expect("create conflicting dir");
+        std::fs::write(conflict_project_path.join("occupied.txt"), "occupied\n")
+            .expect("write conflict marker");
+
+        let path_conflict = create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "conflict_feature".to_string(),
+                folder_name: None,
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .unwrap_err();
+
+        assert!(
+            path_conflict.contains("Failed to create worktree for demo"),
+            "{path_conflict}"
+        );
+        assert!(
+            path_conflict.contains("already exists") || path_conflict.contains("not empty"),
+            "{path_conflict}"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn list_worktrees_filters_hidden_non_project_entries_and_archived_items() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let mut config = workspace_config(vec![]);
+        config
+            .archived_worktrees
+            .push("archived_folder".to_string());
+        let label = bind_workspace(workspace.path(), &config);
+        let worktrees_dir = workspace.path().join("worktrees");
+
+        std::fs::create_dir_all(worktrees_dir.join(".hidden").join("projects"))
+            .expect("create hidden worktree");
+        std::fs::create_dir_all(worktrees_dir.join("no_projects")).expect("create non-project dir");
+        std::fs::create_dir_all(
+            worktrees_dir
+                .join("active_folder")
+                .join("projects")
+                .join("external"),
+        )
+        .expect("create active project dir");
+        std::fs::write(
+            worktrees_dir
+                .join("active_folder")
+                .join("projects")
+                .join("README.md"),
+            "not a project dir\n",
+        )
+        .expect("write non-dir entry");
+        std::fs::create_dir_all(
+            worktrees_dir
+                .join("archived_folder")
+                .join("projects")
+                .join("archived_project"),
+        )
+        .expect("create archived project dir");
+        save_worktree_mapping(
+            &worktrees_dir.join("mapping.json"),
+            &HashMap::from([("active_folder".to_string(), "Active Display".to_string())]),
+        );
+
+        let active = list_worktrees_impl(&label, false).expect("list active only");
+        assert_eq!(
+            active
+                .iter()
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["active_folder"]
+        );
+        assert_eq!(active[0].display_name.as_deref(), Some("Active Display"));
+        assert_eq!(active[0].projects.len(), 1);
+        assert_eq!(active[0].projects[0].name, "external");
+        assert!(!active[0].is_archived);
+
+        let all = list_worktrees_impl(&label, true).expect("list including archived");
+        let names = all
+            .iter()
+            .map(|item| item.name.as_str())
+            .collect::<Vec<_>>();
+        assert!(names.contains(&"active_folder"), "{names:?}");
+        assert!(names.contains(&"archived_folder"), "{names:?}");
+        assert!(!names.contains(&".hidden"), "{names:?}");
+        assert!(!names.contains(&"no_projects"), "{names:?}");
+        assert!(
+            all.iter()
+                .find(|item| item.name == "archived_folder")
+                .expect("archived item listed")
+                .is_archived
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn archived_delete_and_deploy_preconditions_report_specific_errors() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let config = workspace_config(vec![]);
+        let label = bind_workspace(workspace.path(), &config);
+        let workspace_path = workspace.path().to_string_lossy().to_string();
+
+        let delete_active =
+            delete_archived_worktree_impl(&label, "not_archived".to_string()).unwrap_err();
+        assert!(
+            delete_active.contains("Can only delete archived worktrees"),
+            "{delete_active}"
+        );
+
+        let mut archived_config = load_workspace_config(&workspace_path);
+        archived_config
+            .archived_worktrees
+            .push("ghost_archive".to_string());
+        save_workspace_config_internal(&workspace_path, &archived_config)
+            .expect("save archived marker");
+        let delete_missing =
+            delete_archived_worktree_impl(&label, "ghost_archive".to_string()).unwrap_err();
+        assert!(
+            delete_missing.contains("Archived worktree does not exist"),
+            "{delete_missing}"
+        );
+
+        let missing_worktree =
+            deploy_to_main_impl(&label, "missing_worktree".to_string()).unwrap_err();
+        assert!(
+            missing_worktree.contains("Worktree 'missing_worktree' does not exist"),
+            "{missing_worktree}"
+        );
+
+        let worktrees_dir = workspace.path().join("worktrees");
+        std::fs::create_dir_all(worktrees_dir.join("without_projects"))
+            .expect("create worktree shell");
+        let no_projects_dir =
+            deploy_to_main_impl(&label, "without_projects".to_string()).unwrap_err();
+        assert!(
+            no_projects_dir.contains("Worktree has no projects directory"),
+            "{no_projects_dir}"
+        );
+
+        std::fs::create_dir_all(worktrees_dir.join("empty_projects").join("projects"))
+            .expect("create empty projects dir");
+        let no_project_entries =
+            deploy_to_main_impl(&label, "empty_projects".to_string()).unwrap_err();
+        assert!(
+            no_project_entries.contains("No projects found in worktree"),
+            "{no_project_entries}"
+        );
+
+        save_occupation_state(
+            &workspace_path,
+            &MainWorkspaceOccupation {
+                worktree_name: "busy_feature".to_string(),
+                original_branches: HashMap::new(),
+                worktree_branches: HashMap::new(),
+                deployed_at: "2026-06-11T00:00:00Z".to_string(),
+            },
+        )
+        .expect("save occupation state");
+        let occupied = deploy_to_main_impl(&label, "empty_projects".to_string()).unwrap_err();
+        assert!(
+            occupied.contains("Main workspace is already occupied by worktree 'busy_feature'"),
+            "{occupied}"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn create_worktree_uses_existing_local_branch_without_creating_remote_tracking_branch() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let project_path = make_origin_backed_project(workspace.path(), "demo");
+        run_git(&project_path, &["branch", "local_feature"]);
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("demo")]),
+        );
+
+        let created = create_worktree_impl(
+            &label,
+            CreateWorktreeRequest {
+                name: "local_feature".to_string(),
+                folder_name: None,
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .expect("create worktree from existing local branch");
+        let wt_project = PathBuf::from(created).join("projects").join("demo");
+
+        assert_eq!(
+            git_output(&wt_project, &["branch", "--show-current"]),
+            "local_feature"
+        );
+        assert!(!git_output(&project_path, &["branch", "--list", "local_feature"]).is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn archive_and_status_accept_worktree_without_projects_directory() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let label = bind_workspace(workspace.path(), &workspace_config(vec![]));
+        let worktree_path = workspace.path().join("worktrees").join("shell_only");
+        std::fs::create_dir_all(&worktree_path).expect("create shell worktree");
+
+        let status = check_worktree_status_impl(&label, "shell_only".to_string())
+            .expect("status for shell-only worktree");
+        assert!(status.can_archive, "{status:?}");
+        assert!(status.projects.is_empty());
+        assert!(status.errors.is_empty());
+
+        archive_worktree_impl(&label, "shell_only".to_string()).expect("archive shell worktree");
+        let saved = load_workspace_config(&workspace.path().to_string_lossy());
+        assert!(saved.archived_worktrees.contains(&"shell_only".to_string()));
+        assert!(worktree_path.exists());
+    }
+
+    #[serial]
+    #[test]
+    fn restore_worktree_recreates_missing_branch_and_relinks_workspace_items() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let project_path = make_origin_backed_project(workspace.path(), "demo");
+        std::fs::create_dir(project_path.join("cache")).expect("create linked folder");
+        std::fs::write(project_path.join("cache").join("data.txt"), "cache\n")
+            .expect("write linked folder data");
+        std::fs::write(workspace.path().join("shared.env"), "A=1\n").expect("write shared item");
+
+        let mut config = workspace_config(vec![project_config("demo")]);
+        config.projects[0].linked_folders = vec!["cache".to_string()];
+        config.linked_workspace_items = vec!["shared.env".to_string()];
+        config.archived_worktrees = vec!["restore_missing_branch".to_string()];
+        let label = bind_workspace(workspace.path(), &config);
+        let archived_project = workspace
+            .path()
+            .join("worktrees")
+            .join("restore_missing_branch")
+            .join("projects")
+            .join("demo");
+        std::fs::create_dir_all(&archived_project).expect("create archived project placeholder");
+        std::fs::write(archived_project.join("placeholder.txt"), "archived\n")
+            .expect("write placeholder");
+
+        restore_worktree_impl(&label, "restore_missing_branch".to_string())
+            .expect("restore by creating missing branch from origin/main");
+
+        assert_eq!(
+            git_output(&archived_project, &["branch", "--show-current"]),
+            "restore_missing_branch"
+        );
+        assert!(archived_project.join("cache").symlink_metadata().is_ok());
+        assert!(workspace
+            .path()
+            .join("worktrees")
+            .join("restore_missing_branch")
+            .join("shared.env")
+            .symlink_metadata()
+            .is_ok());
+        let saved = load_workspace_config(&workspace.path().to_string_lossy());
+        assert!(!saved
+            .archived_worktrees
+            .contains(&"restore_missing_branch".to_string()));
+    }
+
+    #[serial]
+    #[test]
+    fn restore_worktree_skips_missing_main_project_and_invalid_base_branch() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        make_origin_backed_project(workspace.path(), "demo");
+        let mut invalid = project_config("demo");
+        invalid.base_branch = "-bad".to_string();
+        let mut missing = project_config("missing");
+        missing.base_branch = "main".to_string();
+        let mut config = workspace_config(vec![invalid, missing]);
+        config.archived_worktrees = vec!["restore_edge".to_string()];
+        let label = bind_workspace(workspace.path(), &config);
+
+        let archived_root = workspace.path().join("worktrees").join("restore_edge");
+        std::fs::create_dir_all(archived_root.join("projects").join("demo"))
+            .expect("create invalid-base placeholder");
+        std::fs::create_dir_all(archived_root.join("projects").join("missing"))
+            .expect("create missing-main placeholder");
+
+        restore_worktree_impl(&label, "restore_edge".to_string())
+            .expect("restore skips unrecoverable projects and clears archive marker");
+
+        let saved = load_workspace_config(&workspace.path().to_string_lossy());
+        assert!(!saved
+            .archived_worktrees
+            .contains(&"restore_edge".to_string()));
+        assert!(!archived_root.join("projects").join("demo").exists());
+        assert!(archived_root.join("projects").join("missing").exists());
+    }
+
+    #[serial]
+    #[test]
+    fn add_project_to_worktree_tracks_existing_remote_branch_and_creates_projects_dir() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let api_path = make_origin_backed_project(workspace.path(), "api");
+        run_git(&api_path, &["checkout", "-b", "remote_add_feature"]);
+        std::fs::write(api_path.join("api.txt"), "api\n").expect("write api branch file");
+        run_git(&api_path, &["add", "api.txt"]);
+        run_git(&api_path, &["commit", "-m", "api branch"]);
+        run_git(&api_path, &["push", "-u", "origin", "remote_add_feature"]);
+        run_git(&api_path, &["checkout", "main"]);
+        run_git(&api_path, &["branch", "-D", "remote_add_feature"]);
+        run_git(&api_path, &["fetch", "origin"]);
+
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("api")]),
+        );
+        std::fs::create_dir_all(
+            workspace
+                .path()
+                .join("worktrees")
+                .join("remote_add_feature"),
+        )
+        .expect("create empty worktree dir");
+
+        add_project_to_worktree_impl(
+            &label,
+            AddProjectToWorktreeRequest {
+                worktree_name: "remote_add_feature".to_string(),
+                project_name: "api".to_string(),
+                base_branch: "main".to_string(),
+            },
+        )
+        .expect("add project by tracking existing remote branch");
+        let api_in_worktree = workspace
+            .path()
+            .join("worktrees")
+            .join("remote_add_feature")
+            .join("projects")
+            .join("api");
+
+        assert_eq!(
+            git_output(&api_in_worktree, &["branch", "--show-current"]),
+            "remote_add_feature"
+        );
+        assert!(api_in_worktree.join("api.txt").exists());
+    }
+
+    #[serial]
+    #[test]
+    fn deploy_to_main_reports_dirty_main_and_failed_detach_without_saving_occupation() {
+        let dirty_workspace = tempfile::tempdir().expect("create dirty workspace");
+        make_origin_backed_project(dirty_workspace.path(), "demo");
+        let dirty_label = bind_workspace(
+            dirty_workspace.path(),
+            &workspace_config(vec![project_config("demo")]),
+        );
+        create_worktree_impl(
+            &dirty_label,
+            CreateWorktreeRequest {
+                name: "dirty_main_feature".to_string(),
+                folder_name: None,
+                projects: vec![CreateProjectRequest {
+                    name: "demo".to_string(),
+                    base_branch: "main".to_string(),
+                }],
+            },
+        )
+        .expect("create worktree for dirty deploy check");
+        let dirty_main = dirty_workspace.path().join("projects").join("demo");
+        std::fs::write(dirty_main.join("dirty.txt"), "dirty\n").expect("dirty main workspace");
+
+        let dirty_err =
+            deploy_to_main_impl(&dirty_label, "dirty_main_feature".to_string()).unwrap_err();
+        assert!(dirty_err.contains("uncommitted changes"), "{dirty_err}");
+
+        let broken_workspace = tempfile::tempdir().expect("create broken workspace");
+        make_origin_backed_project(broken_workspace.path(), "broken");
+        let broken_label = bind_workspace(
+            broken_workspace.path(),
+            &workspace_config(vec![project_config("broken")]),
+        );
+        std::fs::create_dir_all(
+            broken_workspace
+                .path()
+                .join("worktrees")
+                .join("broken_feature")
+                .join("projects")
+                .join("broken"),
+        )
+        .expect("create non-git worktree project");
+
+        let result = deploy_to_main_impl(&broken_label, "broken_feature".to_string())
+            .expect("deploy returns per-project failure result");
+        assert!(!result.success, "{result:?}");
+        assert!(result.switched_projects.is_empty());
+        assert_eq!(result.failed_projects.len(), 1);
+        assert!(result.failed_projects[0]
+            .error
+            .contains("Failed to detach worktree HEAD"));
+        assert!(load_occupation_state(&broken_workspace.path().to_string_lossy()).is_none());
+    }
+
+    #[serial]
+    #[test]
+    fn process_termination_and_occupation_errors_are_reported_before_mutation() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let label = bind_workspace(workspace.path(), &workspace_config(vec![]));
+        std::fs::create_dir_all(workspace.path().join("worktrees").join("locked_feature"))
+            .expect("create worktree dir");
+
+        let lock_err = terminate_worktree_locking_process_impl(
+            &label,
+            "locked_feature".to_string(),
+            12345,
+            "start-time".to_string(),
+        )
+        .unwrap_err();
+        assert_eq!(lock_err, "Process is no longer locking this worktree");
+
+        let exit_err = exit_main_occupation_impl(&label, false).unwrap_err();
+        assert_eq!(exit_err, "Main workspace is not currently occupied");
+    }
+
+    #[serial]
+    #[test]
+    fn empty_workspace_impls_report_expected_preconditions_without_global_state() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let label = bind_workspace(workspace.path(), &workspace_config(vec![]));
+        let add_request = AddProjectToWorktreeRequest {
+            worktree_name: "feature".to_string(),
+            project_name: "demo".to_string(),
+            base_branch: "main".to_string(),
+        };
+
+        assert!(list_worktrees_impl(&label, false).unwrap().is_empty());
+        update_worktree_color_impl(
+            &label,
+            "feature".to_string(),
+            Some(crate::types::WorktreeColor::Green),
+        )
+        .expect("update worktree color");
+        let saved = load_workspace_config(&workspace.path().to_string_lossy());
+        assert_eq!(
+            saved.worktree_colors.get("feature"),
+            Some(&crate::types::WorktreeColor::Green)
+        );
+        assert_eq!(
+            archive_worktree_impl(&label, "feature".to_string()).unwrap_err(),
+            "Worktree does not exist"
+        );
+        assert_eq!(
+            check_worktree_status_impl(&label, "feature".to_string()).unwrap_err(),
+            "Worktree does not exist"
+        );
+        assert_eq!(
+            restore_worktree_impl(&label, "feature".to_string()).unwrap_err(),
+            "Archived worktree does not exist"
+        );
+        assert_eq!(
+            delete_archived_worktree_impl(&label, "feature".to_string()).unwrap_err(),
+            "Can only delete archived worktrees"
+        );
+        assert_eq!(
+            add_project_to_worktree_impl(&label, add_request).unwrap_err(),
+            "Worktree 'feature' does not exist"
+        );
+        assert_eq!(
+            deploy_to_main_impl(&label, "feature".to_string()).unwrap_err(),
+            "Worktree 'feature' does not exist"
+        );
+        assert_eq!(
+            exit_main_occupation_impl(&label, false).unwrap_err(),
+            "Main workspace is not currently occupied"
+        );
+        assert!(get_main_occupation_impl(&label).unwrap().is_none());
+    }
+
+    #[serial]
+    #[test]
+    fn add_project_to_worktree_rejects_invalid_base_branch_before_workspace_lookup() {
+        let err = add_project_to_worktree_impl(
+            "unbound-worktree-window",
+            AddProjectToWorktreeRequest {
+                worktree_name: "feature".to_string(),
+                project_name: "demo".to_string(),
+                base_branch: "-bad".to_string(),
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(err, "无效的分支名");
+    }
+
+    #[serial]
+    #[test]
+    fn load_worktree_mapping_returns_empty_for_missing_and_invalid_json() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let missing = temp.path().join("missing-mapping.json");
+        let invalid = temp.path().join("mapping.json");
+        std::fs::write(&invalid, "{not json").expect("write invalid mapping");
+
+        assert!(load_worktree_mapping(&missing).is_empty());
+        assert!(load_worktree_mapping(&invalid).is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn delete_archived_worktree_rejects_invalid_mapped_branch_without_deleting() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        let mut config = workspace_config(vec![]);
+        config.archived_worktrees.push("folder_alias".to_string());
+        let label = bind_workspace(workspace.path(), &config);
+        let worktrees_dir = workspace.path().join("worktrees");
+        let archived_dir = worktrees_dir.join("folder_alias");
+        std::fs::create_dir_all(&archived_dir).expect("create archived worktree dir");
+        save_worktree_mapping(
+            &worktrees_dir.join("mapping.json"),
+            &HashMap::from([("folder_alias".to_string(), "-bad".to_string())]),
+        );
+
+        let err = delete_archived_worktree_impl(&label, "folder_alias".to_string()).unwrap_err();
+
+        assert_eq!(err, "无效的分支名");
+        assert!(archived_dir.exists());
+        let saved = load_workspace_config(&workspace.path().to_string_lossy());
+        assert!(saved
+            .archived_worktrees
+            .contains(&"folder_alias".to_string()));
+    }
+
+    #[serial]
+    #[test]
+    fn add_project_to_worktree_rejects_invalid_mapped_branch_before_fetch() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        make_origin_backed_project(workspace.path(), "demo");
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![project_config("demo")]),
+        );
+        let worktrees_dir = workspace.path().join("worktrees");
+        std::fs::create_dir_all(worktrees_dir.join("folder_alias"))
+            .expect("create target worktree dir");
+        save_worktree_mapping(
+            &worktrees_dir.join("mapping.json"),
+            &HashMap::from([("folder_alias".to_string(), "-bad".to_string())]),
+        );
+
+        let err = add_project_to_worktree_impl(
+            &label,
+            AddProjectToWorktreeRequest {
+                worktree_name: "folder_alias".to_string(),
+                project_name: "demo".to_string(),
+                base_branch: "main".to_string(),
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(err, "无效的分支名");
+        assert!(!worktrees_dir
+            .join("folder_alias")
+            .join("projects")
+            .join("demo")
+            .exists());
+    }
+
+    #[serial]
+    #[test]
+    fn restore_worktree_without_projects_dir_clears_archive_and_relinks_workspace_items() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        std::fs::write(workspace.path().join("shared.env"), "A=1\n").expect("write shared item");
+        let mut config = workspace_config(vec![]);
+        config.archived_worktrees.push("docs_only".to_string());
+        config.linked_workspace_items.push("shared.env".to_string());
+        let label = bind_workspace(workspace.path(), &config);
+        let archived_root = workspace.path().join("worktrees").join("docs_only");
+        std::fs::create_dir_all(&archived_root).expect("create archived worktree shell");
+
+        restore_worktree_impl(&label, "docs_only".to_string()).expect("restore shell worktree");
+
+        let saved = load_workspace_config(&workspace.path().to_string_lossy());
+        assert!(!saved.archived_worktrees.contains(&"docs_only".to_string()));
+        assert!(archived_root.join("shared.env").symlink_metadata().is_ok());
+    }
+
+    #[serial]
+    #[test]
+    fn get_main_workspace_status_skips_missing_projects_and_reports_existing_metadata() {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        make_origin_backed_project(workspace.path(), "demo");
+        let mut demo = project_config("demo");
+        demo.linked_folders = vec!["node_modules".to_string()];
+        let label = bind_workspace(
+            workspace.path(),
+            &workspace_config(vec![demo, project_config("missing")]),
+        );
+
+        let status = get_main_workspace_status_impl(&label).expect("main workspace status");
+
+        assert_eq!(status.name, "Test Workspace");
+        assert_eq!(status.projects.len(), 1);
+        assert_eq!(status.projects[0].name, "demo");
+        assert_eq!(status.projects[0].base_branch, "main");
+        assert_eq!(status.projects[0].test_branch, "test");
+        assert_eq!(
+            status.projects[0].linked_folders,
+            vec!["node_modules".to_string()]
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn scan_linked_folders_internal_sorts_recommended_before_larger_generic_folder() {
+        let project = tempfile::tempdir().expect("create project dir");
+        let node_modules = project.path().join("node_modules");
+        let dist = project.path().join("dist");
+        std::fs::create_dir(&node_modules).expect("create node_modules");
+        std::fs::create_dir(&dist).expect("create dist");
+        std::fs::write(node_modules.join("tiny.bin"), [1_u8; 4]).expect("write tiny file");
+        std::fs::write(dist.join("large.bin"), [2_u8; 1024]).expect("write large file");
+
+        let scanned =
+            scan_linked_folders_internal(&project.path().to_string_lossy()).expect("scan folders");
+
+        assert!(scanned.len() >= 2, "{scanned:?}");
+        assert_eq!(scanned[0].relative_path, "node_modules");
+        assert!(scanned[0].is_recommended);
+        let dist = scanned
+            .iter()
+            .find(|folder| folder.relative_path == "dist")
+            .expect("dist scan result");
+        assert!(!dist.is_recommended);
+        assert!(dist.size_bytes > scanned[0].size_bytes);
+    }
 }

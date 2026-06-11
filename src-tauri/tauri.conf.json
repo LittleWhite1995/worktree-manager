@@ -40,6 +40,11 @@
       "../dist": "dist",
       "shell-integration": "shell-integration"
     },
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    },
     "publisher": "Worktree Manager Team",
     "homepage": "https://github.com/guoyongchang/worktree-manager",
     "license": "MIT"

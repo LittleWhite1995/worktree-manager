@@ -35,8 +35,17 @@ pub(crate) async fn get_last_share_port() -> Result<Option<u16>, String> {
 
 #[tauri::command]
 pub(crate) async fn get_last_share_password() -> Result<Option<String>, String> {
-    // No longer persist passwords for security
-    Ok(None)
+    let config = load_global_config();
+    Ok(config.share_password)
+}
+
+fn save_last_share_credentials(port: Option<u16>, password: &str) -> Result<(), String> {
+    let mut config = load_global_config();
+    if let Some(port) = port {
+        config.last_share_port = Some(port);
+    }
+    config.share_password = Some(password.to_string());
+    save_global_config_internal(&config)
 }
 
 /// Internal function to start LAN sharing.
@@ -52,10 +61,10 @@ pub async fn start_sharing_internal(
         password.len()
     );
 
-    // SECURITY: Validate password is not empty (required for remote access security)
-    if password.trim().is_empty() {
-        log::warn!("[sharing] Rejected: empty password");
-        return Err("分享密码不能为空".to_string());
+    // SECURITY: Validate password strength (required for remote access security)
+    if password.trim().chars().count() < 8 {
+        log::warn!("[sharing] Rejected: password shorter than 8 characters");
+        return Err("分享密码至少需要 8 位".to_string());
     }
 
     // Validate port range (recommended dynamic/private ports: 49152-65535)
@@ -145,7 +154,13 @@ pub async fn start_sharing_internal(
         password.as_bytes(),
         &mut auth_key,
     );
-    log::info!("[sharing] PBKDF2 key derived, auth state updated");
+    log::info!("[sharing] PBKDF2 key derived");
+
+    save_last_share_credentials(Some(port), &password)?;
+    log::info!(
+        "[sharing] Port {} and password saved to global config",
+        port
+    );
 
     // Update share state
     {
@@ -159,14 +174,6 @@ pub async fn start_sharing_internal(
         state.auth_salt = Some(salt);
         state.shutdown_tx = Some(tx);
     }
-
-    // Save port to global config (no longer save password)
-    {
-        let mut config = load_global_config();
-        config.last_share_port = Some(port);
-        let _ = save_global_config_internal(&config);
-    }
-    log::info!("[sharing] Port {} saved to global config", port);
 
     // Clear any previous authenticated sessions
     if let Ok(mut sessions) = AUTHENTICATED_SESSIONS.lock() {
@@ -422,10 +429,10 @@ pub(crate) async fn update_share_password(password: String) -> Result<(), String
         password.len()
     );
 
-    // SECURITY: Validate password is not empty
-    if password.trim().is_empty() {
-        log::warn!("[sharing] Password update rejected: empty password");
-        return Err("分享密码不能为空".to_string());
+    // SECURITY: Validate password strength
+    if password.trim().chars().count() < 8 {
+        log::warn!("[sharing] Password update rejected: shorter than 8 characters");
+        return Err("分享密码至少需要 8 位".to_string());
     }
 
     // Generate new salt and derive new key
@@ -457,6 +464,8 @@ pub(crate) async fn update_share_password(password: String) -> Result<(), String
     state.auth_salt = Some(salt);
     drop(state);
 
+    save_last_share_credentials(None, &password)?;
+
     // Clear authenticated sessions and connected clients so everyone must re-auth with the new password
     if let Ok(mut sessions) = AUTHENTICATED_SESSIONS.lock() {
         let count = sessions.len();
@@ -487,6 +496,729 @@ pub(crate) fn get_connected_clients() -> Vec<ConnectedClient> {
         return vec![];
     };
     clients.values().cloned().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{
+        AUTHENTICATED_SESSIONS, CONNECTED_CLIENTS, GLOBAL_CONFIG_CACHE, SHARE_STATE,
+    };
+    use once_cell::sync::Lazy;
+    use serde_json::Value;
+    use serial_test::serial;
+    use std::sync::{Mutex, MutexGuard};
+
+    static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    fn lock_test_mutex() -> MutexGuard<'static, ()> {
+        TEST_MUTEX.lock().unwrap_or_else(|err| err.into_inner())
+    }
+
+    struct GlobalConfigCacheGuard {
+        previous: Option<crate::GlobalConfig>,
+    }
+
+    impl GlobalConfigCacheGuard {
+        fn with_share_password(password: &str) -> Self {
+            let mut cache = GLOBAL_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let previous = std::mem::replace(
+                &mut *cache,
+                Some(crate::GlobalConfig {
+                    share_password: Some(password.to_string()),
+                    ..crate::GlobalConfig::default()
+                }),
+            );
+            Self { previous }
+        }
+    }
+
+    impl Drop for GlobalConfigCacheGuard {
+        fn drop(&mut self) {
+            let mut cache = GLOBAL_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *cache = self.previous.take();
+        }
+    }
+
+    struct TempHomeGuard {
+        previous_home: Option<String>,
+        _temp_dir: tempfile::TempDir,
+    }
+
+    impl TempHomeGuard {
+        fn new() -> Self {
+            let temp_dir = tempfile::tempdir().expect("create temp home");
+            let previous_home = std::env::var("HOME").ok();
+            std::env::set_var("HOME", temp_dir.path());
+            clear_global_config_cache();
+            Self {
+                previous_home,
+                _temp_dir: temp_dir,
+            }
+        }
+    }
+
+    impl Drop for TempHomeGuard {
+        fn drop(&mut self) {
+            match &self.previous_home {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
+            }
+            clear_global_config_cache();
+        }
+    }
+
+    struct ShareStateGuard {
+        previous: crate::ShareState,
+    }
+
+    impl ShareStateGuard {
+        fn inactive() -> Self {
+            let mut state = SHARE_STATE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let previous = std::mem::take(&mut *state);
+            state.active = false;
+            Self { previous }
+        }
+
+        fn active(workspace_path: String, port: u16) -> Self {
+            let mut state = SHARE_STATE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let previous = std::mem::take(&mut *state);
+            let (tx, _rx) = tokio::sync::watch::channel(false);
+            state.active = true;
+            state.workspace_path = Some(workspace_path);
+            state.port = port;
+            state.auth_key = Some(vec![7; 32]);
+            state.auth_salt = Some(vec![8; 16]);
+            state.shutdown_tx = Some(tx);
+            Self { previous }
+        }
+    }
+
+    impl Drop for ShareStateGuard {
+        fn drop(&mut self) {
+            let mut state = SHARE_STATE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *state = std::mem::take(&mut self.previous);
+        }
+    }
+
+    struct ClientStateGuard {
+        previous_sessions: std::collections::HashSet<String>,
+        previous_clients: std::collections::HashMap<String, ConnectedClient>,
+    }
+
+    impl ClientStateGuard {
+        fn empty() -> Self {
+            let previous_sessions = {
+                let mut sessions = AUTHENTICATED_SESSIONS
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                std::mem::take(&mut *sessions)
+            };
+            let previous_clients = {
+                let mut clients = CONNECTED_CLIENTS
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                std::mem::take(&mut *clients)
+            };
+            Self {
+                previous_sessions,
+                previous_clients,
+            }
+        }
+    }
+
+    impl Drop for ClientStateGuard {
+        fn drop(&mut self) {
+            let mut sessions = AUTHENTICATED_SESSIONS
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *sessions = std::mem::take(&mut self.previous_sessions);
+
+            let mut clients = CONNECTED_CLIENTS
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *clients = std::mem::take(&mut self.previous_clients);
+        }
+    }
+
+    fn clear_global_config_cache() {
+        let mut cache = GLOBAL_CONFIG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *cache = None;
+    }
+
+    fn free_port_at_least_3000() -> u16 {
+        for _ in 0..100 {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind free port");
+            let port = listener.local_addr().unwrap().port();
+            if port >= 3000 {
+                return port;
+            }
+        }
+        panic!("could not allocate a test port >= 3000");
+    }
+
+    async fn loopback_bind_allowed() -> bool {
+        tokio::net::TcpListener::bind("127.0.0.1:0").await.is_ok()
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn get_last_share_password_reads_global_config() {
+        let _serial = lock_test_mutex();
+        let _guard = GlobalConfigCacheGuard::with_share_password("persisted-secret");
+
+        let password = get_last_share_password().await.expect("read password");
+
+        assert_eq!(password, Some("persisted-secret".to_string()));
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn start_sharing_rejects_trimmed_password_shorter_than_eight_before_port_validation() {
+        let _serial = lock_test_mutex();
+
+        let result =
+            start_sharing_internal("/tmp/workspace".to_string(), 1, " 1234567 ".to_string()).await;
+
+        assert_eq!(result, Err("分享密码至少需要 8 位".to_string()));
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn start_sharing_accepts_exactly_eight_trimmed_password_characters() {
+        let _serial = lock_test_mutex();
+
+        let result =
+            start_sharing_internal("/tmp/workspace".to_string(), 1, " 12345678 ".to_string()).await;
+
+        assert_eq!(
+            result,
+            Err(
+                "端口 1 过小。推荐使用 49152-65535 范围内的端口，或 3000-9999 开发端口".to_string()
+            )
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn start_sharing_accepts_passwords_longer_than_eight_characters() {
+        let _serial = lock_test_mutex();
+
+        let result =
+            start_sharing_internal("/tmp/workspace".to_string(), 2, "long-password".to_string())
+                .await;
+
+        assert_eq!(
+            result,
+            Err(
+                "端口 2 过小。推荐使用 49152-65535 范围内的端口，或 3000-9999 开发端口".to_string()
+            )
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn start_sharing_rejects_already_active_before_binding_port() {
+        let _serial = lock_test_mutex();
+        let _state = ShareStateGuard::active("/tmp/workspace".to_string(), 45678);
+
+        let result = start_sharing_internal(
+            "/tmp/other-workspace".to_string(),
+            45679,
+            "long-password".to_string(),
+        )
+        .await;
+
+        assert_eq!(
+            result,
+            Err("Already sharing. Stop current sharing first.".to_string())
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn start_sharing_rejects_occupied_port_and_preserves_inactive_state() {
+        let _serial = lock_test_mutex();
+        if !loopback_bind_allowed().await {
+            // The managed sandbox can deny loopback binds; this branch needs local sockets only.
+            return;
+        }
+        let _state = ShareStateGuard::inactive();
+        let listener = std::net::TcpListener::bind("0.0.0.0:0").expect("bind occupied port");
+        let port = listener.local_addr().unwrap().port();
+        if port < 3000 {
+            // Rare ephemeral allocation below the command's validation threshold.
+            return;
+        }
+
+        let result = start_sharing_internal(
+            "/tmp/workspace".to_string(),
+            port,
+            "long-password".to_string(),
+        )
+        .await;
+
+        assert!(result
+            .unwrap_err()
+            .starts_with(&format!("端口 {} 已被占用", port)));
+        let state = SHARE_STATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert!(!state.active);
+        assert_eq!(state.port, 0);
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn start_sharing_success_sets_state_persists_credentials_and_stop_resets() {
+        let _serial = lock_test_mutex();
+        if !loopback_bind_allowed().await {
+            // The managed sandbox can deny loopback binds; this branch needs local sockets only.
+            return;
+        }
+        let _home = TempHomeGuard::new();
+        let _state = ShareStateGuard::inactive();
+        let _clients = ClientStateGuard::empty();
+        let workspace = tempfile::tempdir().expect("workspace");
+        let port = free_port_at_least_3000();
+
+        let url = start_sharing_internal(
+            workspace.path().to_string_lossy().to_string(),
+            port,
+            "strong-password".to_string(),
+        )
+        .await
+        .expect("start sharing");
+
+        assert!(url.starts_with("https://"));
+        {
+            let state = SHARE_STATE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            assert!(state.active);
+            assert_eq!(state.workspace_path.as_deref(), workspace.path().to_str());
+            assert_eq!(state.port, port);
+            assert_eq!(state.auth_key.as_ref().unwrap().len(), 32);
+            assert_eq!(state.auth_salt.as_ref().unwrap().len(), 16);
+            assert!(state.shutdown_tx.is_some());
+        }
+        let config = load_global_config();
+        assert_eq!(config.last_share_port, Some(port));
+        assert_eq!(config.share_password.as_deref(), Some("strong-password"));
+
+        stop_sharing_internal().expect("stop sharing");
+        let state = SHARE_STATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert!(!state.active);
+        assert_eq!(state.workspace_path, None);
+        assert_eq!(state.port, 0);
+        assert!(state.auth_key.is_none());
+        assert!(state.auth_salt.is_none());
+        assert!(state.shutdown_tx.is_none());
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn update_share_password_rejects_trimmed_password_shorter_than_eight() {
+        let _serial = lock_test_mutex();
+        let _guard = ShareStateGuard::inactive();
+
+        let result = update_share_password(" 1234567 ".to_string()).await;
+
+        assert_eq!(result, Err("分享密码至少需要 8 位".to_string()));
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn update_share_password_accepts_exactly_eight_chars_before_state_check() {
+        let _serial = lock_test_mutex();
+        let _guard = ShareStateGuard::inactive();
+
+        let result = update_share_password("12345678".to_string()).await;
+
+        assert_eq!(result, Err("Not currently sharing".to_string()));
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn update_share_password_accepts_long_trimmed_password_before_state_check() {
+        let _serial = lock_test_mutex();
+        let _guard = ShareStateGuard::inactive();
+
+        let result = update_share_password("  longer-password  ".to_string()).await;
+
+        assert_eq!(result, Err("Not currently sharing".to_string()));
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn update_share_password_rotates_key_persists_password_and_clears_clients() {
+        let _serial = lock_test_mutex();
+        let _home = TempHomeGuard::new();
+        let _state = ShareStateGuard::active("/tmp/workspace".to_string(), 50123);
+        let _clients = ClientStateGuard::empty();
+        AUTHENTICATED_SESSIONS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert("session-1".to_string());
+        CONNECTED_CLIENTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(
+                "session-1".to_string(),
+                ConnectedClient {
+                    session_id: "session-1".to_string(),
+                    ip: "198.51.100.10".to_string(),
+                    user_agent: "unit-test".to_string(),
+                    authenticated_at: "2026-06-11T00:00:00Z".to_string(),
+                    last_active: "2026-06-11T00:01:00Z".to_string(),
+                    ws_connected: true,
+                },
+            );
+        let (old_key, old_salt) = {
+            let state = SHARE_STATE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            (
+                state.auth_key.clone().unwrap(),
+                state.auth_salt.clone().unwrap(),
+            )
+        };
+
+        update_share_password("new-strong-password".to_string())
+            .await
+            .expect("update password");
+
+        let state = SHARE_STATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let new_key = state.auth_key.as_ref().unwrap();
+        let new_salt = state.auth_salt.as_ref().unwrap();
+        assert_eq!(new_key.len(), 32);
+        assert_eq!(new_salt.len(), 16);
+        assert_ne!(new_key, &old_key);
+        assert_ne!(new_salt, &old_salt);
+        drop(state);
+        assert!(AUTHENTICATED_SESSIONS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_empty());
+        assert!(CONNECTED_CLIENTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_empty());
+        assert_eq!(
+            load_global_config().share_password.as_deref(),
+            Some("new-strong-password")
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn save_last_share_credentials_persists_port_and_password() {
+        let _serial = lock_test_mutex();
+        let _home = TempHomeGuard::new();
+
+        save_last_share_credentials(Some(45678), "persisted-secret")
+            .expect("persist share credentials");
+
+        let config_path = crate::config::get_global_config_path();
+        let content = std::fs::read_to_string(config_path).expect("read global config");
+        let value: Value = serde_json::from_str(&content).expect("parse global config");
+
+        assert_eq!(value["last_share_port"], Value::from(45678));
+        assert_eq!(value["share_password"], Value::from("persisted-secret"));
+        assert_eq!(
+            load_global_config().share_password,
+            Some("persisted-secret".to_string())
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn saved_share_credentials_reload_through_public_getters() {
+        let _serial = lock_test_mutex();
+        let _home = TempHomeGuard::new();
+
+        save_last_share_credentials(Some(45679), "reload-secret").expect("persist credentials");
+        clear_global_config_cache();
+
+        assert_eq!(get_last_share_port().await.unwrap(), Some(45679));
+        assert_eq!(
+            get_last_share_password().await.unwrap(),
+            Some("reload-secret".to_string())
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn ngrok_token_getter_and_setter_persist_empty_as_none() {
+        let _serial = lock_test_mutex();
+        let _home = TempHomeGuard::new();
+
+        assert_eq!(get_ngrok_token().await.unwrap(), None);
+        set_ngrok_token("token-123".to_string()).await.unwrap();
+        assert_eq!(
+            get_ngrok_token().await.unwrap(),
+            Some("token-123".to_string())
+        );
+        set_ngrok_token(String::new()).await.unwrap();
+        assert_eq!(get_ngrok_token().await.unwrap(), None);
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn get_share_state_reports_inactive_and_active_snapshots() {
+        let _serial = lock_test_mutex();
+        let workspace = tempfile::tempdir().expect("workspace");
+        {
+            let _state = ShareStateGuard::inactive();
+            let inactive = get_share_state().await.unwrap();
+            assert!(!inactive.active);
+            assert!(inactive.urls.is_empty());
+            assert_eq!(inactive.ngrok_url, None);
+            assert_eq!(inactive.workspace_path, None);
+        }
+        let _state = ShareStateGuard::active(workspace.path().to_string_lossy().to_string(), 51234);
+        {
+            let mut state = SHARE_STATE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.ngrok_url = Some("https://unit.ngrok.test".to_string());
+        }
+
+        let active = get_share_state().await.unwrap();
+
+        assert!(active.active);
+        assert_eq!(active.ngrok_url.as_deref(), Some("https://unit.ngrok.test"));
+        assert_eq!(
+            active.workspace_path.as_deref(),
+            Some(workspace.path().to_str().unwrap())
+        );
+        assert!(
+            active.urls.iter().all(|url| url.ends_with(":51234")),
+            "urls were {:?}",
+            active.urls
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn stop_ngrok_tunnel_aborts_task_and_clears_url() {
+        let _serial = lock_test_mutex();
+        let _state = ShareStateGuard::active("/tmp/workspace".to_string(), 51235);
+        let handle = TOKIO_RT.spawn(async {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        });
+        {
+            let mut state = SHARE_STATE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.ngrok_url = Some("https://unit.ngrok.test".to_string());
+            state.ngrok_task = Some(handle);
+        }
+
+        stop_ngrok_tunnel().await.expect("stop ngrok");
+
+        let state = SHARE_STATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert!(state.ngrok_url.is_none());
+        assert!(state.ngrok_task.is_none());
+    }
+
+    #[serial]
+    #[test]
+    fn stop_sharing_rejects_inactive_state() {
+        let _serial = lock_test_mutex();
+        let _state = ShareStateGuard::inactive();
+
+        assert_eq!(
+            stop_sharing_internal(),
+            Err("Not currently sharing".to_string())
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn stop_sharing_command_wrapper_returns_same_inactive_error() {
+        let _serial = lock_test_mutex();
+        let _state = ShareStateGuard::inactive();
+
+        assert_eq!(
+            stop_sharing().await,
+            Err("Not currently sharing".to_string())
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn stop_sharing_resets_state_and_clears_sessions_and_clients() {
+        let _serial = lock_test_mutex();
+        let _state = ShareStateGuard::active("/tmp/workspace".to_string(), 51236);
+        let _clients = ClientStateGuard::empty();
+        AUTHENTICATED_SESSIONS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert("session-1".to_string());
+        CONNECTED_CLIENTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(
+                "session-1".to_string(),
+                ConnectedClient {
+                    session_id: "session-1".to_string(),
+                    ip: "203.0.113.10".to_string(),
+                    user_agent: "unit-test".to_string(),
+                    authenticated_at: "2026-06-11T00:00:00Z".to_string(),
+                    last_active: "2026-06-11T00:01:00Z".to_string(),
+                    ws_connected: false,
+                },
+            );
+
+        stop_sharing_internal().expect("stop sharing");
+
+        let state = SHARE_STATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert!(!state.active);
+        assert_eq!(state.workspace_path, None);
+        assert_eq!(state.port, 0);
+        assert!(state.auth_key.is_none());
+        assert!(state.auth_salt.is_none());
+        drop(state);
+        assert!(AUTHENTICATED_SESSIONS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_empty());
+        assert!(CONNECTED_CLIENTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn save_last_share_credentials_without_port_preserves_existing_port() {
+        let _serial = lock_test_mutex();
+        let _home = TempHomeGuard::new();
+        let initial = crate::GlobalConfig {
+            last_share_port: Some(50123),
+            share_password: Some("old-secret".to_string()),
+            ..crate::GlobalConfig::default()
+        };
+        save_global_config_internal(&initial).expect("write initial config");
+
+        save_last_share_credentials(None, "new-secret").expect("persist password only");
+        clear_global_config_cache();
+        let config = load_global_config();
+
+        assert_eq!(config.last_share_port, Some(50123));
+        assert_eq!(config.share_password, Some("new-secret".to_string()));
+    }
+
+    #[serial]
+    #[test]
+    fn get_connected_clients_returns_current_client_snapshot() {
+        let _serial = lock_test_mutex();
+        let _clients = ClientStateGuard::empty();
+        let client = ConnectedClient {
+            session_id: "session-1".to_string(),
+            ip: "192.0.2.10".to_string(),
+            user_agent: "unit-test".to_string(),
+            authenticated_at: "2026-06-11T00:00:00Z".to_string(),
+            last_active: "2026-06-11T00:01:00Z".to_string(),
+            ws_connected: true,
+        };
+        CONNECTED_CLIENTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(client.session_id.clone(), client.clone());
+
+        let clients = get_connected_clients();
+
+        assert_eq!(clients.len(), 1);
+        assert_eq!(clients[0].session_id, client.session_id);
+        assert_eq!(clients[0].ip, client.ip);
+        assert!(clients[0].ws_connected);
+    }
+
+    #[serial]
+    #[test]
+    fn kick_client_internal_removes_session_and_client_records() {
+        let _serial = lock_test_mutex();
+        let _clients = ClientStateGuard::empty();
+        let mut notifications = CLIENT_NOTIFICATION_BROADCAST.subscribe();
+        AUTHENTICATED_SESSIONS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert("session-1".to_string());
+        CONNECTED_CLIENTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(
+                "session-1".to_string(),
+                ConnectedClient {
+                    session_id: "session-1".to_string(),
+                    ip: "192.0.2.10".to_string(),
+                    user_agent: "unit-test".to_string(),
+                    authenticated_at: "2026-06-11T00:00:00Z".to_string(),
+                    last_active: "2026-06-11T00:01:00Z".to_string(),
+                    ws_connected: true,
+                },
+            );
+
+        kick_client_internal("session-1").expect("kick client");
+
+        let notification = notifications.try_recv().expect("kick notification");
+        let notification: Value = serde_json::from_str(&notification).unwrap();
+        assert_eq!(notification["session_id"], "session-1");
+        assert_eq!(notification["type"], "kicked");
+        assert_eq!(notification["reason"], "您已被管理员踢出");
+        assert!(!AUTHENTICATED_SESSIONS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains("session-1"));
+        assert!(!CONNECTED_CLIENTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains_key("session-1"));
+    }
+
+    #[serial]
+    #[test]
+    fn kick_client_command_wrapper_succeeds_for_missing_client_and_broadcasts() {
+        let _serial = lock_test_mutex();
+        let _clients = ClientStateGuard::empty();
+        let mut notifications = CLIENT_NOTIFICATION_BROADCAST.subscribe();
+
+        kick_client("missing-session".to_string()).expect("kick missing client");
+
+        let notification = notifications.try_recv().expect("kick notification");
+        let notification: Value = serde_json::from_str(&notification).unwrap();
+        assert_eq!(notification["session_id"], "missing-session");
+        assert!(AUTHENTICATED_SESSIONS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_empty());
+        assert!(CONNECTED_CLIENTS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_empty());
+    }
 }
 
 /// Kick a client by session ID: send WebSocket notification, then disconnect and remove session.

@@ -2,7 +2,23 @@ use git2::{Repository, StatusOptions};
 use serde::Serialize;
 use std::path::Path;
 
-use crate::utils::git_command;
+use crate::utils::{git_command, run_git_logged};
+
+fn command_without_window(program: &str) -> std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut command = std::process::Command::new(program);
+        command.creation_flags(CREATE_NO_WINDOW);
+        command
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new(program)
+    }
+}
 
 /// Helper function to find the main worktree path for a given repository
 fn find_main_worktree(repo_path: &Path) -> Option<std::path::PathBuf> {
@@ -104,13 +120,14 @@ fn handle_branch_checkout_conflict(
                 &commit_sha[..8]
             );
 
-            let checkout_output = git_command()
+            let mut checkout_cmd = git_command();
+            checkout_cmd
                 .arg("-C")
                 .arg(main_worktree_path)
                 .arg("checkout")
                 .arg("--detach")
-                .arg(&commit_sha)
-                .output()
+                .arg(&commit_sha);
+            let checkout_output = run_git_logged(&mut checkout_cmd, "merge checkout detach")
                 .map_err(|e| format!("执行 git checkout --detach 失败: {}", e))?;
 
             if !checkout_output.status.success() {
@@ -426,13 +443,14 @@ pub fn sync_with_base_branch(path: &Path, base_branch: &str) -> Result<String, S
 
     // Step 1: Fetch from remote
     log::info!("[git] Step 1/2: git fetch origin {}", base_branch);
-    let fetch_output = git_command()
+    let mut fetch_cmd = git_command();
+    fetch_cmd
         .arg("-C")
         .arg(path)
         .arg("fetch")
         .arg("origin")
-        .arg(base_branch)
-        .output()
+        .arg(base_branch);
+    let fetch_output = run_git_logged(&mut fetch_cmd, "sync fetch base branch")
         .map_err(|e| format!("Failed to execute git fetch: {}", e))?;
 
     if !fetch_output.status.success() {
@@ -448,12 +466,13 @@ pub fn sync_with_base_branch(path: &Path, base_branch: &str) -> Result<String, S
 
     // Step 2: Merge origin/base_branch into current branch
     log::info!("[git] Step 2/2: git merge origin/{}", base_branch);
-    let merge_output = git_command()
+    let mut merge_cmd = git_command();
+    merge_cmd
         .arg("-C")
         .arg(path)
         .arg("merge")
-        .arg(format!("origin/{}", base_branch))
-        .output()
+        .arg(format!("origin/{}", base_branch));
+    let merge_output = run_git_logged(&mut merge_cmd, "sync merge base branch")
         .map_err(|e| format!("Failed to execute git merge: {}", e))?;
 
     if !merge_output.status.success() {
@@ -497,15 +516,16 @@ pub fn push_to_remote(path: &Path) -> Result<String, String> {
         .to_string();
 
     log::info!("[git] Pushing branch '{}' to origin", current_branch);
-    let push_output = git_command()
+    let mut push_cmd = git_command();
+    push_cmd
         .arg("-C")
         .arg(path)
         .arg("push")
         .arg("-u")
         .arg("origin")
         .arg(&current_branch)
-        .arg("--no-verify")
-        .output()
+        .arg("--no-verify");
+    let push_output = run_git_logged(&mut push_cmd, "push current branch")
         .map_err(|e| format!("Failed to execute git push: {}", e))?;
 
     if !push_output.status.success() {
@@ -547,13 +567,14 @@ pub fn pull_current_branch(path: &Path) -> Result<String, String> {
 
     // Step 2: Pull from origin
     log::info!("[git] Pulling branch '{}' from origin", current_branch);
-    let pull_output = git_command()
+    let mut pull_cmd = git_command();
+    pull_cmd
         .arg("-C")
         .arg(path)
         .arg("pull")
         .arg("origin")
-        .arg(&current_branch)
-        .output()
+        .arg(&current_branch);
+    let pull_output = run_git_logged(&mut pull_cmd, "pull current branch")
         .map_err(|e| format!("Failed to execute git pull: {}", e))?;
 
     if !pull_output.status.success() {
@@ -583,12 +604,13 @@ fn restore_merge_state(
 ) {
     // Checkout back to original branch in worktree
     log::info!("[merge] Restoring worktree to branch: {}", original_branch);
-    let restore = git_command()
+    let mut restore_cmd = git_command();
+    restore_cmd
         .arg("-C")
         .arg(path)
         .arg("checkout")
-        .arg(original_branch)
-        .output();
+        .arg(original_branch);
+    let restore = run_git_logged(&mut restore_cmd, "merge restore worktree checkout");
     match &restore {
         Ok(output) if output.status.success() => {
             log::info!("[merge] Restored worktree to {}", original_branch);
@@ -609,12 +631,14 @@ fn restore_merge_state(
     if switched_main {
         if let (Some(main_wt), Some(orig_branch)) = (main_worktree_path, original_main_branch) {
             log::info!("[merge] Restoring main worktree to branch: {}", orig_branch);
-            let restore_output = git_command()
+            let mut restore_cmd = git_command();
+            restore_cmd
                 .arg("-C")
                 .arg(main_wt)
                 .arg("checkout")
-                .arg(orig_branch)
-                .output();
+                .arg(orig_branch);
+            let restore_output =
+                run_git_logged(&mut restore_cmd, "merge restore main worktree checkout");
             match &restore_output {
                 Ok(output) if output.status.success() => {
                     log::info!("[merge] Restored main worktree to {}", orig_branch);
@@ -676,12 +700,13 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
 
     // Step 2: Checkout test branch
     log::info!("[merge-test] Step 2: git checkout {}", test_branch);
-    let checkout_output = git_command()
+    let mut checkout_cmd = git_command();
+    checkout_cmd
         .arg("-C")
         .arg(path)
         .arg("checkout")
-        .arg(test_branch)
-        .output()
+        .arg(test_branch);
+    let checkout_output = run_git_logged(&mut checkout_cmd, "merge-test checkout target")
         .map_err(|e| format!("执行 git checkout {} 失败: {}", test_branch, e))?;
 
     if !checkout_output.status.success() {
@@ -706,13 +731,14 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
 
     // Step 3: Pull latest
     log::info!("[merge-test] Step 3: git pull origin {}", test_branch);
-    let pull_output = git_command()
+    let mut pull_cmd = git_command();
+    pull_cmd
         .arg("-C")
         .arg(path)
         .arg("pull")
         .arg("origin")
-        .arg(test_branch)
-        .output()
+        .arg(test_branch);
+    let pull_output = run_git_logged(&mut pull_cmd, "merge-test pull target")
         .map_err(|e| format!("执行 git pull origin {} 失败: {}", test_branch, e))?;
 
     if !pull_output.status.success() {
@@ -731,12 +757,13 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
 
     // Step 4: Merge
     log::info!("[merge-test] Step 4: git merge {}", current_branch);
-    let merge_output = git_command()
+    let mut merge_cmd = git_command();
+    merge_cmd
         .arg("-C")
         .arg(path)
         .arg("merge")
-        .arg(current_branch)
-        .output()
+        .arg(current_branch);
+    let merge_output = run_git_logged(&mut merge_cmd, "merge-test merge current")
         .map_err(|e| format!("执行 git merge {} 失败: {}", current_branch, e))?;
 
     if !merge_output.status.success() {
@@ -748,12 +775,9 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
             stdout
         );
         // Abort merge if in conflict state
-        let _ = git_command()
-            .arg("-C")
-            .arg(path)
-            .arg("merge")
-            .arg("--abort")
-            .output();
+        let mut abort_cmd = git_command();
+        abort_cmd.arg("-C").arg(path).arg("merge").arg("--abort");
+        let _ = run_git_logged(&mut abort_cmd, "merge-test merge abort");
         restore_merge_state(
             path,
             current_branch,
@@ -781,14 +805,15 @@ pub fn merge_to_test_branch(path: &Path, test_branch: &str) -> Result<String, St
 
     // Step 5: Push
     log::info!("[merge-test] Step 5: git push origin {}", test_branch);
-    let push_output = git_command()
+    let mut push_cmd = git_command();
+    push_cmd
         .arg("-C")
         .arg(path)
         .arg("push")
         .arg("origin")
         .arg(test_branch)
-        .arg("--no-verify")
-        .output()
+        .arg("--no-verify");
+    let push_output = run_git_logged(&mut push_cmd, "merge-test push target")
         .map_err(|e| format!("执行 git push origin {} 失败: {}", test_branch, e))?;
 
     let push_failed = !push_output.status.success();
@@ -868,12 +893,13 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 
     // Step 2: Checkout base branch
     log::info!("[merge-base] Step 2: git checkout {}", base_branch);
-    let checkout_output = git_command()
+    let mut checkout_cmd = git_command();
+    checkout_cmd
         .arg("-C")
         .arg(path)
         .arg("checkout")
-        .arg(base_branch)
-        .output()
+        .arg(base_branch);
+    let checkout_output = run_git_logged(&mut checkout_cmd, "merge-base checkout target")
         .map_err(|e| format!("执行 git checkout {} 失败: {}", base_branch, e))?;
 
     if !checkout_output.status.success() {
@@ -898,13 +924,14 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 
     // Step 3: Pull latest
     log::info!("[merge-base] Step 3: git pull origin {}", base_branch);
-    let pull_output = git_command()
+    let mut pull_cmd = git_command();
+    pull_cmd
         .arg("-C")
         .arg(path)
         .arg("pull")
         .arg("origin")
-        .arg(base_branch)
-        .output()
+        .arg(base_branch);
+    let pull_output = run_git_logged(&mut pull_cmd, "merge-base pull target")
         .map_err(|e| format!("执行 git pull origin {} 失败: {}", base_branch, e))?;
 
     if !pull_output.status.success() {
@@ -923,12 +950,13 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 
     // Step 4: Merge
     log::info!("[merge-base] Step 4: git merge {}", current_branch);
-    let merge_output = git_command()
+    let mut merge_cmd = git_command();
+    merge_cmd
         .arg("-C")
         .arg(path)
         .arg("merge")
-        .arg(current_branch)
-        .output()
+        .arg(current_branch);
+    let merge_output = run_git_logged(&mut merge_cmd, "merge-base merge current")
         .map_err(|e| format!("执行 git merge {} 失败: {}", current_branch, e))?;
 
     if !merge_output.status.success() {
@@ -940,12 +968,9 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
             stdout
         );
         // Abort merge if in conflict state
-        let _ = git_command()
-            .arg("-C")
-            .arg(path)
-            .arg("merge")
-            .arg("--abort")
-            .output();
+        let mut abort_cmd = git_command();
+        abort_cmd.arg("-C").arg(path).arg("merge").arg("--abort");
+        let _ = run_git_logged(&mut abort_cmd, "merge-base merge abort");
         restore_merge_state(
             path,
             current_branch,
@@ -973,14 +998,15 @@ pub fn merge_to_base_branch(path: &Path, base_branch: &str) -> Result<String, St
 
     // Step 5: Push
     log::info!("[merge-base] Step 5: git push origin {}", base_branch);
-    let push_output = git_command()
+    let mut push_cmd = git_command();
+    push_cmd
         .arg("-C")
         .arg(path)
         .arg("push")
         .arg("origin")
         .arg(base_branch)
-        .arg("--no-verify")
-        .output()
+        .arg("--no-verify");
+    let push_output = run_git_logged(&mut push_cmd, "merge-base push target")
         .map_err(|e| format!("执行 git push origin {} 失败: {}", base_branch, e))?;
 
     let push_failed = !push_output.status.success();
@@ -1249,7 +1275,7 @@ pub fn create_pull_request(
 
             // Check if gh CLI is available
             log::info!("[git] Checking gh CLI availability");
-            let gh_available = std::process::Command::new("gh")
+            let gh_available = command_without_window("gh")
                 .arg("--version")
                 .output()
                 .map(|o| o.status.success())
@@ -1274,7 +1300,7 @@ pub fn create_pull_request(
                 base_branch,
                 title
             );
-            let pr_output = std::process::Command::new("gh")
+            let pr_output = command_without_window("gh")
                 .arg("pr")
                 .arg("create")
                 .arg("--base")
@@ -1328,7 +1354,8 @@ pub fn create_pull_request(
                 current_branch,
                 base_branch
             );
-            let push_output = git_command()
+            let mut push_cmd = git_command();
+            push_cmd
                 .arg("-C")
                 .arg(path)
                 .arg("push")
@@ -1343,8 +1370,8 @@ pub fn create_pull_request(
                 .arg("-o")
                 .arg(format!("merge_request.title={}", title))
                 .arg("-o")
-                .arg(format!("merge_request.description={}", body))
-                .output()
+                .arg(format!("merge_request.description={}", body));
+            let push_output = run_git_logged(&mut push_cmd, "create pull request gitlab push")
                 .map_err(|e| format!("Failed to push and create MR: {}", e))?;
 
             if !push_output.status.success() {
@@ -1400,12 +1427,9 @@ pub fn create_pull_request(
 /// Fetch from remote origin (updates remote-tracking branches)
 pub fn fetch_remote(path: &Path) -> Result<(), String> {
     log::info!("[git] Fetching remote origin: path={}", path.display());
-    let output = git_command()
-        .arg("-C")
-        .arg(path)
-        .arg("fetch")
-        .arg("origin")
-        .output()
+    let mut fetch_cmd = git_command();
+    fetch_cmd.arg("-C").arg(path).arg("fetch").arg("origin");
+    let output = run_git_logged(&mut fetch_cmd, "fetch remote")
         .map_err(|e| format!("Failed to execute git fetch: {}", e))?;
 
     if !output.status.success() {
@@ -1464,12 +1488,9 @@ pub fn get_remote_branches(path: &Path) -> Result<Vec<String>, String> {
 
     // Fetch from remote to ensure we have the latest branch info
     log::info!("[git] Step 1/2: git fetch origin");
-    let fetch_output = git_command()
-        .arg("-C")
-        .arg(path)
-        .arg("fetch")
-        .arg("origin")
-        .output()
+    let mut fetch_cmd = git_command();
+    fetch_cmd.arg("-C").arg(path).arg("fetch").arg("origin");
+    let fetch_output = run_git_logged(&mut fetch_cmd, "get remote branches fetch")
         .map_err(|e| format!("Failed to execute git fetch: {}", e))?;
 
     if !fetch_output.status.success() {
@@ -1865,4 +1886,1095 @@ pub fn get_file_diff(path: &Path, file_path: &str) -> Result<FileDiff, String> {
         is_deleted,
         is_binary: false,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+    use std::process::Command;
+    use tempfile::TempDir;
+
+    fn run_git(repo: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .output()
+            .expect("run git command");
+        assert!(
+            output.status.success(),
+            "git {:?} failed\nstdout:\n{}\nstderr:\n{}",
+            args,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn git_output(repo: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .output()
+            .expect("run git command");
+        assert!(
+            output.status.success(),
+            "git {:?} failed\nstdout:\n{}\nstderr:\n{}",
+            args,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    }
+
+    fn make_test_repo() -> TempDir {
+        let temp = tempfile::tempdir().expect("create temp repo");
+        let repo = temp.path();
+
+        run_git(repo, &["init"]);
+        run_git(repo, &["checkout", "-b", "main"]);
+        run_git(repo, &["config", "user.email", "test@example.com"]);
+        run_git(repo, &["config", "user.name", "Test User"]);
+
+        std::fs::write(repo.join("README.md"), "initial\n").expect("write initial file");
+        run_git(repo, &["add", "README.md"]);
+        run_git(repo, &["commit", "-m", "initial commit"]);
+        run_git(repo, &["branch", "test"]);
+
+        let origin_path = repo.join(".git").join("origin.git");
+        let output = Command::new("git")
+            .args(["init", "--bare"])
+            .arg(&origin_path)
+            .output()
+            .expect("init bare origin");
+        assert!(
+            output.status.success(),
+            "git init --bare failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        run_git(
+            repo,
+            &["remote", "add", "origin", origin_path.to_str().unwrap()],
+        );
+        run_git(repo, &["push", "origin", "main"]);
+        run_git(repo, &["push", "origin", "test"]);
+        run_git(repo, &["fetch", "origin"]);
+
+        run_git(repo, &["checkout", "-b", "feature/demo"]);
+        std::fs::write(repo.join("feature.txt"), "feature\n").expect("write feature file");
+        run_git(repo, &["add", "feature.txt"]);
+        run_git(repo, &["commit", "-m", "feature commit"]);
+
+        temp
+    }
+
+    fn clone_repo(origin_path: &Path, clone_path: &Path) {
+        let output = Command::new("git")
+            .arg("clone")
+            .arg(origin_path)
+            .arg(clone_path)
+            .output()
+            .expect("clone repo");
+        assert!(
+            output.status.success(),
+            "git clone {} {} failed\nstdout:\n{}\nstderr:\n{}",
+            origin_path.display(),
+            clone_path.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn changed_file<'a>(files: &'a [ChangedFile], path: &str) -> &'a ChangedFile {
+        files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap_or_else(|| panic!("missing changed file {path}; got {files:?}"))
+    }
+
+    #[serial]
+    #[test]
+    fn find_main_worktree_returns_main_for_linked_worktree() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        let linked_parent = tempfile::tempdir().expect("create linked worktree parent");
+        let linked = linked_parent.path().join("linked-main");
+
+        run_git(path, &["worktree", "add", linked.to_str().unwrap(), "main"]);
+
+        let main = find_main_worktree(&linked).expect("linked worktree resolves main path");
+
+        assert_eq!(
+            std::fs::canonicalize(main).expect("canonical main worktree"),
+            std::fs::canonicalize(path).expect("canonical repo path")
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn find_main_worktree_ignores_plain_dirs_and_malformed_git_files() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+
+        assert_eq!(find_main_worktree(temp.path()), None);
+
+        std::fs::write(temp.path().join(".git"), "not a gitdir pointer")
+            .expect("write malformed .git file");
+
+        assert_eq!(find_main_worktree(temp.path()), None);
+    }
+
+    #[serial]
+    #[test]
+    fn handle_branch_checkout_conflict_noops_when_main_on_different_branch() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        let result = handle_branch_checkout_conflict(path, "main")
+            .expect("different current branch does not need detach");
+
+        assert_eq!(result, (false, None));
+        assert_eq!(
+            git_output(path, &["branch", "--show-current"]),
+            "feature/demo"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn get_changed_files_marks_merge_conflict_as_unstaged_modified() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        std::fs::write(path.join("README.md"), "feature side\n").expect("write feature side");
+        run_git(path, &["add", "README.md"]);
+        run_git(path, &["commit", "-m", "feature readme conflict"]);
+        run_git(path, &["checkout", "main"]);
+        std::fs::write(path.join("README.md"), "main side\n").expect("write main side");
+        run_git(path, &["add", "README.md"]);
+        run_git(path, &["commit", "-m", "main readme conflict"]);
+        run_git(path, &["checkout", "feature/demo"]);
+
+        let merge = Command::new("git")
+            .args(["merge", "main"])
+            .current_dir(path)
+            .output()
+            .expect("run conflicting merge");
+        assert!(!merge.status.success(), "merge should conflict");
+
+        let files = get_changed_files(path).expect("get conflict status");
+        let conflicted = changed_file(&files, "README.md");
+        assert_eq!(conflicted.status, "M");
+        assert!(!conflicted.staged);
+
+        run_git(path, &["merge", "--abort"]);
+    }
+
+    #[serial]
+    #[test]
+    fn get_git_user_config_returns_none_for_unset_local_values() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        run_git(path, &["config", "--unset", "user.name"]);
+        run_git(path, &["config", "--unset", "user.email"]);
+
+        let (name, email) = get_git_user_config(path).expect("read unset local config");
+
+        assert_eq!(name, None);
+        assert_eq!(email, None);
+    }
+
+    #[cfg(unix)]
+    #[serial]
+    #[test]
+    fn commit_all_skip_hooks_bypasses_failing_pre_commit_hook() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let repo = make_test_repo();
+        let path = repo.path();
+        let hook = path.join(".git").join("hooks").join("pre-commit");
+        std::fs::write(&hook, "#!/bin/sh\nexit 1\n").expect("write failing pre-commit hook");
+        let mut permissions = std::fs::metadata(&hook)
+            .expect("read hook metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&hook, permissions).expect("make hook executable");
+
+        std::fs::write(path.join("hooked.txt"), "hooked\n").expect("write hooked file");
+        let err = commit_all(path, "hook should fail", None, None, false).unwrap_err();
+        assert!(err.contains("git commit failed"), "{err}");
+
+        let committed =
+            commit_all(path, "hook skipped", None, None, true).expect("commit bypasses hook");
+
+        assert_eq!(committed, "Committed: hook skipped");
+        assert_eq!(
+            git_output(path, &["log", "-1", "--format=%s"]),
+            "hook skipped"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn remote_url_to_web_url_handles_trimmed_http_and_nested_ssh_forms() {
+        assert_eq!(
+            remote_url_to_web_url(" https://github.com/owner/repo.git ").as_deref(),
+            Some("https://github.com/owner/repo")
+        );
+        assert_eq!(
+            remote_url_to_web_url("http://gitlab.local/group/repo").as_deref(),
+            Some("http://gitlab.local/group/repo")
+        );
+        assert_eq!(
+            remote_url_to_web_url("git@gitlab.example.com:group/sub/repo.git").as_deref(),
+            Some("https://gitlab.example.com/group/sub/repo")
+        );
+        assert_eq!(
+            remote_url_to_web_url("ssh://git@example.com/group/repo.git"),
+            None
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn detect_git_platform_errors_for_non_git_directory() {
+        let non_git = tempfile::tempdir().expect("create non-git dir");
+
+        let err = detect_git_platform(non_git.path()).unwrap_err();
+
+        assert!(err.contains("Git remote failed"), "{err}");
+    }
+
+    #[serial]
+    #[test]
+    fn get_remote_origin_url_reports_missing_origin_remote() {
+        let repo = tempfile::tempdir().expect("create repo without origin");
+        run_git(repo.path(), &["init"]);
+
+        let err = get_remote_origin_url(repo.path()).unwrap_err();
+
+        assert!(err.contains("Failed to get remote URL"), "{err}");
+    }
+
+    #[serial]
+    #[test]
+    fn get_branch_status_returns_default_for_non_git_directory() {
+        let non_git = tempfile::tempdir().expect("create non-git dir");
+
+        let status = get_branch_status(non_git.path(), "project-a", "main");
+
+        assert_eq!(status.project_name, "project-a");
+        assert_eq!(status.branch_name, "unknown");
+        assert!(!status.has_uncommitted);
+        assert_eq!(status.uncommitted_count, 0);
+        assert!(!status.is_pushed);
+        assert_eq!(status.unpushed_commits, 0);
+        assert!(!status.has_merge_request);
+        assert_eq!(status.remote_url, "");
+    }
+
+    #[serial]
+    #[test]
+    fn get_worktree_info_counts_behind_base_after_remote_advances() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        let origin_url = git_output(path, &["remote", "get-url", "origin"]);
+        let upstream = tempfile::tempdir().expect("create upstream clone dir");
+        clone_repo(Path::new(&origin_url), upstream.path());
+        run_git(upstream.path(), &["checkout", "main"]);
+        run_git(
+            upstream.path(),
+            &["config", "user.email", "upstream@example.com"],
+        );
+        run_git(upstream.path(), &["config", "user.name", "Upstream User"]);
+        std::fs::write(upstream.path().join("main-only.txt"), "main only\n")
+            .expect("write upstream main file");
+        run_git(upstream.path(), &["add", "main-only.txt"]);
+        run_git(upstream.path(), &["commit", "-m", "advance main"]);
+        run_git(upstream.path(), &["push", "origin", "main"]);
+        run_git(path, &["fetch", "origin"]);
+
+        let info = get_worktree_info_for_branches(path, "main", "test");
+
+        assert_eq!(info.current_branch, "feature/demo");
+        assert_eq!(info.ahead_of_base, 1);
+        assert_eq!(info.behind_base, 1);
+        assert!(!info.is_merged_to_base);
+    }
+
+    #[serial]
+    #[test]
+    fn get_branch_diff_stats_counts_behind_base_after_remote_advances() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        let origin_url = git_output(path, &["remote", "get-url", "origin"]);
+        let upstream = tempfile::tempdir().expect("create upstream clone dir");
+        clone_repo(Path::new(&origin_url), upstream.path());
+        run_git(upstream.path(), &["checkout", "main"]);
+        run_git(
+            upstream.path(),
+            &["config", "user.email", "upstream@example.com"],
+        );
+        run_git(upstream.path(), &["config", "user.name", "Upstream User"]);
+        std::fs::write(upstream.path().join("remote-main.txt"), "remote main\n")
+            .expect("write remote main file");
+        run_git(upstream.path(), &["add", "remote-main.txt"]);
+        run_git(upstream.path(), &["commit", "-m", "remote main commit"]);
+        run_git(upstream.path(), &["push", "origin", "main"]);
+        run_git(path, &["fetch", "origin"]);
+
+        let stats = get_branch_diff_stats(path, "main", Some("test"));
+
+        assert_eq!(stats.ahead, 1);
+        assert_eq!(stats.behind, 1);
+        assert_eq!(stats.unpushed_commits, 1);
+        assert_eq!(stats.ahead_of_test, 1);
+    }
+
+    #[serial]
+    #[test]
+    fn get_git_diff_includes_staged_sections_for_added_modified_and_deleted_files() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        std::fs::write(path.join("README.md"), "staged readme\n").expect("modify readme");
+        std::fs::write(path.join("staged-new.txt"), "staged new\n").expect("write staged file");
+        run_git(path, &["rm", "feature.txt"]);
+        run_git(path, &["add", "README.md", "staged-new.txt"]);
+
+        let diff = get_git_diff(path).expect("get staged diff");
+
+        assert!(diff.contains("Staged changes:"), "{diff}");
+        assert!(diff.contains("README.md"), "{diff}");
+        assert!(diff.contains("staged-new.txt"), "{diff}");
+        assert!(diff.contains("feature.txt"), "{diff}");
+        assert!(diff.contains("Diff:"), "{diff}");
+    }
+
+    #[serial]
+    #[test]
+    fn get_file_diff_reports_absent_never_tracked_file_as_new_empty_file() {
+        let repo = make_test_repo();
+
+        let diff = get_file_diff(repo.path(), "missing.txt").expect("missing file diff");
+
+        assert_eq!(diff.file_path, "missing.txt");
+        assert_eq!(diff.old_content, "");
+        assert_eq!(diff.new_content, "");
+        assert!(diff.is_new);
+        assert!(!diff.is_deleted);
+        assert!(!diff.is_binary);
+    }
+
+    #[serial]
+    #[test]
+    fn set_git_user_config_updates_name_and_email_independently() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        run_git(path, &["config", "--unset", "user.name"]);
+        run_git(path, &["config", "--unset", "user.email"]);
+
+        set_git_user_config(path, Some("Only Name"), None).expect("set only name");
+        let (name, email) = get_git_user_config(path).expect("get name-only config");
+        assert_eq!(name.as_deref(), Some("Only Name"));
+        assert_eq!(email, None);
+
+        set_git_user_config(path, None, Some("only-email@example.com")).expect("set only email");
+        let (name, email) = get_git_user_config(path).expect("get partial config");
+        assert_eq!(name.as_deref(), Some("Only Name"));
+        assert_eq!(email.as_deref(), Some("only-email@example.com"));
+    }
+
+    #[serial]
+    #[test]
+    fn check_remote_branch_exists_returns_false_for_missing_tracking_branch() {
+        let repo = make_test_repo();
+
+        let exists = check_remote_branch_exists(repo.path(), "does-not-exist")
+            .expect("missing tracking branch check succeeds");
+
+        assert!(!exists);
+    }
+
+    #[serial]
+    #[test]
+    fn get_worktree_info_reports_branch_remote_ahead_and_uncommitted_counts() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        std::fs::write(path.join("untracked.txt"), "new\n").expect("write untracked file");
+
+        let info = get_worktree_info_for_branches(path, "main", "test");
+
+        assert_eq!(info.current_branch, "feature/demo");
+        assert_eq!(info.uncommitted_count, 1);
+        assert_eq!(info.ahead_of_base, 1);
+        assert_eq!(info.ahead_of_test, 1);
+        assert_eq!(info.unpushed_commits, 1);
+        assert!(info.remote_url.ends_with(".git/origin.git"));
+        assert!(!info.is_merged_to_base);
+        assert!(!info.is_merged_to_test);
+    }
+
+    #[serial]
+    #[test]
+    fn get_worktree_info_returns_default_for_non_git_directory() {
+        let dir = tempfile::tempdir().expect("create non-git dir");
+
+        let info = get_worktree_info(dir.path());
+
+        assert_eq!(info.current_branch, "unknown");
+        assert_eq!(info.uncommitted_count, 0);
+        assert_eq!(info.ahead_of_base, 0);
+        assert_eq!(info.remote_url, "");
+    }
+
+    #[serial]
+    #[test]
+    fn get_branch_status_distinguishes_pushed_main_from_unpushed_feature() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        let feature_status = get_branch_status(path, "demo", "main");
+        assert_eq!(feature_status.project_name, "demo");
+        assert_eq!(feature_status.branch_name, "feature/demo");
+        assert!(!feature_status.is_pushed);
+        assert_eq!(feature_status.unpushed_commits, 1);
+        assert!(!feature_status.has_uncommitted);
+
+        run_git(path, &["checkout", "main"]);
+        let main_status = get_branch_status(path, "demo", "main");
+        assert_eq!(main_status.branch_name, "main");
+        assert!(main_status.is_pushed);
+        assert_eq!(main_status.unpushed_commits, 0);
+        assert_eq!(main_status.remote_url, feature_status.remote_url);
+    }
+
+    #[serial]
+    #[test]
+    fn get_branch_status_counts_untracked_worktree_changes() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        std::fs::write(path.join("local.txt"), "local\n").expect("write local file");
+
+        let status = get_branch_status(path, "demo", "main");
+
+        assert!(status.has_uncommitted);
+        assert_eq!(status.uncommitted_count, 1);
+        assert_eq!(status.branch_name, "feature/demo");
+    }
+
+    #[serial]
+    #[test]
+    fn check_remote_branch_exists_uses_local_tracking_refs_and_errors_for_non_git() {
+        let repo = make_test_repo();
+
+        assert_eq!(
+            check_remote_branch_exists(repo.path(), "main").expect("check main"),
+            true
+        );
+        assert_eq!(
+            check_remote_branch_exists(repo.path(), "missing").expect("check missing"),
+            false
+        );
+
+        let non_git = tempfile::tempdir().expect("create non-git dir");
+        let err = check_remote_branch_exists(non_git.path(), "main").unwrap_err();
+        assert!(err.contains("Git branch check failed"), "{err}");
+    }
+
+    #[serial]
+    #[test]
+    fn get_current_branch_inner_reads_branch_and_errors_for_non_git() {
+        let repo = make_test_repo();
+
+        assert_eq!(
+            get_current_branch_inner(repo.path()).expect("read current branch"),
+            "feature/demo"
+        );
+
+        let non_git = tempfile::tempdir().expect("create non-git dir");
+        let err = get_current_branch_inner(non_git.path()).unwrap_err();
+        assert_eq!(err, "Failed to get current branch");
+    }
+
+    #[serial]
+    #[test]
+    fn get_changed_files_parses_unstaged_staged_and_untracked_entries() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        std::fs::write(path.join("README.md"), "changed\n").expect("modify readme");
+        std::fs::write(path.join("staged.txt"), "staged\n").expect("write staged file");
+        run_git(path, &["add", "staged.txt"]);
+        std::fs::write(path.join("untracked.txt"), "untracked\n").expect("write untracked file");
+
+        let files = get_changed_files(path).expect("get changed files");
+
+        let modified = changed_file(&files, "README.md");
+        assert_eq!(modified.status, "M");
+        assert!(!modified.staged);
+
+        let staged = changed_file(&files, "staged.txt");
+        assert_eq!(staged.status, "A");
+        assert!(staged.staged);
+
+        let untracked = changed_file(&files, "untracked.txt");
+        assert_eq!(untracked.status, "?");
+        assert!(!untracked.staged);
+    }
+
+    #[serial]
+    #[test]
+    fn get_changed_files_returns_git_status_error_for_non_git_directory() {
+        let non_git = tempfile::tempdir().expect("create non-git dir");
+
+        let err = get_changed_files(non_git.path()).unwrap_err();
+
+        assert!(err.contains("git status failed"), "{err}");
+        assert!(err.contains("not a git repository"), "{err}");
+    }
+
+    #[serial]
+    #[test]
+    fn get_file_diff_reports_modified_new_deleted_and_binary_files() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        std::fs::write(path.join("README.md"), "changed\n").expect("modify readme");
+        let modified = get_file_diff(path, "README.md").expect("modified diff");
+        assert_eq!(modified.file_path, "README.md");
+        assert_eq!(modified.old_content, "initial\n");
+        assert_eq!(modified.new_content, "changed\n");
+        assert!(!modified.is_new);
+        assert!(!modified.is_deleted);
+        assert!(!modified.is_binary);
+
+        std::fs::write(path.join("new.txt"), "new\n").expect("write new file");
+        let new_file = get_file_diff(path, "new.txt").expect("new file diff");
+        assert_eq!(new_file.old_content, "");
+        assert_eq!(new_file.new_content, "new\n");
+        assert!(new_file.is_new);
+        assert!(!new_file.is_deleted);
+
+        std::fs::remove_file(path.join("README.md")).expect("delete readme");
+        let deleted = get_file_diff(path, "README.md").expect("deleted diff");
+        assert_eq!(deleted.old_content, "initial\n");
+        assert_eq!(deleted.new_content, "");
+        assert!(!deleted.is_new);
+        assert!(deleted.is_deleted);
+
+        std::fs::write(path.join("binary.bin"), b"a\0b").expect("write binary file");
+        let binary = get_file_diff(path, "binary.bin").expect("binary diff");
+        assert!(binary.is_binary);
+        assert_eq!(binary.file_path, "binary.bin");
+    }
+
+    #[serial]
+    #[test]
+    fn get_git_diff_errors_when_clean_and_summarizes_local_changes() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        assert_eq!(
+            get_git_diff(path).unwrap_err(),
+            "No changes to commit".to_string()
+        );
+
+        std::fs::write(path.join("README.md"), "changed\n").expect("modify readme");
+        std::fs::write(path.join("new.txt"), "new\n").expect("write new file");
+
+        let diff = get_git_diff(path).expect("get git diff");
+
+        assert!(diff.contains("Unstaged changes:"), "{diff}");
+        assert!(diff.contains("README.md"), "{diff}");
+        assert!(diff.contains("New files:"), "{diff}");
+        assert!(diff.contains("new.txt"), "{diff}");
+        assert!(diff.contains("Diff:"), "{diff}");
+    }
+
+    #[serial]
+    #[test]
+    fn get_branch_diff_stats_counts_local_ahead_and_changed_files() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        std::fs::write(path.join("README.md"), "changed\n").expect("modify readme");
+
+        let stats = get_branch_diff_stats(path, "main", Some("test"));
+
+        assert_eq!(stats.ahead, 1);
+        assert_eq!(stats.behind, 0);
+        assert_eq!(stats.changed_files, 1);
+        assert_eq!(stats.unpushed_commits, 1);
+        assert_eq!(stats.ahead_of_test, 1);
+    }
+
+    #[serial]
+    #[test]
+    fn sync_with_base_branch_uses_local_origin_and_reports_success() {
+        let repo = make_test_repo();
+
+        let message = sync_with_base_branch(repo.path(), "main").expect("sync with main");
+
+        assert_eq!(message, "Successfully synced with main");
+        assert_eq!(
+            git_output(repo.path(), &["branch", "--show-current"]),
+            "feature/demo"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn handle_branch_checkout_conflict_detaches_clean_matching_main_worktree() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        let result = handle_branch_checkout_conflict(path, "feature/demo")
+            .expect("handle branch checkout conflict");
+
+        assert_eq!(result, (true, Some("feature/demo".to_string())));
+        assert_eq!(
+            git_output(path, &["rev-parse", "--abbrev-ref", "HEAD"]),
+            "HEAD"
+        );
+
+        run_git(path, &["checkout", "feature/demo"]);
+        assert_eq!(
+            git_output(path, &["branch", "--show-current"]),
+            "feature/demo"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn handle_branch_checkout_conflict_rejects_dirty_matching_main_worktree() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        std::fs::write(path.join("dirty.txt"), "dirty\n").expect("write dirty file");
+
+        let err = handle_branch_checkout_conflict(path, "feature/demo").unwrap_err();
+
+        assert!(err.contains("feature/demo"), "{err}");
+        assert!(err.contains("未提交的更改"), "{err}");
+        assert_eq!(
+            git_output(path, &["branch", "--show-current"]),
+            "feature/demo"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn merge_to_test_branch_merges_locally_pushes_to_local_origin_and_restores_branch() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        let result = merge_to_test_branch(path, "test").expect("merge to test branch");
+
+        assert!(
+            result.contains("成功将 feature/demo 合并到 test"),
+            "{result}"
+        );
+        assert_eq!(
+            git_output(path, &["branch", "--show-current"]),
+            "feature/demo"
+        );
+        run_git(
+            path,
+            &["merge-base", "--is-ancestor", "feature/demo", "origin/test"],
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn merge_to_base_branch_reports_checkout_error_for_nonexistent_branch() {
+        let repo = make_test_repo();
+
+        let err = merge_to_base_branch(repo.path(), "does-not-exist").unwrap_err();
+
+        assert!(err.contains("切换到 does-not-exist 分支失败"), "{err}");
+        assert_eq!(
+            git_output(repo.path(), &["branch", "--show-current"]),
+            "feature/demo"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn push_pull_fetch_and_remote_branch_listing_use_local_bare_origin() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        let push = push_to_remote(path).expect("push current branch");
+        assert_eq!(push, "Successfully pushed feature/demo to origin");
+        assert!(check_remote_branch_exists(path, "feature/demo").expect("feature remote exists"));
+
+        let origin_url = git_output(path, &["remote", "get-url", "origin"]);
+        let upstream = tempfile::tempdir().expect("create upstream clone dir");
+        clone_repo(Path::new(&origin_url), upstream.path());
+        run_git(
+            upstream.path(),
+            &["config", "user.email", "upstream@example.com"],
+        );
+        run_git(upstream.path(), &["config", "user.name", "Upstream User"]);
+        run_git(upstream.path(), &["checkout", "feature/demo"]);
+        std::fs::write(upstream.path().join("upstream.txt"), "upstream\n")
+            .expect("write upstream file");
+        run_git(upstream.path(), &["add", "upstream.txt"]);
+        run_git(upstream.path(), &["commit", "-m", "upstream commit"]);
+        run_git(upstream.path(), &["push", "origin", "feature/demo"]);
+
+        let pull = pull_current_branch(path).expect("pull current branch");
+        assert_eq!(pull, "Successfully pulled feature/demo from origin");
+        assert_eq!(
+            std::fs::read_to_string(path.join("upstream.txt")).expect("read pulled file"),
+            "upstream\n"
+        );
+
+        fetch_remote(path).expect("fetch remote");
+        let branches = get_remote_branches(path).expect("get remote branches");
+        assert!(branches.contains(&"main".to_string()), "{branches:?}");
+        assert!(branches.contains(&"test".to_string()), "{branches:?}");
+        assert!(
+            branches.contains(&"feature/demo".to_string()),
+            "{branches:?}"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn sync_with_base_branch_reports_merge_conflict_from_local_origin() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        std::fs::write(path.join("README.md"), "feature side\n").expect("write feature readme");
+        run_git(path, &["add", "README.md"]);
+        run_git(path, &["commit", "-m", "feature readme change"]);
+        run_git(path, &["checkout", "main"]);
+        std::fs::write(path.join("README.md"), "main side\n").expect("write main readme");
+        run_git(path, &["add", "README.md"]);
+        run_git(path, &["commit", "-m", "main readme change"]);
+        run_git(path, &["push", "origin", "main"]);
+        run_git(path, &["checkout", "feature/demo"]);
+
+        let err = sync_with_base_branch(path, "main").unwrap_err();
+
+        assert!(err.contains("Git merge failed"), "{err}");
+        let status = git_output(path, &["status", "--porcelain"]);
+        assert!(status.contains("UU README.md"), "{status}");
+        run_git(path, &["merge", "--abort"]);
+    }
+
+    #[serial]
+    #[test]
+    fn merge_to_base_branch_merges_pushes_and_restores_feature_branch() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        let result = merge_to_base_branch(path, "main").expect("merge to base");
+
+        assert!(
+            result.contains("成功将 feature/demo 合并到 main"),
+            "{result}"
+        );
+        assert_eq!(
+            git_output(path, &["branch", "--show-current"]),
+            "feature/demo"
+        );
+        run_git(path, &["fetch", "origin"]);
+        run_git(
+            path,
+            &["merge-base", "--is-ancestor", "feature/demo", "origin/main"],
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn merge_to_test_branch_aborts_conflict_and_restores_original_branch() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        std::fs::write(path.join("README.md"), "feature side\n").expect("write feature readme");
+        run_git(path, &["add", "README.md"]);
+        run_git(path, &["commit", "-m", "feature readme change"]);
+        run_git(path, &["checkout", "test"]);
+        std::fs::write(path.join("README.md"), "test side\n").expect("write test readme");
+        run_git(path, &["add", "README.md"]);
+        run_git(path, &["commit", "-m", "test readme change"]);
+        run_git(path, &["push", "origin", "test"]);
+        run_git(path, &["checkout", "feature/demo"]);
+
+        let err = merge_to_test_branch(path, "test").unwrap_err();
+
+        assert!(err.contains("合并 feature/demo 到 test 失败"), "{err}");
+        assert_eq!(
+            git_output(path, &["branch", "--show-current"]),
+            "feature/demo"
+        );
+        assert_eq!(git_output(path, &["status", "--porcelain"]), "");
+    }
+
+    #[serial]
+    #[test]
+    fn get_changed_files_parses_rename_staged_modified_and_unstaged_delete() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        std::fs::write(path.join("delete-me.txt"), "delete me\n").expect("write tracked file");
+        run_git(path, &["add", "delete-me.txt"]);
+        run_git(path, &["commit", "-m", "add delete target"]);
+        run_git(path, &["mv", "README.md", "RENAMED.md"]);
+        std::fs::write(path.join("feature.txt"), "feature changed\n")
+            .expect("modify tracked feature");
+        run_git(path, &["add", "feature.txt"]);
+        std::fs::remove_file(path.join("delete-me.txt")).expect("delete tracked file");
+
+        let files = get_changed_files(path).expect("get changed files");
+
+        let renamed = changed_file(&files, "RENAMED.md");
+        assert_eq!(renamed.status, "R");
+        assert!(renamed.staged);
+
+        let modified = changed_file(&files, "feature.txt");
+        assert_eq!(modified.status, "M");
+        assert!(modified.staged);
+
+        let deleted = changed_file(&files, "delete-me.txt");
+        assert_eq!(deleted.status, "D");
+        assert!(!deleted.staged);
+    }
+
+    #[serial]
+    #[test]
+    fn branch_diff_stats_handles_non_git_empty_test_branch_and_missing_refs() {
+        let non_git = tempfile::tempdir().expect("create non git dir");
+        let empty = get_branch_diff_stats(non_git.path(), "main", Some("test"));
+        assert_eq!(empty.ahead, 0);
+        assert_eq!(empty.behind, 0);
+        assert_eq!(empty.changed_files, 0);
+        assert_eq!(empty.unpushed_commits, 0);
+        assert_eq!(empty.ahead_of_test, 0);
+
+        let repo = make_test_repo();
+        let no_test = get_branch_diff_stats(repo.path(), "main", Some(""));
+        assert_eq!(no_test.ahead, 1);
+        assert_eq!(no_test.ahead_of_test, 0);
+
+        let missing_test = get_branch_diff_stats(repo.path(), "main", Some("missing-test"));
+        assert_eq!(missing_test.ahead, 1);
+        assert_eq!(missing_test.ahead_of_test, 0);
+    }
+
+    #[serial]
+    #[test]
+    fn remote_url_platform_detection_and_pr_unknown_platform_are_pure_local_logic() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        assert_eq!(
+            remote_url_to_web_url("git@github.com:owner/repo.git").as_deref(),
+            Some("https://github.com/owner/repo")
+        );
+        assert_eq!(
+            remote_url_to_web_url("https://gitlab.com/group/repo.git").as_deref(),
+            Some("https://gitlab.com/group/repo")
+        );
+        assert!(remote_url_to_web_url("/tmp/local.git").is_none());
+
+        run_git(
+            path,
+            &[
+                "remote",
+                "set-url",
+                "origin",
+                "git@github.com:owner/repo.git",
+            ],
+        );
+        assert_eq!(
+            detect_git_platform(path).expect("detect github"),
+            GitPlatform::GitHub
+        );
+
+        run_git(
+            path,
+            &[
+                "remote",
+                "set-url",
+                "origin",
+                "git@gitlab.com:group/repo.git",
+            ],
+        );
+        assert_eq!(
+            detect_git_platform(path).expect("detect gitlab"),
+            GitPlatform::GitLab
+        );
+
+        run_git(path, &["remote", "set-url", "origin", "/tmp/local.git"]);
+        assert_eq!(
+            detect_git_platform(path).expect("detect unknown"),
+            GitPlatform::Unknown
+        );
+        let err = create_pull_request(path, "main", "Title", "Body").unwrap_err();
+        assert_eq!(
+            err,
+            "Unknown git platform. Only GitHub and GitLab are supported."
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn detached_head_paths_report_head_boundary_conditions() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        let head = git_output(path, &["rev-parse", "HEAD"]);
+        run_git(path, &["checkout", "--detach", &head]);
+
+        assert_eq!(
+            get_current_branch_inner(path).expect("read detached branch"),
+            "HEAD"
+        );
+        let info = get_worktree_info_for_branches(path, "main", "test");
+        assert_eq!(info.current_branch, "HEAD");
+
+        let result = merge_to_test_branch(path, "test").expect("merge detached HEAD to test");
+        assert!(result.contains("成功将 HEAD 合并到 test"), "{result}");
+        assert_eq!(
+            git_output(path, &["rev-parse", "--abbrev-ref", "HEAD"]),
+            "test"
+        );
+        let ancestor = Command::new("git")
+            .args(["merge-base", "--is-ancestor", &head, "origin/test"])
+            .current_dir(path)
+            .status()
+            .expect("check detached commit ancestry");
+        assert!(
+            !ancestor.success(),
+            "detached commit should not currently be merged despite success message"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn branch_status_detects_merge_request_ref_matching_head_commit() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        run_git(path, &["update-ref", "refs/pull/7/head", "HEAD"]);
+
+        let status = get_branch_status(path, "demo", "main");
+
+        assert_eq!(status.branch_name, "feature/demo");
+        assert!(status.has_merge_request, "{status:?}");
+    }
+
+    #[serial]
+    #[test]
+    fn git_command_error_paths_report_specific_failures() {
+        let non_git = tempfile::tempdir().expect("create non-git dir");
+
+        let sync_err = sync_with_base_branch(non_git.path(), "main").unwrap_err();
+        assert!(sync_err.contains("Git fetch failed"), "{sync_err}");
+
+        let push_err = push_to_remote(non_git.path()).unwrap_err();
+        assert_eq!(push_err, "Failed to get current branch");
+
+        let pull_err = pull_current_branch(non_git.path()).unwrap_err();
+        assert_eq!(pull_err, "Failed to get current branch");
+
+        let fetch_err = fetch_remote(non_git.path()).unwrap_err();
+        assert!(fetch_err.contains("Git fetch failed"), "{fetch_err}");
+
+        let branches_err = get_remote_branches(non_git.path()).unwrap_err();
+        assert!(branches_err.contains("Git fetch failed"), "{branches_err}");
+    }
+
+    #[serial]
+    #[test]
+    fn create_pull_request_returns_browser_urls_or_errors_without_network_success() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        run_git(
+            path,
+            &[
+                "remote",
+                "set-url",
+                "origin",
+                "git@github.com:owner/repo.git",
+            ],
+        );
+        let github = create_pull_request(path, "main", "Feature title", "Body text")
+            .expect("github should return browser fallback when gh cannot create PR");
+        assert!(
+            github == "https://github.com/owner/repo/pull/new/feature/demo"
+                || github
+                    .starts_with("https://github.com/owner/repo/compare/main...feature%2Fdemo?"),
+            "{github}"
+        );
+
+        let gitlab_origin = path.join(".git").join("gitlab-origin.git");
+        let output = Command::new("git")
+            .args(["init", "--bare"])
+            .arg(&gitlab_origin)
+            .output()
+            .expect("init gitlab-named bare origin");
+        assert!(
+            output.status.success(),
+            "git init --bare failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        run_git(
+            path,
+            &[
+                "remote",
+                "set-url",
+                "origin",
+                gitlab_origin.to_str().unwrap(),
+            ],
+        );
+        let gitlab = create_pull_request(path, "main", "Feature title", "Body text").unwrap_err();
+        assert!(gitlab.contains("Failed to create MR"), "{gitlab}");
+    }
+
+    #[serial]
+    #[test]
+    fn binary_file_diff_detects_binary_content_stored_in_head() {
+        let repo = make_test_repo();
+        let path = repo.path();
+        std::fs::write(path.join("tracked.bin"), b"old\0binary").expect("write binary file");
+        run_git(path, &["add", "tracked.bin"]);
+        run_git(path, &["commit", "-m", "add binary"]);
+
+        let diff = get_file_diff(path, "tracked.bin").expect("binary diff from HEAD");
+
+        assert_eq!(diff.file_path, "tracked.bin");
+        assert!(diff.is_binary);
+        assert!(!diff.is_new);
+        assert!(!diff.is_deleted);
+        assert!(diff.old_content.is_empty());
+        assert!(diff.new_content.is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn commit_all_applies_author_override_and_user_config_round_trips() {
+        let repo = make_test_repo();
+        let path = repo.path();
+
+        set_git_user_config(path, Some("Local Name"), Some("local@example.com"))
+            .expect("set local git user config");
+        let (name, email) = get_git_user_config(path).expect("get local git user config");
+        assert_eq!(name.as_deref(), Some("Local Name"));
+        assert_eq!(email.as_deref(), Some("local@example.com"));
+
+        std::fs::write(path.join("author.txt"), "authored\n").expect("write authored file");
+        let message = commit_all(
+            path,
+            "author override commit",
+            Some("Override Name"),
+            Some("override@example.com"),
+            false,
+        )
+        .expect("commit with author override");
+
+        assert_eq!(message, "Committed: author override commit");
+        assert_eq!(
+            git_output(path, &["log", "-1", "--format=%an <%ae>"]),
+            "Override Name <override@example.com>"
+        );
+    }
 }

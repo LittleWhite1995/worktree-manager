@@ -808,6 +808,8 @@
   "share.copyLinkWithPassword": "复制带密码链接",
   "share.copyExternalLink": "复制外网链接",
   "share.stopSharing": "停止分享",
+  "share.adminWarning": "应用以管理员权限运行，分享后远程访问者将获得管理员级终端权限。请设置强密码，且仅在可信网络/人员间使用。",
+  "share.passwordTooShort": "密码至少需要 8 位",
   "share.ngrokNotStarted": "未启动",
   "share.clients": "客户端 ({{count}})",
   "share.kickClient": "踢出客户端",

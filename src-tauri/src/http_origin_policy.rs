@@ -56,7 +56,9 @@ pub fn is_allowed_origin(origin: &str, ngrok_url: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::is_allowed_origin;
+    use serial_test::serial;
 
+    #[serial]
     #[test]
     fn allows_exact_loopback_and_private_lan_origins_only() {
         assert!(is_allowed_origin("http://localhost:1420", None));
@@ -78,6 +80,7 @@ mod tests {
         assert!(!is_allowed_origin("not-a-url", None));
     }
 
+    #[serial]
     #[test]
     fn only_allows_exact_active_ngrok_origin() {
         assert!(is_allowed_origin(

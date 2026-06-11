@@ -2,7 +2,7 @@ import { useEffect, useState, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 
-import { getLastSharePort } from '@/lib/backend';
+import { getLastSharePort, isTauri } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -30,6 +30,23 @@ import {
   SettingsIcon,
   ShareIcon,
 } from '../Icons';
+
+// Windows 桌面端因 manifest 强制 requireAdministrator，必然以管理员权限运行。
+// 此时开启分享 = 把管理员级终端暴露给远程访问者，需在分享 UI 醒目警告。
+const RUNS_AS_ADMIN = isTauri() && /Windows/i.test(navigator.userAgent);
+
+// 分享口令最小长度，与后端校验保持一致。
+const MIN_SHARE_PASSWORD_LENGTH = 8;
+
+const AdminShareWarning: FC = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-start gap-1.5 px-2 py-1.5 rounded bg-[var(--color-error)]/10 border border-[var(--color-error)]/30">
+      <span className="text-[var(--color-error)] text-xs leading-none mt-px shrink-0">⚠️</span>
+      <span className="text-[11px] leading-snug text-[var(--color-error)]">{t('share.adminWarning')}</span>
+    </div>
+  );
+};
 
 interface ShareBarProps {
   active: boolean;
@@ -89,6 +106,7 @@ export const ShareBar: FC<ShareBarProps> = ({
 
   const handleConfirmPassword = () => {
     if (!editingPassword.trim() || !passwordDirty) return;
+    if (editingPassword.trim().length < MIN_SHARE_PASSWORD_LENGTH) return;
     onUpdatePassword?.(editingPassword.trim());
     setPasswordDirty(false);
     setPasswordConfirmed(true);
@@ -198,6 +216,7 @@ export const ShareBar: FC<ShareBarProps> = ({
 
   return (
     <div className="px-3 py-2.5 border-t border-[var(--color-border)] space-y-1.5">
+      {RUNS_AS_ADMIN && <AdminShareWarning />}
       <div className="space-y-0.5">
         {hasNgrokToken && (
           <ExternalShareRow
@@ -332,6 +351,7 @@ const ShareConfigDialog: FC<{
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          {RUNS_AS_ADMIN && <AdminShareWarning />}
           <div>
             <label className="block text-sm text-[var(--color-text-secondary)] mb-2">{t('share.port')}</label>
             <div className="flex gap-2">
@@ -587,8 +607,10 @@ const PasswordRow: FC<{
   onConfirmPassword,
 }) => {
   const { t } = useTranslation();
+  const tooShort = password.trim().length > 0 && password.trim().length < MIN_SHARE_PASSWORD_LENGTH;
 
   return (
+    <div>
     <div className="flex items-center gap-2 min-h-[24px]">
       <span className="text-[11px] font-medium text-[var(--color-text-muted)] shrink-0 w-[52px]">{t('share.password')}</span>
       <div className="flex-1 min-w-0 relative">
@@ -612,12 +634,13 @@ const PasswordRow: FC<{
                   variant="ghost"
                   size="icon"
                   onClick={onConfirmPassword}
-                  className="h-5 w-5 text-emerald-400 hover:text-emerald-300"
+                  disabled={tooShort}
+                  className="h-5 w-5 text-emerald-400 hover:text-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <CheckCircleIcon className="w-3 h-3" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">{t('share.confirmPasswordUpdate')}</TooltipContent>
+              <TooltipContent side="top">{tooShort ? t('share.passwordTooShort') : t('share.confirmPasswordUpdate')}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         ) : passwordConfirmed ? (
@@ -642,6 +665,10 @@ const PasswordRow: FC<{
           </TooltipProvider>
         )}
       </div>
+    </div>
+    {passwordDirty && tooShort && (
+      <p className="text-[10px] text-[var(--color-error)] mt-0.5 pl-[60px]">{t('share.passwordTooShort')}</p>
+    )}
     </div>
   );
 };

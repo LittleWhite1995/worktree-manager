@@ -32,6 +32,12 @@ export interface WorkspaceConfig {
   tags?: TagDefinition[];  // 全局 Tag 定义列表
 }
 
+export interface CrashReport {
+  abnormalExit: boolean;
+  crashDetail?: string;
+  previousSessionInfo?: string;
+}
+
 // Project status types
 export interface ProjectStatus {
   name: string;

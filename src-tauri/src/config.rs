@@ -42,7 +42,9 @@ pub(crate) fn get_workspace_config_path(workspace_path: &str) -> PathBuf {
 
 pub fn load_global_config() -> GlobalConfig {
     {
-        let cache = GLOBAL_CONFIG_CACHE.lock().unwrap();
+        let cache = GLOBAL_CONFIG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(ref config) = *cache {
             return config.clone();
         }
@@ -75,7 +77,9 @@ pub fn load_global_config() -> GlobalConfig {
     }
 
     {
-        let mut cache = GLOBAL_CONFIG_CACHE.lock().unwrap();
+        let mut cache = GLOBAL_CONFIG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *cache = Some(config.clone());
     }
 
@@ -96,7 +100,9 @@ pub fn save_global_config_internal(config: &GlobalConfig) -> Result<(), String> 
     fs::write(&config_path, content).map_err(|e| format!("Failed to write config file: {}", e))?;
 
     {
-        let mut cache = GLOBAL_CONFIG_CACHE.lock().unwrap();
+        let mut cache = GLOBAL_CONFIG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *cache = Some(config.clone());
     }
 
@@ -107,7 +113,9 @@ pub fn save_global_config_internal(config: &GlobalConfig) -> Result<(), String> 
 
 pub fn load_workspace_config(workspace_path: &str) -> WorkspaceConfig {
     {
-        let cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+        let cache = WORKSPACE_CONFIG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some((ref cached_path, ref config)) = *cache {
             if cached_path == workspace_path {
                 return config.clone();
@@ -145,7 +153,9 @@ pub fn load_workspace_config(workspace_path: &str) -> WorkspaceConfig {
     };
 
     {
-        let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+        let mut cache = WORKSPACE_CONFIG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *cache = Some((workspace_path.to_string(), config.clone()));
     }
 
@@ -164,7 +174,9 @@ pub fn save_workspace_config_internal(
     fs::write(&config_path, content).map_err(|e| format!("Failed to write config file: {}", e))?;
 
     {
-        let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+        let mut cache = WORKSPACE_CONFIG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *cache = Some((workspace_path.to_string(), config.clone()));
     }
 
@@ -178,7 +190,9 @@ pub fn save_workspace_config_internal(
 pub(crate) fn get_window_workspace_path(window_label: &str) -> Option<String> {
     // 先查窗口绑定
     {
-        let map = WINDOW_WORKSPACES.lock().unwrap();
+        let map = WINDOW_WORKSPACES
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(path) = map.get(window_label) {
             return Some(path.clone());
         }
@@ -198,12 +212,48 @@ pub(crate) fn get_window_workspace_config(window_label: &str) -> Option<(String,
 mod tests {
     use super::*;
     use serde_json::Value;
+    use serial_test::serial;
 
+    struct ConfigStateGuard {
+        previous_workspace: Option<(String, WorkspaceConfig)>,
+    }
+
+    impl ConfigStateGuard {
+        fn isolated() -> Self {
+            let previous_workspace = {
+                let mut cache = crate::state::WORKSPACE_CONFIG_CACHE
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                std::mem::take(&mut *cache)
+            };
+
+            Self { previous_workspace }
+        }
+    }
+
+    impl Drop for ConfigStateGuard {
+        fn drop(&mut self) {
+            let mut workspace = crate::state::WORKSPACE_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *workspace = self.previous_workspace.take();
+        }
+    }
+
+    fn clear_workspace_config_cache() {
+        let mut cache = crate::state::WORKSPACE_CONFIG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *cache = None;
+    }
+
+    #[serial]
     #[test]
     fn global_config_round_trip() {
         let config = GlobalConfig {
             current_workspace: Some("/tmp/workspace".to_string()),
             ngrok_token: Some(" my-ngrok ".to_string()),
+            share_password: Some("persisted-secret".to_string()),
             dashscope_api_key: Some("my-dashscope".to_string()),
             ..GlobalConfig::default()
         };
@@ -219,6 +269,10 @@ mod tests {
         assert_eq!(
             object.get("ngrok_token"),
             Some(&Value::String(" my-ngrok ".to_string()))
+        );
+        assert_eq!(
+            object.get("share_password"),
+            Some(&Value::String("persisted-secret".to_string()))
         );
         assert_eq!(
             object.get("dashscope_api_key"),
@@ -237,6 +291,231 @@ mod tests {
             object.get("commit_prefix_templates").is_some(),
             "commit_prefix_templates should be serialized"
         );
+    }
+
+    #[serial]
+    #[test]
+    fn global_config_missing_share_password_defaults_to_none() {
+        let config: GlobalConfig = serde_json::from_value(serde_json::json!({
+            "workspaces": [],
+            "current_workspace": null
+        }))
+        .expect("deserialize legacy config");
+
+        assert_eq!(config.share_password, None);
+    }
+
+    #[serial]
+    #[test]
+    fn load_workspace_config_reads_valid_json_file() {
+        let _state = ConfigStateGuard::isolated();
+        let workspace = tempfile::tempdir().expect("create workspace dir");
+        std::fs::write(
+            get_workspace_config_path(workspace.path().to_str().unwrap()),
+            serde_json::json!({
+                "name": "Demo Workspace",
+                "worktrees_dir": "trees",
+                "projects": [{
+                    "name": "app",
+                    "base_branch": "main",
+                    "test_branch": "uat",
+                    "merge_strategy": "merge"
+                }],
+                "linked_workspace_items": ["CLAUDE.md"],
+                "vault_linked_workspace_items": ["Vault"],
+                "uat_branch": "staging",
+                "archived_worktrees": ["old-worktree"],
+                "worktree_colors": {"feature-a": "red"},
+                "tags": [{"id": "frontend", "name": "Frontend", "color": "#336699"}]
+            })
+            .to_string(),
+        )
+        .expect("write workspace config");
+
+        let config = load_workspace_config(workspace.path().to_str().unwrap());
+
+        assert_eq!(config.name, "Demo Workspace");
+        assert_eq!(config.worktrees_dir, "trees");
+        assert_eq!(config.projects.len(), 1);
+        assert_eq!(config.projects[0].name, "app");
+        assert_eq!(config.linked_workspace_items, vec!["CLAUDE.md"]);
+        assert_eq!(config.vault_linked_workspace_items, vec!["Vault"]);
+        assert_eq!(config.uat_branch, "staging");
+        assert_eq!(config.archived_worktrees, vec!["old-worktree"]);
+        assert_eq!(
+            config.worktree_colors.get("feature-a"),
+            Some(&crate::types::WorktreeColor::Red)
+        );
+        assert_eq!(config.tags[0].id, "frontend");
+    }
+
+    #[serial]
+    #[test]
+    fn load_workspace_config_defaults_missing_optional_fields() {
+        let _state = ConfigStateGuard::isolated();
+        let workspace = tempfile::tempdir().expect("create workspace dir");
+        std::fs::write(
+            get_workspace_config_path(workspace.path().to_str().unwrap()),
+            r#"{
+                "name": "Legacy Workspace",
+                "worktrees_dir": "worktrees",
+                "projects": []
+            }"#,
+        )
+        .expect("write legacy workspace config");
+
+        let config = load_workspace_config(workspace.path().to_str().unwrap());
+
+        assert_eq!(config.name, "Legacy Workspace");
+        assert!(config.linked_workspace_items.is_empty());
+        assert!(config.vault_linked_workspace_items.is_empty());
+        assert_eq!(config.uat_branch, "uat");
+        assert!(config.archived_worktrees.is_empty());
+        assert!(config.worktree_colors.is_empty());
+        assert!(config.tags.is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn load_workspace_config_returns_default_for_corrupted_json() {
+        let _state = ConfigStateGuard::isolated();
+        let workspace = tempfile::tempdir().expect("create workspace dir");
+        std::fs::write(
+            get_workspace_config_path(workspace.path().to_str().unwrap()),
+            "{not valid json",
+        )
+        .expect("write corrupted workspace config");
+
+        let config = load_workspace_config(workspace.path().to_str().unwrap());
+
+        assert_eq!(config.name, WorkspaceConfig::default().name);
+        assert_eq!(
+            config.worktrees_dir,
+            WorkspaceConfig::default().worktrees_dir
+        );
+        assert!(config.projects.is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn save_workspace_config_writes_file_and_round_trips_after_cache_clear() {
+        let _state = ConfigStateGuard::isolated();
+        let workspace = tempfile::tempdir().expect("create workspace dir");
+        let config = WorkspaceConfig {
+            name: "Round Trip".to_string(),
+            worktrees_dir: "custom-worktrees".to_string(),
+            projects: vec![crate::types::ProjectConfig {
+                name: "api".to_string(),
+                base_branch: "main".to_string(),
+                test_branch: "test".to_string(),
+                merge_strategy: "squash".to_string(),
+                linked_folders: vec!["target".to_string()],
+                commit_prefix_index: Some(0),
+                git_user_name: Some("Test User".to_string()),
+                git_user_email: Some("test@example.com".to_string()),
+                tags: vec!["backend".to_string()],
+            }],
+            linked_workspace_items: vec!["README.md".to_string()],
+            vault_linked_workspace_items: vec!["Vault".to_string()],
+            uat_branch: "qa".to_string(),
+            archived_worktrees: vec!["archived".to_string()],
+            worktree_colors: std::collections::HashMap::from([(
+                "round-trip".to_string(),
+                crate::types::WorktreeColor::Blue,
+            )]),
+            tags: vec![crate::types::TagDefinition {
+                id: "backend".to_string(),
+                name: "Backend".to_string(),
+                color: "#123456".to_string(),
+            }],
+        };
+
+        save_workspace_config_internal(workspace.path().to_str().unwrap(), &config)
+            .expect("save workspace config");
+        clear_workspace_config_cache();
+
+        let reloaded = load_workspace_config(workspace.path().to_str().unwrap());
+
+        assert_eq!(reloaded.name, config.name);
+        assert_eq!(reloaded.worktrees_dir, config.worktrees_dir);
+        assert_eq!(reloaded.projects[0].linked_folders, vec!["target"]);
+        assert_eq!(reloaded.linked_workspace_items, vec!["README.md"]);
+        assert_eq!(reloaded.vault_linked_workspace_items, vec!["Vault"]);
+        assert_eq!(reloaded.uat_branch, "qa");
+        assert_eq!(reloaded.archived_worktrees, vec!["archived"]);
+        assert_eq!(
+            reloaded.worktree_colors.get("round-trip"),
+            Some(&crate::types::WorktreeColor::Blue)
+        );
+        assert_eq!(reloaded.tags[0].name, "Backend");
+    }
+
+    #[serial]
+    #[test]
+    fn save_workspace_config_updates_existing_file_fields() {
+        let _state = ConfigStateGuard::isolated();
+        let workspace = tempfile::tempdir().expect("create workspace dir");
+        let initial = WorkspaceConfig {
+            name: "Initial".to_string(),
+            linked_workspace_items: vec!["old.md".to_string()],
+            ..WorkspaceConfig::default()
+        };
+        let updated = WorkspaceConfig {
+            name: "Updated".to_string(),
+            worktrees_dir: "updated-worktrees".to_string(),
+            linked_workspace_items: vec!["new.md".to_string()],
+            archived_worktrees: vec!["archived-a".to_string()],
+            ..WorkspaceConfig::default()
+        };
+
+        save_workspace_config_internal(workspace.path().to_str().unwrap(), &initial)
+            .expect("save initial config");
+        save_workspace_config_internal(workspace.path().to_str().unwrap(), &updated)
+            .expect("save updated config");
+        clear_workspace_config_cache();
+
+        let reloaded = load_workspace_config(workspace.path().to_str().unwrap());
+
+        assert_eq!(reloaded.name, "Updated");
+        assert_eq!(reloaded.worktrees_dir, "updated-worktrees");
+        assert_eq!(reloaded.linked_workspace_items, vec!["new.md"]);
+        assert_eq!(reloaded.archived_worktrees, vec!["archived-a"]);
+    }
+
+    #[serial]
+    #[test]
+    fn occupation_state_saves_loads_and_clears_file() {
+        let workspace = tempfile::tempdir().expect("create workspace dir");
+        let state = MainWorkspaceOccupation {
+            worktree_name: "feature-a".to_string(),
+            original_branches: std::collections::HashMap::from([(
+                "api".to_string(),
+                "main".to_string(),
+            )]),
+            worktree_branches: std::collections::HashMap::from([(
+                "api".to_string(),
+                "feature/a".to_string(),
+            )]),
+            deployed_at: "2026-06-11T00:00:00Z".to_string(),
+        };
+
+        save_occupation_state(workspace.path().to_str().unwrap(), &state)
+            .expect("save occupation state");
+        let loaded = load_occupation_state(workspace.path().to_str().unwrap())
+            .expect("load occupation state");
+
+        assert_eq!(loaded.worktree_name, "feature-a");
+        assert_eq!(
+            loaded.original_branches.get("api"),
+            Some(&"main".to_string())
+        );
+        assert_eq!(
+            loaded.worktree_branches.get("api"),
+            Some(&"feature/a".to_string())
+        );
+
+        clear_occupation_state(workspace.path().to_str().unwrap()).expect("clear occupation state");
+        assert!(load_occupation_state(workspace.path().to_str().unwrap()).is_none());
     }
 }
 

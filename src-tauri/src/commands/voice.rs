@@ -841,3 +841,876 @@ pub(crate) async fn generate_commit_message(diff: String) -> Result<String, Stri
         result.trim().to_string()
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        extract::State,
+        http::{HeaderMap, StatusCode},
+        routing::{get, post},
+        Json, Router,
+    };
+    use futures_util::{SinkExt, StreamExt};
+    use once_cell::sync::Lazy;
+    use serde_json::{json, Value};
+    use serial_test::serial;
+    use std::path::PathBuf;
+    use std::sync::{Arc, Mutex, MutexGuard};
+    use std::time::Duration;
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
+
+    static VOICE_EVENT_TEST_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    fn lock_voice_event_tests() -> MutexGuard<'static, ()> {
+        VOICE_EVENT_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    struct VoiceSessionGuard {
+        previous: Option<VoiceSession>,
+    }
+
+    impl VoiceSessionGuard {
+        fn isolated() -> Self {
+            let previous = {
+                let mut session = VOICE_SESSION
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                session.take()
+            };
+            Self { previous }
+        }
+    }
+
+    impl Drop for VoiceSessionGuard {
+        fn drop(&mut self) {
+            let mut session = VOICE_SESSION
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *session = self.previous.take();
+        }
+    }
+
+    struct ConfigCacheGuard {
+        previous: Option<crate::types::GlobalConfig>,
+        _lock: FileLockGuard,
+    }
+
+    impl ConfigCacheGuard {
+        fn with_global_config(config: crate::types::GlobalConfig) -> Self {
+            let lock = FileLockGuard::acquire();
+            let previous = {
+                let mut cache = crate::state::GLOBAL_CONFIG_CACHE
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                std::mem::replace(&mut *cache, Some(config))
+            };
+            Self {
+                previous,
+                _lock: lock,
+            }
+        }
+
+        fn with_dashscope(base_url: String, api_key: &str) -> Self {
+            let mut config = crate::types::GlobalConfig::default();
+            config.dashscope_api_key = Some(api_key.to_string());
+            config.voice_refine_base_url = Some(base_url);
+            Self::with_global_config(config)
+        }
+    }
+
+    impl Drop for ConfigCacheGuard {
+        fn drop(&mut self) {
+            let mut cache = crate::state::GLOBAL_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *cache = self.previous.take();
+        }
+    }
+
+    struct FileLockGuard {
+        path: PathBuf,
+    }
+
+    impl FileLockGuard {
+        fn acquire() -> Self {
+            let path = std::env::temp_dir().join("worktree-manager-global-config-cache.lock");
+            for _ in 0..500 {
+                match std::fs::create_dir(&path) {
+                    Ok(()) => return Self { path },
+                    Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                        std::thread::sleep(std::time::Duration::from_millis(2));
+                    }
+                    Err(err) => panic!("failed to create test lock {:?}: {}", path, err),
+                }
+            }
+            panic!("timed out waiting for test lock {:?}", path);
+        }
+    }
+
+    impl Drop for FileLockGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir(&self.path);
+        }
+    }
+
+    struct TempHomeGuard {
+        previous_home: Option<std::ffi::OsString>,
+        previous_cache: Option<crate::types::GlobalConfig>,
+        _lock: FileLockGuard,
+        _temp_dir: tempfile::TempDir,
+    }
+
+    impl TempHomeGuard {
+        fn new() -> Self {
+            let lock = FileLockGuard::acquire();
+            let temp_dir = tempfile::tempdir().expect("create temp home");
+            let previous_home = std::env::var_os("HOME");
+            let previous_cache = {
+                let mut cache = crate::state::GLOBAL_CONFIG_CACHE
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                std::mem::take(&mut *cache)
+            };
+            std::env::set_var("HOME", temp_dir.path());
+            Self {
+                previous_home,
+                previous_cache,
+                _lock: lock,
+                _temp_dir: temp_dir,
+            }
+        }
+    }
+
+    impl Drop for TempHomeGuard {
+        fn drop(&mut self) {
+            match &self.previous_home {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
+            }
+            let mut cache = crate::state::GLOBAL_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *cache = self.previous_cache.take();
+        }
+    }
+
+    #[derive(Clone, Debug, Default)]
+    struct HttpCapture {
+        authorization: Option<String>,
+        content_type: Option<String>,
+        body: Option<Value>,
+    }
+
+    fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
+        headers
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string)
+    }
+
+    async fn spawn_models_server(
+        status: StatusCode,
+        response: Value,
+        captures: Arc<Mutex<Vec<HttpCapture>>>,
+    ) -> Result<String, String> {
+        let app = Router::new()
+            .route(
+                "/models",
+                get(
+                    move |headers: HeaderMap,
+                          State(captures): State<Arc<Mutex<Vec<HttpCapture>>>>| {
+                        let response = response.clone();
+                        async move {
+                        captures
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .push(HttpCapture {
+                                authorization: header_value(&headers, "authorization"),
+                                content_type: header_value(&headers, "content-type"),
+                                body: None,
+                            });
+                        (status, Json(response))
+                        }
+                    },
+                ),
+            )
+            .with_state(captures);
+        let listener = match TcpListener::bind("127.0.0.1:0").await {
+            Ok(listener) => listener,
+            Err(err) => return Err(format!("local bind unavailable: {}", err)),
+        };
+        let addr = listener.local_addr().expect("models addr");
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        Ok(format!("http://{}", addr))
+    }
+
+    async fn spawn_chat_server(
+        status: StatusCode,
+        response: Value,
+        captures: Arc<Mutex<Vec<HttpCapture>>>,
+    ) -> Result<String, String> {
+        let app = Router::new()
+            .route(
+                "/chat/completions",
+                post(
+                    move |headers: HeaderMap,
+                          State(captures): State<Arc<Mutex<Vec<HttpCapture>>>>,
+                          Json(body): Json<Value>| {
+                        let response = response.clone();
+                        async move {
+                            captures
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                .push(HttpCapture {
+                                    authorization: header_value(&headers, "authorization"),
+                                    content_type: header_value(&headers, "content-type"),
+                                    body: Some(body),
+                                });
+                            (status, Json(response))
+                        }
+                    },
+                ),
+            )
+            .with_state(captures);
+        let listener = match TcpListener::bind("127.0.0.1:0").await {
+            Ok(listener) => listener,
+            Err(err) => return Err(format!("local bind unavailable: {}", err)),
+        };
+        let addr = listener.local_addr().expect("chat addr");
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        Ok(format!("http://{}", addr))
+    }
+
+    #[derive(Debug, Default)]
+    struct WsCapture {
+        authorization: Option<String>,
+        host: Option<String>,
+        text_messages: Vec<Value>,
+        binary_messages: Vec<Vec<u8>>,
+    }
+
+    async fn spawn_dashscope_ws_server(capture: Arc<Mutex<WsCapture>>) -> Result<String, String> {
+        let listener = match TcpListener::bind("127.0.0.1:0").await {
+            Ok(listener) => listener,
+            Err(err) => return Err(format!("local bind unavailable: {}", err)),
+        };
+        let addr = listener.local_addr().expect("ws addr");
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("accept ws");
+            let capture_for_headers = capture.clone();
+            let mut ws = tokio_tungstenite::accept_hdr_async(
+                stream,
+                move |request: &Request, response: Response| {
+                    let mut capture = capture_for_headers
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    capture.authorization = request
+                        .headers()
+                        .get("authorization")
+                        .and_then(|value| value.to_str().ok())
+                        .map(str::to_string);
+                    capture.host = request
+                        .headers()
+                        .get("host")
+                        .and_then(|value| value.to_str().ok())
+                        .map(str::to_string);
+                    Ok(response)
+                },
+            )
+            .await
+            .expect("handshake ws");
+
+            if let Some(Ok(Message::Text(text))) = ws.next().await {
+                capture
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .text_messages
+                    .push(serde_json::from_str(&text).expect("run-task json"));
+                ws.send(Message::Text(
+                    json!({ "header": { "event": "task-started" } })
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .expect("send task-started");
+            }
+
+            while let Some(message) = ws.next().await {
+                match message.expect("ws message") {
+                    Message::Binary(data) => {
+                        capture
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .binary_messages
+                            .push(data.to_vec());
+                    }
+                    Message::Text(text) => {
+                        let value: Value = serde_json::from_str(&text).expect("finish-task json");
+                        let action = value["header"]["action"].as_str().map(str::to_string);
+                        capture
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .text_messages
+                            .push(value);
+                        if action.as_deref() == Some("finish-task") {
+                            ws.send(Message::Text(
+                                json!({
+                                    "header": { "event": "result-generated" },
+                                    "payload": {
+                                        "output": {
+                                            "sentence": {
+                                                "text": "final text",
+                                                "sentence_end": true
+                                            }
+                                        }
+                                    }
+                                })
+                                .to_string()
+                                .into(),
+                            ))
+                            .await
+                            .expect("send result");
+                            ws.send(Message::Text(
+                                json!({ "header": { "event": "task-finished" } })
+                                    .to_string()
+                                    .into(),
+                            ))
+                            .await
+                            .expect("send finished");
+                            break;
+                        }
+                    }
+                    Message::Close(_) => break,
+                    _ => {}
+                }
+            }
+        });
+        Ok(format!("ws://{}/voice", addr))
+    }
+
+    #[serial]
+    #[test]
+    fn get_event_name_reads_server_event_not_client_action() {
+        assert_eq!(
+            get_event_name(&json!({ "header": { "event": "task-started" } })),
+            "task-started"
+        );
+        assert_eq!(
+            get_event_name(&json!({ "header": { "action": "run-task" } })),
+            ""
+        );
+        assert_eq!(get_event_name(&json!({ "payload": {} })), "");
+    }
+
+    #[serial]
+    #[test]
+    fn voice_send_audio_validates_base64_before_session_lookup() {
+        let _session = VoiceSessionGuard::isolated();
+
+        let err = voice_send_audio_inner("not valid base64".to_string()).unwrap_err();
+
+        assert!(err.starts_with("Base64 解码失败:"));
+    }
+
+    #[serial]
+    #[test]
+    fn voice_session_state_reports_inactive_and_stop_is_idempotent() {
+        let _session = VoiceSessionGuard::isolated();
+
+        assert!(!voice_is_active_inner().unwrap());
+        assert_eq!(voice_stop_inner(), Ok(()));
+        assert_eq!(
+            voice_send_audio_inner(BASE64.encode([1u8, 2, 3])).unwrap_err(),
+            "没有活跃的语音会话"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn voice_session_state_sends_audio_and_stop_signal_when_active() {
+        let _session = VoiceSessionGuard::isolated();
+        let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<u8>>(1);
+        let (stop_tx, stop_rx) = watch::channel(false);
+        {
+            let mut session = VOICE_SESSION
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *session = Some(VoiceSession { audio_tx, stop_tx });
+        }
+
+        assert!(voice_is_active_inner().unwrap());
+        voice_send_audio_inner(BASE64.encode([4u8, 5, 6])).unwrap();
+        voice_stop_inner().unwrap();
+        {
+            let mut session = VOICE_SESSION
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *session = None;
+        }
+
+        assert_eq!(audio_rx.try_recv().unwrap(), vec![4u8, 5, 6]);
+        assert!(*stop_rx.borrow());
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn async_voice_command_wrappers_delegate_to_inner_functions() {
+        let _home = TempHomeGuard::new();
+        let _session = VoiceSessionGuard::isolated();
+
+        set_dashscope_api_key("dash-wrapper".to_string())
+            .await
+            .unwrap();
+        set_dashscope_base_url("wss://wrapper.example/ws".to_string())
+            .await
+            .unwrap();
+        set_voice_refine_enabled(false).await.unwrap();
+        set_voice_refine_base_url("https://wrapper.example/v1".to_string())
+            .await
+            .unwrap();
+        set_voice_asr_model("asr-wrapper".to_string())
+            .await
+            .unwrap();
+        set_voice_refine_model("refine-wrapper".to_string())
+            .await
+            .unwrap();
+        set_commit_ai_api_key("commit-wrapper".to_string())
+            .await
+            .unwrap();
+        set_commit_ai_enabled(false).await.unwrap();
+
+        assert_eq!(
+            get_dashscope_api_key().await.unwrap(),
+            Some("dash-wrapper".to_string())
+        );
+        assert_eq!(
+            get_dashscope_base_url().await.unwrap(),
+            Some("wss://wrapper.example/ws".to_string())
+        );
+        assert!(!get_voice_refine_enabled().await.unwrap());
+        assert_eq!(
+            get_voice_refine_base_url().await.unwrap(),
+            Some("https://wrapper.example/v1".to_string())
+        );
+        assert_eq!(
+            get_voice_asr_model().await.unwrap(),
+            Some("asr-wrapper".to_string())
+        );
+        assert_eq!(
+            get_voice_refine_model().await.unwrap(),
+            Some("refine-wrapper".to_string())
+        );
+        assert_eq!(
+            get_commit_ai_api_key().await.unwrap(),
+            Some("commit-wrapper".to_string())
+        );
+        assert!(!get_commit_ai_enabled().await);
+        assert!(voice_is_active().await.unwrap() == false);
+        assert!(voice_send_audio("not base64".to_string())
+            .await
+            .unwrap_err()
+            .starts_with("Base64 解码失败:"));
+        assert_eq!(voice_stop().await, Ok(()));
+        assert_eq!(voice_refine_text("  ".to_string()).await.unwrap(), "");
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn voice_start_reports_missing_key_and_invalid_websocket_url_before_session_creation() {
+        let _session = VoiceSessionGuard::isolated();
+        let _missing_config =
+            ConfigCacheGuard::with_global_config(crate::types::GlobalConfig::default());
+
+        assert_eq!(
+            voice_start(None).await.unwrap_err(),
+            "请先在设置中配置 Dashscope API Key"
+        );
+        drop(_missing_config);
+
+        let mut config = crate::types::GlobalConfig::default();
+        config.dashscope_api_key = Some("dash-key".to_string());
+        config.dashscope_base_url = Some("http:// bad url".to_string());
+        let _invalid_url = ConfigCacheGuard::with_global_config(config);
+        let err = voice_start_inner(Some(44100)).await.unwrap_err();
+
+        assert!(err.starts_with("构建 WebSocket 请求失败:"));
+        assert!(!voice_is_active_inner().unwrap());
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn handle_dashscope_message_emits_result_and_skips_duplicate_final() {
+        let _event_lock = lock_voice_event_tests();
+        let mut rx = crate::state::VOICE_BROADCAST.subscribe();
+        let mut last_final = String::new();
+        let message = json!({
+            "header": { "event": "result-generated" },
+            "payload": {
+                "output": {
+                    "sentence": {
+                        "text": "hello world",
+                        "sentence_end": true
+                    }
+                }
+            }
+        })
+        .to_string();
+
+        handle_dashscope_message(&message, &mut last_final);
+
+        let emitted = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let event: Value = serde_json::from_str(&emitted).unwrap();
+        assert_eq!(event["event"], "voice-result");
+        assert_eq!(event["payload"]["text"], "hello world");
+        assert_eq!(event["payload"]["is_final"], true);
+        assert_eq!(last_final, "hello world");
+
+        handle_dashscope_message(&message, &mut last_final);
+        let duplicate = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await;
+        assert!(duplicate.is_err());
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn handle_dashscope_message_emits_task_failed_error() {
+        let _event_lock = lock_voice_event_tests();
+        let mut rx = crate::state::VOICE_BROADCAST.subscribe();
+        let mut last_final = String::new();
+
+        handle_dashscope_message(
+            &json!({
+                "header": {
+                    "event": "task-failed",
+                    "error_message": "bad credentials"
+                }
+            })
+            .to_string(),
+            &mut last_final,
+        );
+
+        let emitted = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let event: Value = serde_json::from_str(&emitted).unwrap();
+        assert_eq!(event["event"], "voice-error");
+        assert_eq!(event["payload"]["message"], "bad credentials");
+        assert_eq!(last_final, "");
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn call_ai_chat_reports_missing_local_key_before_request() {
+        let _config = ConfigCacheGuard::with_global_config(crate::types::GlobalConfig::default());
+        let messages = vec![json!({ "role": "user", "content": "<raw>hello</raw>" })];
+
+        let err = call_ai_chat(messages, Some("qwen-custom"), 0.4, "voice_refine")
+            .await
+            .unwrap_err();
+
+        assert_eq!(err, "未配置 AI 能力（无云端连接且无本地 API Key）");
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn call_ai_chat_maps_invalid_base_url_before_network() {
+        let _config = ConfigCacheGuard::with_dashscope("://bad-url".to_string(), "dash-key");
+        let messages = vec![json!({ "role": "user", "content": "<raw>hello</raw>" })];
+
+        let err = call_ai_chat(messages, Some("qwen-custom"), 0.4, "voice_refine")
+            .await
+            .unwrap_err();
+
+        assert!(err.starts_with("AI request failed:"));
+        assert!(err.contains("builder error"));
+    }
+
+    #[serial]
+    #[test]
+    fn config_setters_persist_values_and_empty_strings_as_none() {
+        let _home = TempHomeGuard::new();
+
+        set_dashscope_api_key_inner("dash-key".to_string()).unwrap();
+        set_dashscope_base_url_inner("wss://example.test/ws".to_string()).unwrap();
+        set_voice_refine_enabled_inner(false).unwrap();
+        set_voice_refine_base_url_inner("https://refine.example/v1/".to_string()).unwrap();
+        set_voice_asr_model_inner("asr-custom".to_string()).unwrap();
+        set_voice_refine_model_inner("refine-custom".to_string()).unwrap();
+        set_commit_ai_api_key_inner("commit-key".to_string()).unwrap();
+        set_commit_ai_enabled_inner(false).unwrap();
+
+        assert_eq!(
+            get_dashscope_api_key_inner().unwrap(),
+            Some("dash-key".to_string())
+        );
+        assert!(check_dashscope_api_key());
+        assert_eq!(
+            get_dashscope_base_url_inner().unwrap(),
+            Some("wss://example.test/ws".to_string())
+        );
+        assert!(!get_voice_refine_enabled_inner().unwrap());
+        assert_eq!(
+            get_voice_refine_base_url_inner().unwrap(),
+            Some("https://refine.example/v1/".to_string())
+        );
+        assert_eq!(
+            get_voice_asr_model_inner().unwrap(),
+            Some("asr-custom".to_string())
+        );
+        assert_eq!(
+            get_voice_refine_model_inner().unwrap(),
+            Some("refine-custom".to_string())
+        );
+        assert_eq!(
+            get_commit_ai_api_key_inner().unwrap(),
+            Some("commit-key".to_string())
+        );
+        assert!(check_commit_ai_api_key());
+        assert!(!crate::config::load_global_config().commit_ai_enabled);
+
+        set_dashscope_api_key_inner(String::new()).unwrap();
+        set_dashscope_base_url_inner(String::new()).unwrap();
+        set_voice_refine_base_url_inner(String::new()).unwrap();
+        set_voice_asr_model_inner(String::new()).unwrap();
+        set_voice_refine_model_inner(String::new()).unwrap();
+        set_commit_ai_api_key_inner(String::new()).unwrap();
+
+        assert_eq!(get_dashscope_api_key_inner().unwrap(), None);
+        assert!(!check_dashscope_api_key());
+        assert_eq!(get_dashscope_base_url_inner().unwrap(), None);
+        assert_eq!(get_voice_refine_base_url_inner().unwrap(), None);
+        assert_eq!(get_voice_asr_model_inner().unwrap(), None);
+        assert_eq!(get_voice_refine_model_inner().unwrap(), None);
+        assert_eq!(get_commit_ai_api_key_inner().unwrap(), None);
+        assert!(!check_commit_ai_api_key());
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn list_dashscope_models_sends_bearer_header_and_sorts_ids() {
+        let captures = Arc::new(Mutex::new(Vec::new()));
+        let Ok(base_url) = spawn_models_server(
+            StatusCode::OK,
+            json!({
+                "data": [
+                    { "id": "qwen-b" },
+                    { "id": "qwen-a" },
+                    { "not_id": "ignored" }
+                ]
+            }),
+            captures.clone(),
+        )
+        .await
+        else {
+            // The managed sandbox can deny loopback binds; this test never calls external APIs.
+            return;
+        };
+        let _config = ConfigCacheGuard::with_dashscope(format!("{}/", base_url), "dash-key");
+
+        let models = list_dashscope_models_inner().await.unwrap();
+
+        assert_eq!(models, vec!["qwen-a".to_string(), "qwen-b".to_string()]);
+        let capture = captures.lock().unwrap().first().cloned().unwrap();
+        assert_eq!(capture.authorization.as_deref(), Some("Bearer dash-key"));
+        assert_eq!(capture.body, None);
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn list_dashscope_models_reports_server_error_body() {
+        let captures = Arc::new(Mutex::new(Vec::new()));
+        let Ok(base_url) = spawn_models_server(
+            StatusCode::UNAUTHORIZED,
+            json!({"message": "bad key"}),
+            captures,
+        )
+        .await
+        else {
+            // The managed sandbox can deny loopback binds; this test never calls external APIs.
+            return;
+        };
+        let _config = ConfigCacheGuard::with_dashscope(base_url, "dash-key");
+
+        let err = list_dashscope_models_inner().await.unwrap_err();
+
+        assert!(err.starts_with("Models API error:"));
+        assert!(err.contains("bad key"));
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn call_ai_chat_posts_request_body_and_parses_response_content() {
+        let captures = Arc::new(Mutex::new(Vec::new()));
+        let Ok(base_url) = spawn_chat_server(
+            StatusCode::OK,
+            json!({
+                "choices": [
+                    { "message": { "content": "refined text" } }
+                ]
+            }),
+            captures.clone(),
+        )
+        .await
+        else {
+            // The managed sandbox can deny loopback binds; this test never calls external APIs.
+            return;
+        };
+        let _config = ConfigCacheGuard::with_dashscope(format!("{}/", base_url), "dash-key");
+        let messages = vec![json!({"role": "user", "content": "<raw>hello</raw>"})];
+
+        let content = call_ai_chat(messages.clone(), Some("qwen-unit"), 0.25, "voice_refine")
+            .await
+            .unwrap();
+
+        assert_eq!(content, "refined text");
+        let capture = captures.lock().unwrap().first().cloned().unwrap();
+        assert_eq!(capture.authorization.as_deref(), Some("Bearer dash-key"));
+        assert_eq!(capture.content_type.as_deref(), Some("application/json"));
+        let body = capture.body.unwrap();
+        assert_eq!(body["model"], "qwen-unit");
+        assert_eq!(body["messages"], Value::Array(messages));
+        assert_eq!(body["temperature"], 0.25);
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn call_ai_chat_commit_ai_uses_commit_key_and_dashscope_base_url() {
+        let captures = Arc::new(Mutex::new(Vec::new()));
+        let Ok(base_url) = spawn_chat_server(
+            StatusCode::OK,
+            json!({
+                "choices": [
+                    { "message": { "content": "fix(core): repair path" } }
+                ]
+            }),
+            captures.clone(),
+        )
+        .await
+        else {
+            // The managed sandbox can deny loopback binds; this test never calls external APIs.
+            return;
+        };
+        let mut config = crate::types::GlobalConfig::default();
+        config.commit_ai_api_key = Some("commit-key".to_string());
+        config.dashscope_base_url = Some(format!("{}/", base_url));
+        let _config = ConfigCacheGuard::with_global_config(config);
+
+        let content = call_ai_chat(
+            vec![json!({"role": "user", "content": "diff"})],
+            None,
+            0.3,
+            "commit_ai",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(content, "fix(core): repair path");
+        let capture = captures.lock().unwrap().first().cloned().unwrap();
+        assert_eq!(capture.authorization.as_deref(), Some("Bearer commit-key"));
+        assert_eq!(capture.body.unwrap()["model"], "qwen-turbo-latest");
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn voice_refine_and_commit_generation_handle_empty_inputs_without_network() {
+        let _config = ConfigCacheGuard::with_global_config(crate::types::GlobalConfig::default());
+
+        assert_eq!(
+            voice_refine_text_inner(" \n\t ".to_string()).await.unwrap(),
+            ""
+        );
+        assert_eq!(
+            generate_commit_message(" \n\t ".to_string())
+                .await
+                .unwrap_err(),
+            "No diff provided"
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn voice_start_send_audio_and_stop_use_dashscope_websocket_protocol() {
+        let _event_lock = lock_voice_event_tests();
+        let _session = VoiceSessionGuard::isolated();
+        let capture = Arc::new(Mutex::new(WsCapture::default()));
+        let Ok(ws_url) = spawn_dashscope_ws_server(capture.clone()).await else {
+            // The managed sandbox can deny loopback binds; this test never calls external APIs.
+            return;
+        };
+        let mut config = crate::types::GlobalConfig::default();
+        config.dashscope_api_key = Some("dash-key".to_string());
+        config.dashscope_base_url = Some(ws_url.clone());
+        config.voice_asr_model = Some("asr-unit".to_string());
+        let _config = ConfigCacheGuard::with_global_config(config);
+
+        voice_start_inner(Some(8000)).await.unwrap();
+        assert!(voice_is_active_inner().unwrap());
+        assert_eq!(
+            voice_start_inner(None).await.unwrap_err(),
+            "语音会话已在进行中"
+        );
+        voice_send_audio_inner(BASE64.encode([9u8, 8, 7])).unwrap();
+
+        // 等待 mock server 实际收到音频帧后再停止，避免 stop 抢先关闭连接导致丢帧（llvm-cov 插桩下更易触发）。
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                {
+                    let c = capture
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    if !c.binary_messages.is_empty() {
+                        break;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("server receives audio frame");
+
+        voice_stop_inner().unwrap();
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if !voice_is_active_inner().unwrap() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("voice session stops");
+
+        let capture = capture
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert_eq!(capture.authorization.as_deref(), Some("Bearer dash-key"));
+        assert!(capture
+            .host
+            .as_deref()
+            .unwrap_or("")
+            .starts_with("127.0.0.1:"));
+        assert_eq!(capture.binary_messages, vec![vec![9u8, 8, 7]]);
+        assert_eq!(capture.text_messages[0]["header"]["action"], "run-task");
+        assert_eq!(capture.text_messages[0]["payload"]["model"], "asr-unit");
+        assert_eq!(
+            capture.text_messages[0]["payload"]["parameters"]["sample_rate"],
+            8000
+        );
+        assert_eq!(
+            capture.text_messages.last().unwrap()["header"]["action"],
+            "finish-task"
+        );
+    }
+}

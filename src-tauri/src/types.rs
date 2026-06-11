@@ -159,6 +159,8 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub last_share_port: Option<u16>, // 上次使用的分享端口
     #[serde(default)]
+    pub share_password: Option<String>, // 上次使用的分享口令
+    #[serde(default)]
     pub dashscope_api_key: Option<String>,
     #[serde(default)]
     pub dashscope_base_url: Option<String>,
@@ -223,6 +225,7 @@ impl Default for GlobalConfig {
             current_workspace: None,
             ngrok_token: None,
             last_share_port: None,
+            share_password: None,
             dashscope_api_key: None,
             dashscope_base_url: None,
             voice_refine_enabled: true,
@@ -511,7 +514,9 @@ pub struct DeployProjectError {
 #[cfg(test)]
 mod tests {
     use super::{AuthRateLimiter, NonceCache, WorkspaceConfig};
+    use serial_test::serial;
 
+    #[serial]
     #[test]
     fn auth_rate_limiter_allows_first_five_attempts_and_blocks_sixth() {
         let mut limiter = AuthRateLimiter::new();
@@ -526,6 +531,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn nonce_cache_consumes_nonce_only_once() {
         let mut cache = NonceCache::new();
@@ -538,6 +544,7 @@ mod tests {
         assert!(second.is_none());
     }
 
+    #[serial]
     #[test]
     fn workspace_config_deserializes_missing_vault_linked_items_as_empty() {
         let config: WorkspaceConfig = serde_json::from_str(

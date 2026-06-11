@@ -76,6 +76,7 @@ const LONG_RUNNING_COMMANDS = new Set([
   'push_to_remote', 'pull_current_branch', 'push_sync_to_base_branch', 'merge_base_branch',
   'download_update_via_mirror',
 ]);
+const GET_COMMANDS = new Set(['get_crash_report']);
 const DEFAULT_TIMEOUT_MS = 30_000;
 const LONG_TIMEOUT_MS = 600_000; // 10 min
 
@@ -111,13 +112,14 @@ export async function callBackend<T = unknown>(
 
   const controller = new AbortController();
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
+  const useGet = GET_COMMANDS.has(command);
   const res = await fetch(`${getApiBase()}/${command}`, {
-    method: 'POST',
+    method: useGet ? 'GET' : 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      ...(useGet ? {} : { 'Content-Type': 'application/json' }),
       'X-Session-Id': getSessionId(),
     },
-    body: JSON.stringify(args ?? {}),
+    body: useGet ? undefined : JSON.stringify(args ?? {}),
     signal: controller.signal,
   }).finally(() => clearTimeout(timerId));
 
@@ -200,6 +202,11 @@ export async function getAppVersion(): Promise<string> {
 /** Extract the icon of an app / exe as a base64 data URL. Returns null if not available. */
 export async function getAppIcon(path: string): Promise<string | null> {
   return callBackend<string | null>('get_app_icon', { path });
+}
+
+/** Return and clear the pending crash report, if the previous session exited abnormally. */
+export async function getCrashReport(): Promise<import('../types').CrashReport | null> {
+  return callBackend<import('../types').CrashReport | null>('get_crash_report');
 }
 
 /** Check if this is the "main" window. */

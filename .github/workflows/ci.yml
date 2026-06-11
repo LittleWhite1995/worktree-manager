@@ -51,6 +51,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Cache Rust dependencies
         uses: swatinem/rust-cache@v2
@@ -68,5 +70,57 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libsoup-3.0-dev || sudo apt-get install -y --no-install-recommends libsoup2.4-dev
 
+      # 静态护栏：clippy 对 lib 代码零警告（可抓 unwrap/panic/切片等隐患）。
+      # 测试代码暂不纳入门禁（存量警告待清理后再收紧为 --all-targets）。
+      - name: Clippy (lib gate)
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings
+
+      # 单线程运行：部分测试修改全局进程状态（环境变量 PATH/HOME、全局 static），
+      # 并行会互相串扰导致 flaky。--test-threads=1 消除串扰，不损失覆盖率。
       - name: Run Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --manifest-path src-tauri/Cargo.toml -- --test-threads=1
+
+  # 平台护栏：Windows/macOS 上的编译与测试。用户报告的异常关闭是 Windows 特有，
+  # 仅在 ubuntu 跑无法捕获平台相关的编译错误、路径处理与 cfg(windows) 分支问题。
+  platform-build:
+    name: Build & Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+          shared-key: ci-${{ matrix.os }}
+
+      # 单线程运行：部分测试修改全局进程状态（环境变量 PATH/HOME、全局 static），
+      # 并行会互相串扰导致 flaky。--test-threads=1 消除串扰，不损失覆盖率。
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml -- --test-threads=1
+
+      # 完整 build 可暴露 cfg(windows) 分支、manifest 嵌入、链接阶段问题，
+      # 这些在 cargo test/check 下不一定触发。
+      - name: Build Rust (debug)
+        run: cargo build --manifest-path src-tauri/Cargo.toml

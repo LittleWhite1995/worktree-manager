@@ -81,9 +81,12 @@ export function useShareFeature(
     }
   }, [shareDisclaimerAccepted]);
 
+  // 强口令：14 位、加密安全随机、含大小写+数字（去除易混淆的 l/o/0/1）。
   const generatePassword = useCallback(() => {
-    const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
-    return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const buf = new Uint32Array(14);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (n) => chars[n % chars.length]).join('');
   }, []);
 
   const _doStartShare = useCallback(async (port: number) => {

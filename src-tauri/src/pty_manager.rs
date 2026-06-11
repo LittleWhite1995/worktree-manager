@@ -65,11 +65,16 @@ fn resolve_shell_from_path_lookup(id: &str) -> Option<String> {
 
     #[cfg(target_os = "windows")]
     {
-        let output = std::process::Command::new("where")
+        use std::os::windows::process::CommandExt;
+
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut command = std::process::Command::new("where");
+        command
             .arg(id)
+            .creation_flags(CREATE_NO_WINDOW)
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output();
+            .stderr(std::process::Stdio::null());
+        let output = command.output();
         if let Ok(out) = output {
             if out.status.success() {
                 if let Some(path) = String::from_utf8_lossy(&out.stdout).lines().next() {
@@ -216,13 +221,16 @@ fn windows_path_to_git_bash(path_str: &str) -> String {
 
     // Convert Windows drive path to Unix-style path for Git Bash.
     // C:\path\to\file -> /c/path/to/file
-    if path_str.len() >= 3 && path_str.chars().nth(1) == Some(':') {
-        let drive = path_str.chars().next().unwrap().to_ascii_lowercase();
-        let rest = path_str[2..].replace('\\', "/");
-        format!("/{}{}", drive, rest)
-    } else {
-        path_str.replace('\\', "/")
+    let mut chars = path_str.char_indices();
+    if let (Some((_, drive)), Some((colon_idx, ':'))) = (chars.next(), chars.next()) {
+        if drive.is_ascii_alphabetic() {
+            let rest_start = colon_idx + ':'.len_utf8();
+            let rest = path_str[rest_start..].replace('\\', "/");
+            return format!("/{}{}", drive.to_ascii_lowercase(), rest);
+        }
     }
+
+    path_str.replace('\\', "/")
 }
 
 fn bash_integration_init_path(integration_dir: &Path) -> Option<String> {
@@ -773,18 +781,24 @@ impl PtyManager {
 
         self.sessions
             .write()
-            .unwrap()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
             .insert(id.to_string(), Arc::new(Mutex::new(session)));
         log::info!(
             "[pty] Session '{}' created successfully. Total active sessions: {}",
             id,
-            self.sessions.read().unwrap().len()
+            self.sessions
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .len()
         );
         Ok(())
     }
 
     pub fn write_to_session(&self, id: &str, data: &str) -> Result<(), String> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self
+            .sessions
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let session = sessions.get(id).ok_or_else(|| {
             let active: Vec<&String> = sessions.keys().collect();
             log::warn!(
@@ -809,7 +823,10 @@ impl PtyManager {
     }
 
     pub fn read_from_session(&self, id: &str, reader_id: Option<&str>) -> Result<String, String> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self
+            .sessions
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let session_arc = sessions.get(id).ok_or_else(|| {
             let active: Vec<&String> = sessions.keys().collect();
             log::warn!(
@@ -846,7 +863,10 @@ impl PtyManager {
     }
 
     pub fn resize_session(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self
+            .sessions
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let session_arc = sessions.get(id).ok_or_else(|| {
             log::warn!("[pty] resize_session: session '{}' not found", id);
             "Session not found".to_string()
@@ -868,9 +888,17 @@ impl PtyManager {
     }
 
     pub fn close_session(&mut self, id: &str, reason: &str) -> Result<(), String> {
-        let removed = self.sessions.write().unwrap().remove(id);
+        let removed = self
+            .sessions
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(id);
         if let Some(session) = removed {
-            let remaining = self.sessions.read().unwrap().len();
+            let remaining = self
+                .sessions
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .len();
             log::info!(
                 "[pty] Closing session '{}', reason: '{}'. Remaining sessions: {}",
                 id,
@@ -895,11 +923,17 @@ impl PtyManager {
     }
 
     pub fn has_session(&self, id: &str) -> bool {
-        self.sessions.read().unwrap().contains_key(id)
+        self.sessions
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains_key(id)
     }
 
     pub fn session_shell_path(&self, id: &str) -> Option<String> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self
+            .sessions
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         sessions
             .get(id)
             .and_then(|session| session.lock().ok())
@@ -907,13 +941,19 @@ impl PtyManager {
     }
 
     pub fn session_count(&self) -> usize {
-        self.sessions.read().unwrap().len()
+        self.sessions
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .len()
     }
 
     /// Get a broadcast receiver and replay buffer snapshot for a PTY session (used by WebSocket subscribers).
     /// Returns (replay_data, broadcast_receiver).
     pub fn subscribe_session(&self, id: &str) -> Option<(Vec<u8>, broadcast::Receiver<Vec<u8>>)> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self
+            .sessions
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let session_arc = sessions.get(id)?;
         let session = session_arc.lock().ok()?;
         let replay = session
@@ -937,7 +977,10 @@ impl PtyManager {
 
         // Collect IDs under read lock, then drop guard before write lock
         let sessions_to_close: Vec<String> = {
-            let sessions = self.sessions.read().unwrap();
+            let sessions = self
+                .sessions
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             sessions
                 .keys()
                 .filter(|id| {
@@ -962,7 +1005,12 @@ impl PtyManager {
 
         // Now acquire write lock separately and move cleanup to background threads
         for id in &sessions_to_close {
-            if let Some(session) = self.sessions.write().unwrap().remove(id) {
+            if let Some(session) = self
+                .sessions
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .remove(id)
+            {
                 std::thread::spawn(move || {
                     if let Ok(mut session) = session.lock() {
                         session.kill_and_wait();
@@ -986,12 +1034,18 @@ mod tests {
     #[cfg(target_os = "windows")]
     use super::powershell_integration_args;
     use super::{
-        append_bash_integration_args, bytes_to_utf8_with_pending, requested_shell_path,
-        shell_startup_args, windows_path_to_git_bash,
+        append_bash_integration_args, bash_integration_init_path, bytes_to_utf8_with_pending,
+        get_default_shell, requested_shell_path, resolve_shell_from_id,
+        resolve_shell_from_path_lookup, shell_escape_single_quote, shell_program_name,
+        shell_startup_args, windows_path_to_git_bash, DesktopPendingBuffer, PtyManager,
+        DESKTOP_PENDING_BUFFER_CAP, DESKTOP_READER_TTL,
     };
+    use serial_test::serial;
     #[cfg(target_os = "windows")]
     use std::path::Path;
+    use std::time::{Duration, Instant};
 
+    #[serial]
     #[test]
     fn empty_input() {
         let (text, pending) = bytes_to_utf8_with_pending(&[]);
@@ -999,6 +1053,7 @@ mod tests {
         assert!(pending.is_empty());
     }
 
+    #[serial]
     #[test]
     fn valid_ascii() {
         let (text, pending) = bytes_to_utf8_with_pending(b"hello world");
@@ -1006,6 +1061,7 @@ mod tests {
         assert!(pending.is_empty());
     }
 
+    #[serial]
     #[test]
     fn valid_multibyte() {
         let input = "你好世界🚀".as_bytes();
@@ -1014,6 +1070,7 @@ mod tests {
         assert!(pending.is_empty());
     }
 
+    #[serial]
     #[test]
     fn incomplete_2byte_at_end() {
         // 'é' = 0xC3 0xA9 — send only the leading byte
@@ -1022,6 +1079,7 @@ mod tests {
         assert_eq!(pending, vec![0xC3]);
     }
 
+    #[serial]
     #[test]
     fn incomplete_3byte_at_end() {
         // '你' = 0xE4 0xBD 0xA0 — send first 2 bytes
@@ -1030,6 +1088,7 @@ mod tests {
         assert_eq!(pending, vec![0xE4, 0xBD]);
     }
 
+    #[serial]
     #[test]
     fn incomplete_4byte_at_end() {
         // '🚀' = 0xF0 0x9F 0x9A 0x80 — send first 3 bytes
@@ -1038,6 +1097,7 @@ mod tests {
         assert_eq!(pending, vec![0xF0, 0x9F, 0x9A]);
     }
 
+    #[serial]
     #[test]
     fn invalid_byte_in_middle() {
         // 0xFF is never valid UTF-8
@@ -1046,6 +1106,7 @@ mod tests {
         assert!(pending.is_empty());
     }
 
+    #[serial]
     #[test]
     fn invalid_middle_and_incomplete_end() {
         // Invalid byte in middle + incomplete 3-byte at end
@@ -1054,6 +1115,7 @@ mod tests {
         assert_eq!(pending, vec![0xE4, 0xBD]);
     }
 
+    #[serial]
     #[test]
     fn sequential_chunks_reassemble() {
         // Simulate '你' (0xE4 0xBD 0xA0) split across two chunks
@@ -1069,6 +1131,7 @@ mod tests {
         assert!(pending2.is_empty());
     }
 
+    #[serial]
     #[test]
     fn multiple_invalid_bytes_consecutive() {
         let (text, pending) = bytes_to_utf8_with_pending(&[0xFF, 0xFE, b'a']);
@@ -1076,6 +1139,7 @@ mod tests {
         assert!(pending.is_empty());
     }
 
+    #[serial]
     #[test]
     fn only_incomplete_bytes() {
         // Just one leading byte, nothing else
@@ -1084,22 +1148,26 @@ mod tests {
         assert_eq!(pending, vec![0xE4]);
     }
 
+    #[serial]
     #[test]
     fn zsh_uses_interactive_startup() {
         assert_eq!(shell_startup_args("/bin/zsh"), &["-i"]);
     }
 
+    #[serial]
     #[test]
     fn bash_uses_interactive_startup() {
         assert_eq!(shell_startup_args("/bin/bash"), &["-i"]);
     }
 
+    #[serial]
     #[test]
     fn pwsh_uses_default_startup_args() {
         assert_eq!(shell_startup_args("pwsh"), &[] as &[&str]);
     }
 
     #[cfg(target_os = "windows")]
+    #[serial]
     #[test]
     fn powershell_integration_args_bypass_process_execution_policy() {
         let script = Path::new(r"\\?\C:\Users\O'Brien\pwsh-integration.ps1");
@@ -1119,6 +1187,7 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn requested_shell_keeps_explicit_existing_absolute_path() {
         let exe = std::env::current_exe().unwrap();
@@ -1126,7 +1195,29 @@ mod tests {
         assert_eq!(requested_shell_path(Some(&exe_str)), exe_str);
     }
 
+    #[serial]
+    #[test]
+    fn shell_resolution_handles_auto_missing_and_path_lookup_cases() {
+        let default_shell = get_default_shell();
+
+        assert_eq!(requested_shell_path(None), default_shell);
+        assert_eq!(resolve_shell_from_id(""), get_default_shell());
+        assert_eq!(resolve_shell_from_id("auto"), get_default_shell());
+        assert_eq!(
+            resolve_shell_from_id("__worktree_manager_missing_shell__"),
+            get_default_shell()
+        );
+        assert!(resolve_shell_from_path_lookup("__worktree_manager_missing_shell__").is_none());
+
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(
+            resolve_shell_from_path_lookup("/bin/sh"),
+            Some("/bin/sh".to_string())
+        );
+    }
+
     #[cfg(target_os = "windows")]
+    #[serial]
     #[test]
     fn requested_shell_uses_git_bash_path_for_bash_id_when_available() {
         if let Some(git_bash) = super::resolve_git_bash_path() {
@@ -1134,6 +1225,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn bash_integration_args_put_init_file_before_interactive_flag() {
         let mut args = vec!["-i".to_string()];
@@ -1141,6 +1233,22 @@ mod tests {
         assert_eq!(args, vec!["--init-file", "/tmp/bash-init.sh", "-i"]);
     }
 
+    #[serial]
+    #[test]
+    fn bash_integration_init_path_requires_existing_file_and_returns_shell_path() {
+        let temp = tempfile::tempdir().expect("temp integration dir");
+
+        assert_eq!(bash_integration_init_path(temp.path()), None);
+
+        let init_file = temp.path().join("bash-init.sh");
+        std::fs::write(&init_file, "echo init").expect("write bash init");
+        let path = bash_integration_init_path(temp.path()).expect("bash init path");
+
+        assert!(path.ends_with("/bash-init.sh") || path.ends_with("\\bash-init.sh"));
+        assert!(!path.contains(r"\\?\"));
+    }
+
+    #[serial]
     #[test]
     fn windows_path_strips_long_path_prefix_and_converts_drive() {
         assert_eq!(
@@ -1149,6 +1257,7 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn windows_path_converts_drive_without_long_prefix() {
         assert_eq!(
@@ -1157,6 +1266,7 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn windows_path_preserves_unix_style_path_unchanged() {
         assert_eq!(
@@ -1165,11 +1275,314 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn windows_path_converts_uppercase_drive_letter_to_lowercase() {
         assert_eq!(
             windows_path_to_git_bash(r"D:\Work\project\bash-init.sh"),
             "/d/Work/project/bash-init.sh"
         );
+    }
+
+    #[serial]
+    #[test]
+    fn windows_path_with_multibyte_first_character_does_not_panic() {
+        let converted = std::panic::catch_unwind(|| windows_path_to_git_bash(r"好:\Users\test"));
+
+        assert_eq!(converted.unwrap(), "好:/Users/test");
+    }
+
+    #[serial]
+    #[test]
+    fn new_manager_reports_empty_session_state_without_spawning() {
+        let manager = PtyManager::new();
+
+        assert_eq!(manager.session_count(), 0);
+        assert!(!manager.has_session("missing"));
+        assert_eq!(manager.session_shell_path("missing"), None);
+        assert!(manager.subscribe_session("missing").is_none());
+    }
+
+    #[serial]
+    #[test]
+    fn missing_session_operations_return_errors_and_keep_count_zero() {
+        let mut manager = PtyManager::new();
+
+        let write_err = manager
+            .write_to_session("missing", "input")
+            .expect_err("write should fail");
+        let read_err = manager
+            .read_from_session("missing", Some("reader"))
+            .expect_err("read should fail");
+        let resize_err = manager
+            .resize_session("missing", 80, 24)
+            .expect_err("resize should fail");
+        manager
+            .close_session("missing", "unit test")
+            .expect("closing missing session is allowed");
+
+        assert_eq!(write_err, "Session not found");
+        assert_eq!(read_err, "Session not found");
+        assert_eq!(resize_err, "Session not found");
+        assert_eq!(manager.session_count(), 0);
+    }
+
+    #[serial]
+    #[test]
+    fn close_sessions_by_path_prefix_empty_manager_returns_no_sessions() {
+        let mut manager = PtyManager::new();
+
+        let closed = manager.close_sessions_by_path_prefix("/tmp/worktree", "unit test");
+
+        assert!(closed.is_empty());
+        assert_eq!(manager.session_count(), 0);
+    }
+
+    #[serial]
+    #[test]
+    fn desktop_pending_buffer_compacts_to_capacity_without_readers() {
+        let mut buffer = DesktopPendingBuffer::new();
+        let data = vec![b'x'; DESKTOP_PENDING_BUFFER_CAP + 17];
+
+        buffer.append(&data);
+
+        assert_eq!(buffer.bytes.len(), DESKTOP_PENDING_BUFFER_CAP);
+        assert_eq!(buffer.start_offset, 17);
+        assert_eq!(buffer.end_offset, (DESKTOP_PENDING_BUFFER_CAP + 17) as u64);
+        assert!(buffer.readers.is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn desktop_pending_buffer_resets_reader_that_fell_behind_start_offset() {
+        let mut buffer = DesktopPendingBuffer::new();
+        assert!(buffer.read_for_reader("reader").is_empty());
+        buffer.append(b"abcdef");
+        buffer.store_utf8_pending("reader", vec![0xE4, 0xBD]);
+
+        buffer.bytes.drain(..3);
+        buffer.start_offset = 3;
+        buffer.readers.get_mut("reader").unwrap().offset = 1;
+        let replay = buffer.read_for_reader("reader");
+
+        assert_eq!(replay, b"def");
+        assert!(buffer
+            .readers
+            .get("reader")
+            .unwrap()
+            .utf8_pending
+            .is_empty());
+    }
+
+    #[serial]
+    #[test]
+    fn desktop_pending_buffer_discards_stale_reader_before_append_and_compact() {
+        let mut buffer = DesktopPendingBuffer::new();
+        assert!(buffer.read_for_reader("stale").is_empty());
+        buffer.append(b"old");
+        buffer.readers.get_mut("stale").unwrap().last_read_at =
+            Instant::now() - DESKTOP_READER_TTL - Duration::from_secs(1);
+
+        buffer.append(b"new");
+
+        assert!(!buffer.readers.contains_key("stale"));
+        assert_eq!(buffer.start_offset, 0);
+        assert_eq!(buffer.end_offset, 6);
+        assert_eq!(buffer.bytes.iter().copied().collect::<Vec<_>>(), b"oldnew");
+    }
+
+    #[serial]
+    #[test]
+    fn desktop_pending_buffer_tracks_independent_reader_offsets() {
+        let mut buffer = DesktopPendingBuffer::new();
+
+        assert!(buffer.read_for_reader("reader-a").is_empty());
+        assert!(buffer.read_for_reader("reader-b").is_empty());
+        buffer.append(b"abc");
+        let first_a = buffer.read_for_reader("reader-a");
+        let first_b = buffer.read_for_reader("reader-b");
+        let second_a = buffer.read_for_reader("reader-a");
+        buffer.append(b"de");
+        let third_a = buffer.read_for_reader("reader-a");
+        let second_b = buffer.read_for_reader("reader-b");
+
+        assert_eq!(first_a, b"abc");
+        assert_eq!(first_b, b"abc");
+        assert!(second_a.is_empty());
+        assert_eq!(third_a, b"de");
+        assert_eq!(second_b, b"de");
+    }
+
+    #[serial]
+    #[test]
+    fn desktop_pending_buffer_prepends_pending_utf8_bytes_for_reader() {
+        let mut buffer = DesktopPendingBuffer::new();
+
+        buffer.append(&[0xE4, 0xBD]);
+        let first = buffer.read_for_reader("reader");
+        buffer.store_utf8_pending("reader", first);
+        buffer.append(&[0xA0, b'!']);
+        let second = buffer.read_for_reader("reader");
+
+        assert_eq!(second, vec![0xE4, 0xBD, 0xA0, b'!']);
+    }
+
+    #[serial]
+    #[test]
+    fn shell_name_and_quote_helpers_handle_paths_and_single_quotes() {
+        assert_eq!(shell_program_name("/bin/zsh"), "zsh");
+        assert_eq!(shell_program_name("/opt/pwsh.exe"), "pwsh");
+        assert_eq!(
+            shell_escape_single_quote("/tmp/O'Brien/init.sh"),
+            "/tmp/O'\\''Brien/init.sh"
+        );
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn unique_session_id(name: &str) -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        format!("pty-manager-test-{}-{}-{nanos}", std::process::id(), name)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn wait_for_output(manager: &PtyManager, id: &str, reader: &str, needle: &str) -> String {
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut collected = String::new();
+        while Instant::now() < deadline {
+            let chunk = manager
+                .read_from_session(id, Some(reader))
+                .expect("read pty session");
+            collected.push_str(&chunk);
+            if collected.contains(needle) {
+                return collected;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        panic!("timed out waiting for {needle:?}; collected {collected:?}");
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[serial]
+    #[test]
+    fn pty_manager_creates_reads_subscribes_resizes_and_closes_short_shell() {
+        if !std::path::Path::new("/bin/sh").exists() {
+            // Unix CI images should have /bin/sh; skip only on unusual local systems.
+            return;
+        }
+        let mut manager = PtyManager::new();
+        let cwd = tempfile::tempdir().expect("pty cwd");
+        let id = unique_session_id("lifecycle");
+
+        manager
+            .create_session(&id, cwd.path().to_str().unwrap(), 80, 24, Some("/bin/sh"))
+            .expect("create pty session");
+        assert_eq!(manager.session_count(), 1);
+        assert!(manager.has_session(&id));
+        assert_eq!(manager.session_shell_path(&id), Some("/bin/sh".to_string()));
+        assert!(manager.subscribe_session(&id).is_some());
+
+        manager
+            .write_to_session(&id, "printf WM_PTY_OK; exit\n")
+            .expect("write shell command");
+        let output = wait_for_output(&manager, &id, "reader-a", "WM_PTY_OK");
+        assert!(output.contains("WM_PTY_OK"));
+        manager
+            .resize_session(&id, 100, 30)
+            .expect("resize session");
+
+        let (replay, _) = manager.subscribe_session(&id).expect("subscribe session");
+        assert!(
+            String::from_utf8_lossy(&replay).contains("WM_PTY_OK"),
+            "replay was {:?}",
+            String::from_utf8_lossy(&replay)
+        );
+        manager
+            .close_session(&id, "unit test complete")
+            .expect("close session");
+        assert_eq!(manager.session_count(), 0);
+        assert!(!manager.has_session(&id));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[serial]
+    #[test]
+    fn pty_manager_replaces_existing_session_with_same_id() {
+        if !std::path::Path::new("/bin/sh").exists() {
+            // Unix CI images should have /bin/sh; skip only on unusual local systems.
+            return;
+        }
+        let mut manager = PtyManager::new();
+        let cwd = tempfile::tempdir().expect("pty cwd");
+        let id = unique_session_id("replace");
+
+        manager
+            .create_session(&id, cwd.path().to_str().unwrap(), 80, 24, Some("/bin/sh"))
+            .expect("create first session");
+        manager
+            .create_session(&id, cwd.path().to_str().unwrap(), 90, 25, Some("/bin/sh"))
+            .expect("replace session");
+
+        assert_eq!(manager.session_count(), 1);
+        assert!(manager.has_session(&id));
+        manager.close_session(&id, "unit test cleanup").unwrap();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[serial]
+    #[test]
+    fn close_sessions_by_path_prefix_closes_exact_and_child_session_ids() {
+        if !std::path::Path::new("/bin/sh").exists() {
+            // Unix CI images should have /bin/sh; skip only on unusual local systems.
+            return;
+        }
+        let mut manager = PtyManager::new();
+        let cwd = tempfile::tempdir().expect("pty cwd");
+        let prefix = cwd.path().to_string_lossy().replace(['/', '\\', '#'], "-");
+        let exact_id = format!("pty-{}", prefix);
+        let child_id = format!("pty-{}-extra", prefix);
+        let unrelated_id = unique_session_id("unrelated");
+
+        manager
+            .create_session(
+                &exact_id,
+                cwd.path().to_str().unwrap(),
+                80,
+                24,
+                Some("/bin/sh"),
+            )
+            .expect("create exact session");
+        manager
+            .create_session(
+                &child_id,
+                cwd.path().to_str().unwrap(),
+                80,
+                24,
+                Some("/bin/sh"),
+            )
+            .expect("create child session");
+        manager
+            .create_session(
+                &unrelated_id,
+                cwd.path().to_str().unwrap(),
+                80,
+                24,
+                Some("/bin/sh"),
+            )
+            .expect("create unrelated session");
+
+        let mut closed =
+            manager.close_sessions_by_path_prefix(cwd.path().to_str().unwrap(), "unit test");
+        closed.sort();
+
+        assert_eq!(closed, vec![exact_id.clone(), child_id.clone()]);
+        assert!(!manager.has_session(&exact_id));
+        assert!(!manager.has_session(&child_id));
+        assert!(manager.has_session(&unrelated_id));
+        manager
+            .close_session(&unrelated_id, "unit test cleanup")
+            .unwrap();
     }
 }

@@ -1,12 +1,98 @@
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Output};
+use std::time::Duration;
 
 use serde::Serialize;
+use wait_timeout::ChildExt;
 
 use crate::types::OpenEditorRequest;
 use crate::utils::{friendly_io_error, normalize_path};
+use crate::{pending_crash_report, CrashReport};
+
+const TOOL_DETECTION_TIMEOUT_SECS: u64 = 10;
 
 // ==================== Tauri 命令：工具 ====================
+
+#[tauri::command]
+pub(crate) fn get_crash_report() -> Option<CrashReport> {
+    match pending_crash_report().lock() {
+        Ok(mut pending) => pending.take(),
+        Err(e) => {
+            log::error!("[crash] failed to lock pending crash report: {}", e);
+            None
+        }
+    }
+}
+
+fn command_for_log(cmd: &Command) -> String {
+    let mut parts = Vec::new();
+    parts.push(cmd.get_program().to_string_lossy().to_string());
+    parts.extend(cmd.get_args().map(|arg| arg.to_string_lossy().to_string()));
+    parts.join(" ")
+}
+
+#[cfg(target_os = "windows")]
+fn hide_command_window(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+
+fn output_with_timeout(cmd: &mut Command, timeout_secs: u64) -> Option<Output> {
+    use std::io::Read;
+
+    let command = command_for_log(cmd);
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            log::warn!("[system] Failed to spawn '{}': {}", command, e);
+            return None;
+        }
+    };
+
+    match child.wait_timeout(Duration::from_secs(timeout_secs)) {
+        Ok(Some(status)) => {
+            let mut stdout = Vec::new();
+            if let Some(mut pipe) = child.stdout.take() {
+                if let Err(e) = pipe.read_to_end(&mut stdout) {
+                    log::warn!("[system] Failed to read stdout from '{}': {}", command, e);
+                    return None;
+                }
+            }
+
+            let mut stderr = Vec::new();
+            if let Some(mut pipe) = child.stderr.take() {
+                if let Err(e) = pipe.read_to_end(&mut stderr) {
+                    log::warn!("[system] Failed to read stderr from '{}': {}", command, e);
+                    return None;
+                }
+            }
+
+            Some(Output {
+                status,
+                stdout,
+                stderr,
+            })
+        }
+        Ok(None) => {
+            log::warn!(
+                "[system] Command timed out after {}s: {}",
+                timeout_secs,
+                command
+            );
+            let _ = child.kill();
+            let _ = child.wait();
+            None
+        }
+        Err(e) => {
+            log::warn!("[system] Failed while waiting for '{}': {}", command, e);
+            let _ = child.kill();
+            let _ = child.wait();
+            None
+        }
+    }
+}
 
 #[cfg(any(target_os = "windows", test))]
 #[derive(Debug, PartialEq, Eq)]
@@ -710,7 +796,7 @@ pub struct DetectedTool {
     pub icon: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct DetectedTools {
     pub git: Vec<DetectedTool>,
     pub terminals: Vec<DetectedTool>,
@@ -721,15 +807,13 @@ pub struct DetectedTools {
 fn check_executable(name: &str) -> Option<String> {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let output = Command::new("where")
+        let mut command = Command::new("where");
+        command
             .arg(name)
-            .creation_flags(CREATE_NO_WINDOW)
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .ok()?;
+            .stderr(std::process::Stdio::null());
+        hide_command_window(&mut command);
+        let output = output_with_timeout(&mut command, TOOL_DETECTION_TIMEOUT_SECS)?;
         if output.status.success() {
             let s = String::from_utf8_lossy(&output.stdout);
             return s.lines().next().map(|l| l.trim().to_string());
@@ -738,12 +822,12 @@ fn check_executable(name: &str) -> Option<String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let output = Command::new("/usr/bin/which")
+        let mut command = Command::new("/usr/bin/which");
+        command
             .arg(name)
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .ok()?;
+            .stderr(std::process::Stdio::null());
+        let output = output_with_timeout(&mut command, TOOL_DETECTION_TIMEOUT_SECS)?;
         if output.status.success() {
             let s = String::from_utf8_lossy(&output.stdout);
             return s.lines().next().map(|l| l.trim().to_string());
@@ -965,9 +1049,6 @@ fn detect_terminals() -> Vec<DetectedTool> {
 /// Returns actual .exe paths, enabling correct icon extraction.
 #[cfg(target_os = "windows")]
 fn detect_editors_via_registry() -> Vec<DetectedTool> {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
     // Each entry: (display_name_substring, id, friendly_name, exe_relative_to_InstallLocation)
     // Paths use Windows backslash. Pattern matching is case-insensitive (-like).
     let ps_script = r#"
@@ -1019,16 +1100,16 @@ $result = @($found.Values)
 if ($result.Count -gt 0) { ConvertTo-Json -InputObject $result -Compress } else { Write-Output '[]' }
 "#;
 
-    let output = match Command::new("powershell")
+    let mut command = Command::new("powershell");
+    command
         .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
-        .creation_flags(CREATE_NO_WINDOW)
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .output()
-    {
-        Ok(o) => o,
-        Err(e) => {
-            log::warn!("[system] Registry editor scan failed: {}", e);
+        .stderr(std::process::Stdio::null());
+    hide_command_window(&mut command);
+    let output = match output_with_timeout(&mut command, TOOL_DETECTION_TIMEOUT_SECS) {
+        Some(output) => output,
+        None => {
+            log::warn!("[system] Registry editor scan failed or timed out");
             return Vec::new();
         }
     };
@@ -1171,9 +1252,6 @@ fn detect_editors() -> Vec<DetectedTool> {
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
         // Primary: registry-based detection — handles all install locations (Programs, Toolbox, etc.)
         // and provides actual .exe paths for correct icon extraction.
         for tool in detect_editors_via_registry() {
@@ -1208,13 +1286,13 @@ fn detect_editors() -> Vec<DetectedTool> {
 
         // Codex UWP (Windows Store app — not in the standard uninstall registry)
         if !results.iter().any(|r| r.id == "codex") {
-            let ps_result = Command::new("powershell")
+            let mut command = Command::new("powershell");
+            command
                 .args(["-NoProfile", "-Command", "Get-AppxPackage -Name 'OpenAI.Codex' | Select-Object -ExpandProperty InstallLocation"])
-                .creation_flags(CREATE_NO_WINDOW)
                 .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::null())
-                .output();
-            if let Ok(output) = ps_result {
+                .stderr(std::process::Stdio::null());
+            hide_command_window(&mut command);
+            if let Some(output) = output_with_timeout(&mut command, TOOL_DETECTION_TIMEOUT_SECS) {
                 if output.status.success() {
                     let location = String::from_utf8_lossy(&output.stdout).trim().to_string();
                     if !location.is_empty() {
@@ -1348,8 +1426,7 @@ fn detect_shells() -> Vec<DetectedTool> {
     results
 }
 
-#[tauri::command]
-pub(crate) fn detect_tools() -> DetectedTools {
+fn detect_tools_blocking() -> DetectedTools {
     log::info!("[system] Detecting available tools...");
     let tools = DetectedTools {
         git: detect_git(),
@@ -1368,8 +1445,18 @@ pub(crate) fn detect_tools() -> DetectedTools {
     tools
 }
 
-pub fn detect_tools_internal() -> DetectedTools {
-    detect_tools()
+#[tauri::command]
+pub(crate) async fn detect_tools() -> DetectedTools {
+    detect_tools_internal().await
+}
+
+pub async fn detect_tools_internal() -> DetectedTools {
+    tokio::task::spawn_blocking(detect_tools_blocking)
+        .await
+        .unwrap_or_else(|e| {
+            log::warn!("[system] Tool detection task failed: {}", e);
+            DetectedTools::default()
+        })
 }
 
 #[tauri::command]
@@ -1394,10 +1481,14 @@ pub fn terminate_process_impl(pid: u32) -> Result<(), String> {
     // be the actual holders of file handles, so killing only the parent would
     // leave those handles open and the archive would still be blocked.
     #[cfg(target_os = "windows")]
-    let output = Command::new("taskkill")
-        .args(["/PID", &pid.to_string(), "/T", "/F"])
-        .output()
-        .map_err(|e| format!("Failed to start taskkill: {}", e))?;
+    let output = {
+        let mut command = Command::new("taskkill");
+        command.args(["/PID", &pid.to_string(), "/T", "/F"]);
+        hide_command_window(&mut command);
+        command
+            .output()
+            .map_err(|e| format!("Failed to start taskkill: {}", e))?
+    };
 
     #[cfg(not(target_os = "windows"))]
     let output = Command::new("kill")
@@ -1771,9 +1862,212 @@ pub fn get_app_icon_internal(path: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_windows_terminal_launch, WindowsTerminalLaunch};
-    use std::path::PathBuf;
+    use super::*;
+    use crate::{pending_crash_report, CrashReport};
+    use axum::{http::StatusCode, response::IntoResponse, routing::get, Json, Router};
+    use once_cell::sync::Lazy;
+    use serde_json::json;
+    use serial_test::serial;
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+    use std::process::{Command, Stdio};
+    use std::sync::{Mutex, MutexGuard};
+    use std::time::{Duration, Instant};
+    use tokio::net::TcpListener;
 
+    static SYSTEM_TEST_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    fn lock_system_test() -> MutexGuard<'static, ()> {
+        SYSTEM_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+            let previous = std::env::var_os(key);
+            std::env::set_var(key, value);
+            Self { key, previous }
+        }
+
+        fn remove(key: &'static str) -> Self {
+            let previous = std::env::var_os(key);
+            std::env::remove_var(key);
+            Self { key, previous }
+        }
+
+        fn prepend_path(dir: &Path) -> Self {
+            let previous = std::env::var_os("PATH");
+            let mut paths = vec![dir.to_path_buf()];
+            if let Some(old_path) = previous.as_ref() {
+                paths.extend(std::env::split_paths(old_path));
+            }
+            let joined = std::env::join_paths(paths).expect("join PATH entries");
+            std::env::set_var("PATH", joined);
+            Self {
+                key: "PATH",
+                previous,
+            }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.previous {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+
+    struct GlobalConfigCacheGuard {
+        previous: Option<crate::GlobalConfig>,
+    }
+
+    impl GlobalConfigCacheGuard {
+        fn clear() -> Self {
+            let previous = {
+                let mut cache = crate::state::GLOBAL_CONFIG_CACHE
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                std::mem::take(&mut *cache)
+            };
+            Self { previous }
+        }
+    }
+
+    impl Drop for GlobalConfigCacheGuard {
+        fn drop(&mut self) {
+            let mut cache = crate::state::GLOBAL_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *cache = self.previous.take();
+        }
+    }
+
+    fn shell_quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
+    }
+
+    #[cfg(unix)]
+    fn make_fake_command(dir: &Path, name: &str, script_body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = dir.join(name);
+        std::fs::write(&path, format!("#!/bin/sh\n{}\n", script_body)).expect("write fake command");
+        let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&path, permissions).expect("chmod fake command");
+        path
+    }
+
+    #[cfg(windows)]
+    fn make_fake_command(dir: &Path, name: &str, script_body: &str) -> PathBuf {
+        let path = dir.join(format!("{}.cmd", name));
+        std::fs::write(&path, script_body).expect("write fake command");
+        path
+    }
+
+    fn make_recording_command(dir: &Path, name: &str, record: &Path) -> PathBuf {
+        #[cfg(windows)]
+        {
+            let body = format!(
+                "@echo off\r\n(for %%A in (%*) do @echo %%~A) > \"{}\"\r\n",
+                record.display()
+            );
+            make_fake_command(dir, name, &body)
+        }
+        #[cfg(not(windows))]
+        {
+            make_fake_command(
+                dir,
+                name,
+                &format!("printf '%s\\n' \"$@\" > {}", shell_quote(record)),
+            )
+        }
+    }
+
+    fn read_recorded_args(record: &Path) -> Vec<String> {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline {
+            if let Ok(content) = std::fs::read_to_string(record) {
+                if !content.is_empty() {
+                    return content.lines().map(str::to_string).collect();
+                }
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("recorded command args were not written to {:?}", record);
+    }
+
+    async fn spawn_manifest_server(
+        status: StatusCode,
+        body: serde_json::Value,
+    ) -> Result<(String, tokio::task::JoinHandle<()>), String> {
+        let app = Router::new().route(
+            "/{*path}",
+            get(move || {
+                let body = body.clone();
+                async move {
+                    if status.is_success() {
+                        Json(body).into_response()
+                    } else {
+                        (status, body.to_string()).into_response()
+                    }
+                }
+            }),
+        );
+        let listener = match TcpListener::bind("127.0.0.1:0").await {
+            Ok(listener) => listener,
+            Err(err) => return Err(format!("local bind unavailable: {}", err)),
+        };
+        let addr = listener.local_addr().expect("manifest server addr");
+        let handle = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        Ok((format!("http://{}/", addr), handle))
+    }
+
+    async fn spawn_text_server(
+        status: StatusCode,
+        body: &'static str,
+    ) -> Result<(String, tokio::task::JoinHandle<()>), String> {
+        let app = Router::new().route(
+            "/{*path}",
+            get(move || async move { (status, body).into_response() }),
+        );
+        let listener = match TcpListener::bind("127.0.0.1:0").await {
+            Ok(listener) => listener,
+            Err(err) => return Err(format!("local bind unavailable: {}", err)),
+        };
+        let addr = listener.local_addr().expect("text server addr");
+        let handle = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        Ok((format!("http://{}/", addr), handle))
+    }
+
+    fn command_for_script(script: &str) -> Command {
+        #[cfg(target_os = "windows")]
+        {
+            let mut command = Command::new("cmd");
+            command.args(["/C", script]);
+            command
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let mut command = Command::new("sh");
+            command.args(["-c", script]);
+            command
+        }
+    }
+
+    #[serial]
     #[test]
     fn windows_terminal_uses_requested_shell_instead_of_default_profile() {
         let launch =
@@ -1793,6 +2087,7 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn custom_terminal_path_is_launched_directly() {
         let launch = build_windows_terminal_launch(
@@ -1808,6 +2103,816 @@ mod tests {
                 args: Vec::new(),
                 current_dir: Some(PathBuf::from(r"C:\repo")),
             }
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn command_for_log_includes_program_and_arguments() {
+        let mut command = Command::new("test-program");
+        command.args(["--flag", "value with space"]);
+
+        assert_eq!(
+            command_for_log(&command),
+            "test-program --flag value with space"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn output_with_timeout_captures_fast_success_stdout_and_stderr() {
+        #[cfg(target_os = "windows")]
+        let mut command = command_for_script("echo stdout-text && echo stderr-text 1>&2");
+        #[cfg(not(target_os = "windows"))]
+        let mut command = command_for_script("printf stdout-text; printf stderr-text >&2");
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        let output = output_with_timeout(&mut command, 1).expect("command should exit");
+
+        assert!(output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("stdout-text"),
+            "stdout was {:?}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("stderr-text"),
+            "stderr was {:?}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn output_with_timeout_returns_non_success_status_for_fast_failure() {
+        #[cfg(target_os = "windows")]
+        let mut command = command_for_script("exit /B 7");
+        #[cfg(not(target_os = "windows"))]
+        let mut command = command_for_script("exit 7");
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        let output = output_with_timeout(&mut command, 1).expect("command should exit");
+
+        assert!(!output.status.success());
+        assert_eq!(output.status.code(), Some(7));
+    }
+
+    #[serial]
+    #[test]
+    fn output_with_timeout_returns_none_for_missing_program() {
+        let mut command = Command::new("__worktree_manager_missing_program__");
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        assert!(output_with_timeout(&mut command, 1).is_none());
+    }
+
+    #[serial]
+    #[test]
+    fn output_with_timeout_kills_process_when_deadline_expires() {
+        #[cfg(target_os = "windows")]
+        let mut command = command_for_script("ping -n 3 127.0.0.1 > nul");
+        #[cfg(not(target_os = "windows"))]
+        let mut command = command_for_script("sleep 2");
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        let started = Instant::now();
+        let output = output_with_timeout(&mut command, 0);
+
+        assert!(output.is_none());
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "timeout branch should return promptly"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn windows_shell_command_maps_shell_ids_and_custom_paths() {
+        assert!(windows_shell_command(None).is_empty());
+        assert!(windows_shell_command(Some("auto")).is_empty());
+        assert_eq!(windows_shell_command(Some("cmd")), vec!["cmd.exe"]);
+        assert_eq!(windows_shell_command(Some("pwsh")), vec!["pwsh.exe"]);
+        assert_eq!(
+            windows_shell_command(Some(r"C:\Tools\nu.exe")),
+            vec![r"C:\Tools\nu.exe"]
+        );
+
+        let bash = windows_shell_command(Some("bash"));
+        assert_eq!(bash.len(), 3);
+        assert_eq!(bash[1], "--login");
+        assert_eq!(bash[2], "-i");
+    }
+
+    #[serial]
+    #[test]
+    fn path_like_executable_detects_absolute_and_separator_paths() {
+        assert!(path_like_executable(r"C:\Tools\app.exe"));
+        assert!(path_like_executable("/usr/local/bin/app"));
+        assert!(path_like_executable("relative/app"));
+        assert!(!path_like_executable("cmd"));
+    }
+
+    #[serial]
+    #[test]
+    fn editor_cli_command_maps_known_editors_and_defaults_to_vscode() {
+        assert_eq!(editor_cli_command("vscode"), "code");
+        assert_eq!(editor_cli_command("cursor"), "cursor");
+        assert_eq!(editor_cli_command("antigravity"), "antigravity");
+        assert_eq!(editor_cli_command("idea"), "idea");
+        assert_eq!(editor_cli_command("codex"), "codex");
+        assert_eq!(editor_cli_command("unknown"), "code");
+    }
+
+    #[serial]
+    #[test]
+    fn gitbash_terminal_launch_builds_cd_argument_without_spawning() {
+        let launch = build_windows_terminal_launch(r"C:\repo", Some("gitbash"), None);
+
+        assert!(launch.program.ends_with("git-bash.exe"), "{launch:?}");
+        assert_eq!(launch.args, vec![r"--cd=C:\repo".to_string()]);
+        assert_eq!(launch.current_dir, None);
+    }
+
+    #[serial]
+    #[test]
+    fn windows_terminal_cmd_launch_plan_uses_start_and_cd() {
+        let launch = build_windows_terminal_launch(r"C:\repo with spaces", Some("cmd"), None);
+
+        assert_eq!(launch.program, "cmd");
+        assert_eq!(
+            launch.args,
+            vec![
+                "/c".to_string(),
+                "start".to_string(),
+                "cmd".to_string(),
+                "/k".to_string(),
+                r"cd /d C:\repo with spaces".to_string()
+            ]
+        );
+        assert_eq!(launch.current_dir, None);
+    }
+
+    #[serial]
+    #[test]
+    fn windows_terminal_powershell_launch_plan_sets_location() {
+        let launch =
+            build_windows_terminal_launch(r"C:\repo with spaces", Some("powershell"), None);
+
+        assert_eq!(launch.program, "cmd");
+        assert_eq!(
+            launch.args,
+            vec![
+                "/c".to_string(),
+                "start".to_string(),
+                "powershell".to_string(),
+                "-NoExit".to_string(),
+                "-Command".to_string(),
+                r"Set-Location 'C:\repo with spaces'".to_string()
+            ]
+        );
+        assert_eq!(launch.current_dir, None);
+    }
+
+    #[serial]
+    #[test]
+    fn windows_terminal_auto_launch_plan_appends_requested_shell() {
+        let launch = build_windows_terminal_launch(r"C:\repo", Some("auto"), Some("pwsh"));
+
+        assert_eq!(launch.program, "wt");
+        assert_eq!(
+            launch.args,
+            vec![
+                "-d".to_string(),
+                r"C:\repo".to_string(),
+                "pwsh.exe".to_string()
+            ]
+        );
+        assert_eq!(launch.current_dir, None);
+    }
+
+    #[serial]
+    #[test]
+    fn windows_terminal_custom_launch_plan_sets_current_dir() {
+        let launch = build_windows_terminal_launch(r"C:\repo", Some("custom-term"), None);
+
+        assert_eq!(launch.program, "custom-term");
+        assert!(launch.args.is_empty());
+        assert_eq!(launch.current_dir, Some(PathBuf::from(r"C:\repo")));
+    }
+
+    #[serial]
+    #[test]
+    fn get_app_version_returns_package_version() {
+        assert_eq!(get_app_version(), env!("CARGO_PKG_VERSION"));
+    }
+
+    #[serial]
+    #[test]
+    fn detect_tools_blocking_finds_fake_cli_tools_from_path() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("fake tool dir");
+        for name in [
+            "code",
+            "cursor",
+            "antigravity",
+            "idea",
+            "codex",
+            "zed",
+            "sublime_text",
+            "zsh",
+            "bash",
+            "fish",
+            "nu",
+            "gnome-terminal",
+            "konsole",
+            "xterm",
+            "alacritty",
+            "kitty",
+            "ghostty",
+            "wezterm",
+            "tilix",
+        ] {
+            make_fake_command(temp.path(), name, "exit 0");
+        }
+        let _path = EnvVarGuard::prepend_path(temp.path());
+
+        let tools = detect_tools_blocking();
+
+        assert!(tools.git.iter().any(|tool| tool.id == "git"));
+        for id in [
+            "vscode",
+            "cursor",
+            "antigravity",
+            "idea",
+            "codex",
+            "zed",
+            "sublime",
+        ] {
+            assert!(
+                tools.editors.iter().any(|tool| tool.id == id),
+                "missing editor {id}: {:?}",
+                tools.editors
+            );
+        }
+        for id in ["zsh", "bash", "fish", "nu"] {
+            assert!(
+                tools.shells.iter().any(|tool| tool.id == id),
+                "missing shell {id}: {:?}",
+                tools.shells
+            );
+        }
+        #[cfg(target_os = "linux")]
+        for id in [
+            "gnome-terminal",
+            "konsole",
+            "xterm",
+            "alacritty",
+            "kitty",
+            "ghostty",
+            "wezterm",
+            "tilix",
+        ] {
+            assert!(
+                tools.terminals.iter().any(|tool| tool.id == id),
+                "missing terminal {id}: {:?}",
+                tools.terminals
+            );
+        }
+        #[cfg(target_os = "macos")]
+        assert!(tools.terminals.iter().any(|tool| tool.id == "terminal"));
+    }
+
+    #[serial]
+    #[test]
+    fn get_crash_report_takes_pending_report_once() {
+        let _serial = lock_system_test();
+        let mut pending = pending_crash_report()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let previous = pending.take();
+        *pending = Some(CrashReport {
+            abnormal_exit: true,
+            crash_detail: Some("panic at startup".to_string()),
+            previous_session_info: Some("session.running".to_string()),
+        });
+        drop(pending);
+
+        let first = get_crash_report().expect("pending crash report");
+        let second = get_crash_report();
+
+        assert!(first.abnormal_exit);
+        assert_eq!(first.crash_detail.as_deref(), Some("panic at startup"));
+        assert_eq!(
+            first.previous_session_info.as_deref(),
+            Some("session.running")
+        );
+        assert!(second.is_none());
+
+        let mut pending = pending_crash_report()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *pending = previous;
+    }
+
+    #[serial]
+    #[test]
+    fn terminate_process_rejects_invalid_and_current_process_ids() {
+        assert_eq!(
+            terminate_process_impl(0),
+            Err("Invalid process id".to_string())
+        );
+        assert_eq!(
+            terminate_process_impl(std::process::id()),
+            Err("Refusing to terminate the current app process".to_string())
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn open_editor_at_path_uses_custom_executable_and_path_argument() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let record = temp.path().join("editor-args.txt");
+        let editor = make_recording_command(temp.path(), "custom-editor", &record);
+        let request = crate::types::OpenEditorRequest {
+            editor: "cursor".to_string(),
+            path: temp.path().join("workspace").to_string_lossy().to_string(),
+        };
+
+        open_editor_at_path(&request, Some(editor.to_str().unwrap())).expect("spawn editor");
+        std::thread::sleep(Duration::from_millis(50));
+
+        assert_eq!(read_recorded_args(&record), vec![request.path]);
+    }
+
+    #[serial]
+    #[test]
+    fn open_editor_at_path_reports_missing_custom_executable() {
+        let request = crate::types::OpenEditorRequest {
+            editor: "cursor".to_string(),
+            path: "/tmp/workspace".to_string(),
+        };
+        let missing = tempfile::tempdir().unwrap().path().join("missing-editor");
+
+        let err = open_editor_at_path(&request, Some(missing.to_str().unwrap())).unwrap_err();
+
+        assert!(err.contains("无法打开编辑器"));
+        assert!(err.contains("missing-editor"));
+    }
+
+    #[serial]
+    #[test]
+    fn open_editor_at_path_uses_codex_app_subcommand_for_custom_executable() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let record = temp.path().join("codex-editor-args.txt");
+        let editor = make_recording_command(temp.path(), "custom-codex", &record);
+        let request = crate::types::OpenEditorRequest {
+            editor: "codex".to_string(),
+            path: temp.path().join("workspace").to_string_lossy().to_string(),
+        };
+
+        open_editor_at_path(&request, Some(editor.to_str().unwrap())).expect("spawn codex");
+
+        assert_eq!(
+            read_recorded_args(&record),
+            vec!["app".to_string(), request.path]
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[serial]
+    #[test]
+    fn open_in_terminal_uses_open_with_selected_macos_app() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let record = temp.path().join("open-args.txt");
+        make_recording_command(temp.path(), "open", &record);
+        let _path = EnvVarGuard::prepend_path(temp.path());
+        let workspace = temp.path().join("space dir");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        open_in_terminal(
+            workspace.to_string_lossy().to_string(),
+            Some("warp".to_string()),
+            Some("bash".to_string()),
+        )
+        .expect("spawn open");
+        std::thread::sleep(Duration::from_millis(50));
+
+        assert_eq!(
+            read_recorded_args(&record),
+            vec![
+                "-a".to_string(),
+                "Warp".to_string(),
+                workspace.to_string_lossy().to_string()
+            ]
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[serial]
+    #[test]
+    fn open_in_terminal_uses_first_available_linux_terminal_with_cwd() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let record = temp.path().join("terminal-cwd.txt");
+        make_fake_command(
+            temp.path(),
+            "x-terminal-emulator",
+            &format!("pwd > {}", shell_quote(&record)),
+        );
+        let _path = EnvVarGuard::prepend_path(temp.path());
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        open_in_terminal(workspace.to_string_lossy().to_string(), None, None)
+            .expect("spawn terminal");
+        std::thread::sleep(Duration::from_millis(50));
+
+        assert_eq!(
+            std::fs::read_to_string(&record).unwrap().trim(),
+            workspace.to_string_lossy()
+        );
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[serial]
+    #[test]
+    fn reveal_in_finder_spawns_platform_file_manager_with_path() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let record = temp.path().join("reveal-args.txt");
+        #[cfg(target_os = "macos")]
+        make_recording_command(temp.path(), "open", &record);
+        #[cfg(target_os = "linux")]
+        make_recording_command(temp.path(), "xdg-open", &record);
+        let _path = EnvVarGuard::prepend_path(temp.path());
+        let target = temp.path().join("target folder");
+        std::fs::create_dir_all(&target).unwrap();
+
+        reveal_in_finder(target.to_string_lossy().to_string()).expect("spawn file manager");
+        std::thread::sleep(Duration::from_millis(50));
+
+        assert_eq!(
+            read_recorded_args(&record),
+            vec![target.to_string_lossy().to_string()]
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[serial]
+    #[test]
+    fn log_dir_uses_home_library_logs_and_open_launcher() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let bin = tempfile::tempdir().expect("bin dir");
+        let record = temp.path().join("log-open-args.txt");
+        make_recording_command(bin.path(), "open", &record);
+        let _home = EnvVarGuard::set("HOME", temp.path());
+        let _path = EnvVarGuard::prepend_path(bin.path());
+
+        let log_dir = get_platform_log_dir().expect("mac log dir");
+        open_log_dir().expect("open log dir");
+        std::thread::sleep(Duration::from_millis(50));
+
+        assert_eq!(
+            log_dir,
+            temp.path().join("Library/Logs/com.guo.worktree-manager")
+        );
+        assert!(log_dir.exists());
+        assert_eq!(
+            read_recorded_args(&record),
+            vec![log_dir.to_string_lossy().to_string()]
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[serial]
+    #[test]
+    fn log_dir_uses_xdg_data_home_and_xdg_open_launcher() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let bin = tempfile::tempdir().expect("bin dir");
+        let record = temp.path().join("log-open-args.txt");
+        make_recording_command(bin.path(), "xdg-open", &record);
+        let data_home = temp.path().join("data");
+        let _xdg = EnvVarGuard::set("XDG_DATA_HOME", &data_home);
+        let _path = EnvVarGuard::prepend_path(bin.path());
+
+        let log_dir = get_platform_log_dir().expect("linux log dir");
+        open_log_dir().expect("open log dir");
+        std::thread::sleep(Duration::from_millis(50));
+
+        assert_eq!(log_dir, data_home.join("com.guo.worktree-manager/logs"));
+        assert!(log_dir.exists());
+        assert_eq!(
+            read_recorded_args(&record),
+            vec![log_dir.to_string_lossy().to_string()]
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[serial]
+    #[test]
+    fn get_platform_log_dir_reports_missing_home_on_macos() {
+        let _serial = lock_system_test();
+        let _home = EnvVarGuard::remove("HOME");
+
+        assert_eq!(get_platform_log_dir(), Err("无法获取用户目录".to_string()));
+    }
+
+    #[serial]
+    #[test]
+    fn get_app_icon_returns_none_for_missing_path_without_extracting() {
+        let missing = tempfile::tempdir()
+            .unwrap()
+            .path()
+            .join("missing-app")
+            .to_string_lossy()
+            .to_string();
+
+        assert!(get_app_icon(missing).is_none());
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn check_mirror_update_parses_manifest_and_adds_current_version() {
+        let Ok((base_url, server)) = spawn_manifest_server(
+            StatusCode::OK,
+            json!({
+                "version": "9.8.7",
+                "pub_date": "2026-06-11T00:00:00Z",
+                "notes": "unit manifest"
+            }),
+        )
+        .await
+        else {
+            // The managed sandbox can deny loopback binds; avoid external APIs in that case.
+            return;
+        };
+
+        let manifest = check_mirror_update(base_url)
+            .await
+            .expect("mirror manifest");
+        server.abort();
+
+        assert_eq!(manifest["version"], "9.8.7");
+        assert_eq!(manifest["pub_date"], "2026-06-11T00:00:00Z");
+        assert_eq!(manifest["notes"], "unit manifest");
+        assert_eq!(manifest["current_version"], env!("CARGO_PKG_VERSION"));
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn check_mirror_update_reports_non_success_http_status() {
+        let Ok((base_url, server)) =
+            spawn_manifest_server(StatusCode::BAD_GATEWAY, json!({"error": "bad mirror"})).await
+        else {
+            // The managed sandbox can deny loopback binds; avoid external APIs in that case.
+            return;
+        };
+
+        let err = check_mirror_update(base_url).await.unwrap_err();
+        server.abort();
+
+        assert_eq!(err, "Mirror returned HTTP 502 Bad Gateway");
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn check_mirror_update_reports_invalid_mirror_url_without_http() {
+        let err = check_mirror_update("not a url".to_string())
+            .await
+            .unwrap_err();
+
+        assert!(err.contains("Failed to fetch mirror manifest"), "{err}");
+    }
+
+    #[serial]
+    #[test]
+    fn save_custom_mirrors_persists_config_and_get_mirror_sources_appends_them() {
+        let _serial = lock_system_test();
+        let _cache = GlobalConfigCacheGuard::clear();
+        let temp = tempfile::tempdir().expect("temp home");
+        let _home = EnvVarGuard::set("HOME", temp.path());
+        let custom = crate::types::CustomMirror {
+            name: "Local Mirror".to_string(),
+            url: "https://mirror.example/".to_string(),
+        };
+
+        save_custom_mirrors(vec![custom.clone()]).expect("save custom mirror");
+        let sources = get_mirror_sources();
+        let config_text = std::fs::read_to_string(crate::config::get_global_config_path()).unwrap();
+        let config_json: serde_json::Value = serde_json::from_str(&config_text).unwrap();
+
+        let saved = sources
+            .iter()
+            .find(|source| source.name == custom.name)
+            .expect("custom mirror source");
+        assert_eq!(saved.url, custom.url);
+        assert!(!saved.builtin);
+        assert_eq!(config_json["custom_mirrors"][0]["name"], custom.name);
+        assert_eq!(config_json["custom_mirrors"][0]["url"], custom.url);
+    }
+
+    #[serial]
+    #[test]
+    fn open_in_editor_wrapper_uses_custom_executable() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let record = temp.path().join("wrapped-editor-args.txt");
+        let editor = make_recording_command(temp.path(), "wrapped-editor", &record);
+        let request_path = temp.path().join("workspace").to_string_lossy().to_string();
+        let request = crate::types::OpenEditorRequest {
+            editor: "vscode".to_string(),
+            path: request_path.clone(),
+        };
+
+        open_in_editor(request, Some(editor.to_string_lossy().to_string()))
+            .expect("open editor through command wrapper");
+
+        assert_eq!(read_recorded_args(&record), vec![request_path]);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[serial]
+    #[test]
+    fn macos_editor_app_launch_records_known_app_names() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let record = temp.path().join("open-editor-args.txt");
+        make_recording_command(temp.path(), "open", &record);
+        let _path = EnvVarGuard::prepend_path(temp.path());
+        let workspace = temp.path().join("space dir");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let request = crate::types::OpenEditorRequest {
+            editor: "idea".to_string(),
+            path: workspace.to_string_lossy().to_string(),
+        };
+
+        open_editor_at_path(&request, None).expect("open editor app through macOS open");
+
+        assert_eq!(
+            read_recorded_args(&record),
+            vec![
+                "-a".to_string(),
+                "IntelliJ IDEA".to_string(),
+                workspace.to_string_lossy().to_string()
+            ]
+        );
+        assert_eq!(editor_app_name("vscode"), "Visual Studio Code");
+        assert_eq!(editor_app_name("cursor"), "Cursor");
+        assert_eq!(editor_app_name("antigravity"), "Antigravity");
+        assert_eq!(editor_app_name("codex"), "Codex");
+        assert_eq!(editor_app_name("unknown"), "Visual Studio Code");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[serial]
+    #[test]
+    fn macos_custom_app_and_icon_failure_paths_return_without_display() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let record = temp.path().join("custom-app-open-args.txt");
+        make_recording_command(temp.path(), "open", &record);
+        let _path = EnvVarGuard::prepend_path(temp.path());
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let app_bundle = temp.path().join("Custom Editor.app");
+        std::fs::create_dir_all(&app_bundle).expect("create custom app bundle");
+        let request = crate::types::OpenEditorRequest {
+            editor: "cursor".to_string(),
+            path: workspace.to_string_lossy().to_string(),
+        };
+
+        open_editor_at_path(&request, Some(app_bundle.to_str().unwrap()))
+            .expect("custom .app should be launched through open -a");
+        assert_eq!(
+            read_recorded_args(&record),
+            vec![
+                "-a".to_string(),
+                app_bundle.to_string_lossy().to_string(),
+                workspace.to_string_lossy().to_string()
+            ]
+        );
+
+        let app_contents = app_bundle.join("Contents");
+        let resources = app_contents.join("Resources");
+        std::fs::create_dir_all(&resources).expect("create app resources");
+        std::fs::write(
+            app_contents.join("Info.plist"),
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleIconFile</key><string>MissingIcon</string></dict></plist>
+"#,
+        )
+        .expect("write plist with missing icon");
+        assert!(get_app_icon(app_bundle.to_string_lossy().to_string()).is_none());
+
+        std::fs::write(resources.join("MissingIcon.icns"), b"not an icns").expect("write bad icon");
+        assert!(get_app_icon(app_bundle.to_string_lossy().to_string()).is_none());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[serial]
+    #[test]
+    fn internal_launcher_wrappers_forward_to_platform_commands() {
+        let _serial = lock_system_test();
+        let temp = tempfile::tempdir().expect("temp dir");
+        let open_record = temp.path().join("internal-open-args.txt");
+        make_recording_command(temp.path(), "open", &open_record);
+        let _path = EnvVarGuard::prepend_path(temp.path());
+        let target = temp.path().join("target folder");
+        std::fs::create_dir_all(&target).unwrap();
+
+        open_in_terminal_internal(&target.to_string_lossy(), Some("ghostty"), None)
+            .expect("open terminal through internal wrapper");
+        assert_eq!(
+            read_recorded_args(&open_record),
+            vec![
+                "-a".to_string(),
+                "Ghostty".to_string(),
+                target.to_string_lossy().to_string()
+            ]
+        );
+
+        let reveal_record = temp.path().join("internal-reveal-args.txt");
+        make_recording_command(temp.path(), "open", &reveal_record);
+        reveal_in_finder_internal(&target.to_string_lossy())
+            .expect("reveal through internal wrapper");
+        assert_eq!(
+            read_recorded_args(&reveal_record),
+            vec![target.to_string_lossy().to_string()]
+        );
+
+        assert!(
+            get_app_icon_internal(&temp.path().join("missing.app").to_string_lossy()).is_none()
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn terminate_process_reports_os_error_for_nonexistent_process() {
+        let impossible_pid = u32::MAX;
+        assert_ne!(impossible_pid, std::process::id());
+
+        let err = terminate_process_impl(impossible_pid).unwrap_err();
+
+        assert!(
+            err.contains("Failed to terminate process"),
+            "unexpected termination error: {err}"
+        );
+        assert!(err.contains(&impossible_pid.to_string()), "{err}");
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn mirror_update_handles_missing_fields_invalid_json_and_unknown_speed_url() {
+        let Ok((base_url, missing_fields_server)) =
+            spawn_manifest_server(StatusCode::OK, json!({})).await
+        else {
+            return;
+        };
+        let manifest = check_mirror_update(base_url)
+            .await
+            .expect("missing fields default to empty strings");
+        missing_fields_server.abort();
+        assert_eq!(manifest["version"], "");
+        assert_eq!(manifest["pub_date"], "");
+        assert_eq!(manifest["notes"], "");
+        assert_eq!(manifest["current_version"], env!("CARGO_PKG_VERSION"));
+
+        let Ok((bad_url, bad_json_server)) =
+            spawn_text_server(StatusCode::OK, "not valid json").await
+        else {
+            return;
+        };
+        let err = check_mirror_update(bad_url).await.unwrap_err();
+        bad_json_server.abort();
+        assert!(err.contains("Failed to parse mirror manifest"), "{err}");
+
+        let speed_err = speed_test_single_mirror("https://not-a-configured-mirror.invalid/".into())
+            .await
+            .unwrap_err();
+        assert!(
+            speed_err.contains("Mirror not found: https://not-a-configured-mirror.invalid/"),
+            "{speed_err}"
+        );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn detect_tools_internal_and_git_path_commands_are_reachable() {
+        set_git_path("".to_string());
+        set_git_path_internal("");
+
+        let tools = detect_tools_internal().await;
+
+        assert!(
+            tools.git.iter().any(|tool| tool.id == "git"),
+            "expected git in detected tools: {:?}",
+            tools.git
         );
     }
 }

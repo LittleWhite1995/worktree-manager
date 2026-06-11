@@ -815,6 +815,8 @@
   "share.copyLinkWithPassword": "Copy link with password",
   "share.copyExternalLink": "Copy external link",
   "share.stopSharing": "Stop sharing",
+  "share.adminWarning": "This app runs as Administrator. When sharing is enabled, remote users gain Administrator-level terminal access. Use a strong password and only share with trusted people/networks.",
+  "share.passwordTooShort": "Password must be at least 8 characters",
   "share.ngrokNotStarted": "Not started",
   "share.clients": "Clients ({{count}})",
   "share.kickClient": "Kick client",

@@ -9,6 +9,7 @@ export { AddWorkspaceModal } from './AddWorkspaceModal';
 export { AddProjectModal } from './AddProjectModal';
 export { AddProjectToWorktreeModal } from './AddProjectToWorktreeModal';
 export { ArchiveConfirmationModal } from './ArchiveConfirmationModal';
+export { CrashReportModal } from './CrashReportModal';
 export { WorktreeContextMenu, TerminalTabContextMenu } from './ContextMenus';
 export * from './Icons';
 export {

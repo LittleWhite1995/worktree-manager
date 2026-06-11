@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -6,6 +7,7 @@ import {
   CreateWorktreeModal,
   AddProjectToWorktreeModal,
   ArchiveConfirmationModal,
+  CrashReportModal,
   WorktreeContextMenu,
   TerminalTabContextMenu,
   RefreshIcon,
@@ -19,6 +21,7 @@ import {
 import { useAppShellState } from "./hooks/useAppShellState";
 import { Input } from "@/components/ui/input";
 import { isTauri, callBackend } from "./lib/backend";
+import type { CrashReport } from "./types";
 import "./index.css";
 
 // Disable browser-like behaviors (only in Tauri desktop mode)
@@ -47,6 +50,7 @@ if (typeof window !== 'undefined' && isTauri()) {
 
 function App() {
   const { t } = useTranslation();
+  const [crashReport, setCrashReport] = useState<CrashReport | null>(null);
   // In Tauri desktop or web non-mobile, cells handle their own state.
   // App shell only needs workspace list for routing. Mobile needs full state.
   const shellMode = isTauri() || !window.matchMedia("(max-width: 639px)").matches;
@@ -75,6 +79,24 @@ function App() {
     openSettings,
     handleTerminalTabContextMenu,
   } = useAppShellState(t, undefined, shellMode);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    callBackend<CrashReport | null>('get_crash_report')
+      .then((report) => {
+        if (!cancelled && report) {
+          setCrashReport(report);
+        }
+      })
+      .catch((err) => {
+        console.warn('[crash-report] failed to load crash report:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Browser mode: kicked screen
   if (!isTauri() && wasKicked) {
@@ -161,6 +183,12 @@ function App() {
           onCreateSubmit={actions.handleCreateWorkspace}
           createLoading={actions.creatingWorkspace}
         />
+        {crashReport && (
+          <CrashReportModal
+            report={crashReport}
+            onClose={() => setCrashReport(null)}
+          />
+        )}
       </>
     );
   }
@@ -367,6 +395,12 @@ function App() {
           </>
         )}
 
+        {crashReport && (
+          <CrashReportModal
+            report={crashReport}
+            onClose={() => setCrashReport(null)}
+          />
+        )}
       </>
     </ToastProvider >
   );

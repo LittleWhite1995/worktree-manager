@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path};
 
 use serde::{Deserialize, Serialize};
 
@@ -473,6 +473,14 @@ fn restore_local_link_backup(workspace_root: &Path, name: &str) -> Result<bool, 
 
     let path = workspace_root.join(name);
     let target_path = Path::new(target);
+    if !is_workspace_relative_symlink_target(target_path) {
+        log::warn!(
+            "[vault] Skipping unsafe symlink backup '{}.local.link' with target '{}'",
+            name,
+            target
+        );
+        return Ok(false);
+    }
 
     #[cfg(unix)]
     {
@@ -507,6 +515,29 @@ fn restore_local_link_backup(workspace_root: &Path, name: &str) -> Result<bool, 
         )
     })?;
     Ok(true)
+}
+
+fn is_workspace_relative_symlink_target(target: &Path) -> bool {
+    if target.is_absolute() {
+        return false;
+    }
+
+    let mut depth = 0usize;
+    for component in target.components() {
+        match component {
+            Component::Normal(_) => depth += 1,
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if depth == 0 {
+                    return false;
+                }
+                depth -= 1;
+            }
+            Component::RootDir | Component::Prefix(_) => return false,
+        }
+    }
+
+    true
 }
 
 fn remove_vault_symlinks(workspace_root: &Path) -> Result<(), String> {
@@ -848,12 +879,33 @@ pub(crate) fn list_vault_item_children(
 ) -> Result<Vec<crate::types::VaultItemChild>, String> {
     use std::fs;
 
-    let dir = std::path::Path::new(&vault_path).join(&relative_path);
-    if !dir.is_dir() {
+    let relative = Path::new(&relative_path);
+    if relative
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err("路径越界".to_string());
+    }
+
+    let vault_root = Path::new(&vault_path);
+    let canonical_vault = vault_root
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve vault path: {}", e))?;
+    let dir = vault_root.join(relative);
+    let canonical_dir = dir
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve directory: {}", e))?;
+
+    if !canonical_dir.starts_with(&canonical_vault) {
+        return Err("路径越界".to_string());
+    }
+
+    if !canonical_dir.is_dir() {
         return Err(format!("'{}' is not a directory", relative_path));
     }
 
-    let entries = fs::read_dir(&dir).map_err(|e| format!("Failed to read directory: {}", e))?;
+    let entries =
+        fs::read_dir(&canonical_dir).map_err(|e| format!("Failed to read directory: {}", e))?;
 
     let mut children: Vec<crate::types::VaultItemChild> = Vec::new();
     for entry in entries {
@@ -893,6 +945,8 @@ pub(crate) fn list_vault_item_children(
 
 #[cfg(all(test, not(windows)))]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
     use crate::config::{load_workspace_config, save_workspace_config_internal};
     use crate::state::{WINDOW_WORKSPACES, WORKSPACE_CONFIG_CACHE};
@@ -902,6 +956,7 @@ mod tests {
 
     // ---- split_vault_path ----
 
+    #[serial]
     #[test]
     fn test_split_vault_path_with_workspaces() {
         let result = split_vault_path("/Users/guo/Work/GuoVault/Guo/workspaces/worktree-manager");
@@ -911,6 +966,7 @@ mod tests {
         assert_eq!(ws_path, "workspaces/worktree-manager");
     }
 
+    #[serial]
     #[test]
     fn test_split_vault_path_with_nested_workspaces() {
         let result = split_vault_path("/vault/root/workspaces/deep/nested/project");
@@ -920,6 +976,7 @@ mod tests {
         assert_eq!(ws_path, "workspaces/deep/nested/project");
     }
 
+    #[serial]
     #[test]
     fn test_split_vault_path_fallback() {
         let result = split_vault_path("/some/random/path");
@@ -929,6 +986,7 @@ mod tests {
         assert_eq!(ws_path, "path");
     }
 
+    #[serial]
     #[test]
     fn test_split_vault_path_empty() {
         assert!(split_vault_path("").is_none());
@@ -936,6 +994,7 @@ mod tests {
 
     // ---- read_vault_path_from_overrides ----
 
+    #[serial]
     #[test]
     fn test_read_overrides_valid() {
         let tmp = TempDir::new().unwrap();
@@ -954,6 +1013,7 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn test_read_overrides_missing_file() {
         let tmp = TempDir::new().unwrap();
@@ -961,6 +1021,7 @@ mod tests {
         assert!(result.is_none());
     }
 
+    #[serial]
     #[test]
     fn test_read_overrides_missing_fields() {
         let tmp = TempDir::new().unwrap();
@@ -984,6 +1045,7 @@ mod tests {
         assert!(read_vault_path_from_overrides(tmp.path()).is_none());
     }
 
+    #[serial]
     #[test]
     fn test_read_overrides_empty_values() {
         let tmp = TempDir::new().unwrap();
@@ -997,8 +1059,48 @@ mod tests {
         assert!(read_vault_path_from_overrides(tmp.path()).is_none());
     }
 
+    // ---- list_vault_item_children ----
+
+    #[serial]
+    #[test]
+    fn test_list_vault_item_children_allows_normal_child_path() {
+        let vault = TempDir::new().unwrap();
+        fs::create_dir_all(vault.path().join("notes")).unwrap();
+        fs::write(vault.path().join("notes").join("b.md"), "b").unwrap();
+        fs::write(vault.path().join("notes").join("a.md"), "a").unwrap();
+
+        let children = list_vault_item_children(
+            vault.path().to_string_lossy().to_string(),
+            "notes".to_string(),
+        )
+        .unwrap();
+
+        let names: Vec<_> = children.into_iter().map(|child| child.name).collect();
+        assert_eq!(names, vec!["a.md", "b.md"]);
+    }
+
+    #[serial]
+    #[test]
+    fn test_list_vault_item_children_rejects_parent_path_escape() {
+        let parent = TempDir::new().unwrap();
+        let vault_path = parent.path().join("vault");
+        let outside_path = parent.path().join("outside");
+        fs::create_dir_all(&vault_path).unwrap();
+        fs::create_dir_all(&outside_path).unwrap();
+        fs::write(outside_path.join("secret.md"), "secret").unwrap();
+
+        let err = list_vault_item_children(
+            vault_path.to_string_lossy().to_string(),
+            "../outside".to_string(),
+        )
+        .unwrap_err();
+
+        assert!(err.contains("路径越界"));
+    }
+
     // ---- list_synced_items ----
 
+    #[serial]
     #[test]
     fn test_list_synced_items() {
         let workspace = TempDir::new().unwrap();
@@ -1042,6 +1144,7 @@ mod tests {
         assert_eq!(items[2].item_type, "file");
     }
 
+    #[serial]
     #[test]
     fn test_list_synced_items_no_vault() {
         let workspace = TempDir::new().unwrap();
@@ -1051,6 +1154,7 @@ mod tests {
         assert!(items.is_empty());
     }
 
+    #[serial]
     #[test]
     fn test_list_synced_items_no_symlinks() {
         let workspace = TempDir::new().unwrap();
@@ -1063,6 +1167,7 @@ mod tests {
 
     // ---- create_vault_symlinks ----
 
+    #[serial]
     #[test]
     fn test_create_symlinks_at_workspace_root() {
         let workspace = TempDir::new().unwrap();
@@ -1086,6 +1191,7 @@ mod tests {
         assert_eq!(link_target, vault_source.path().join("CLAUDE.md"));
     }
 
+    #[serial]
     #[test]
     fn test_create_symlinks_backs_up_existing_files() {
         let workspace = TempDir::new().unwrap();
@@ -1111,6 +1217,7 @@ mod tests {
         assert_eq!(link_target, vault_source.path().join("CLAUDE.md"));
     }
 
+    #[serial]
     #[test]
     fn test_create_symlinks_replaces_old_vault_symlinks() {
         let workspace = TempDir::new().unwrap();
@@ -1146,6 +1253,7 @@ mod tests {
         assert_eq!(items[0].name, "new.md");
     }
 
+    #[serial]
     #[test]
     fn test_disconnect_restores_backups() {
         let workspace = TempDir::new().unwrap();
@@ -1177,6 +1285,7 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn test_vault_status_reports_connected_even_with_no_synced_items() {
         let workspace = TempDir::new().unwrap();
@@ -1185,11 +1294,15 @@ mod tests {
         let window_label = "vault-status-empty-test";
 
         {
-            let mut windows = WINDOW_WORKSPACES.lock().unwrap();
+            let mut windows = WINDOW_WORKSPACES
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             windows.insert(window_label.to_string(), workspace_path.clone());
         }
         {
-            let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+            let mut cache = WORKSPACE_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             *cache = None;
         }
 
@@ -1216,36 +1329,37 @@ mod tests {
         assert!(status.synced_items.is_empty());
 
         {
-            let mut windows = WINDOW_WORKSPACES.lock().unwrap();
+            let mut windows = WINDOW_WORKSPACES
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             windows.remove(window_label);
         }
         {
-            let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+            let mut cache = WORKSPACE_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             *cache = None;
         }
     }
 
+    #[serial]
     #[test]
     fn test_create_symlinks_backs_up_non_vault_symlink_and_disconnect_restores_it() {
         let workspace = TempDir::new().unwrap();
-        let local_target_dir = TempDir::new().unwrap();
         let vault_source = TempDir::new().unwrap();
 
-        let local_target = local_target_dir.path().join("local-claude.md");
+        let local_target = workspace.path().join("local-claude.md");
         fs::write(&local_target, "local symlink target").unwrap();
         fs::write(vault_source.path().join("CLAUDE.md"), "vault").unwrap();
 
         #[cfg(unix)]
-        std::os::unix::fs::symlink(&local_target, workspace.path().join("CLAUDE.md")).unwrap();
+        std::os::unix::fs::symlink("local-claude.md", workspace.path().join("CLAUDE.md")).unwrap();
 
         create_vault_symlinks(workspace.path(), vault_source.path(), &[]).unwrap();
 
         let link_backup = workspace.path().join("CLAUDE.md.local.link");
         assert!(link_backup.exists());
-        assert_eq!(
-            fs::read_to_string(&link_backup).unwrap(),
-            local_target.to_string_lossy()
-        );
+        assert_eq!(fs::read_to_string(&link_backup).unwrap(), "local-claude.md");
 
         let link_target = fs::read_link(workspace.path().join("CLAUDE.md")).unwrap();
         assert_eq!(link_target, vault_source.path().join("CLAUDE.md"));
@@ -1259,14 +1373,33 @@ mod tests {
 
         assert!(!link_backup.exists());
         let restored_target = fs::read_link(workspace.path().join("CLAUDE.md")).unwrap();
-        assert_eq!(restored_target, local_target);
+        assert_eq!(restored_target, Path::new("local-claude.md"));
     }
 
+    #[serial]
     #[test]
     fn test_restore_local_link_backup_helper_recreates_symlink() {
         let workspace = TempDir::new().unwrap();
-        let local_target_dir = TempDir::new().unwrap();
 
+        let local_target = workspace.path().join("local-claude.md");
+        fs::write(&local_target, "local symlink target").unwrap();
+
+        let link_backup = workspace.path().join("CLAUDE.md.local.link");
+        fs::write(&link_backup, "local-claude.md").unwrap();
+
+        let restored = restore_local_link_backup(workspace.path(), "CLAUDE.md").unwrap();
+        assert!(restored);
+        assert!(!link_backup.exists());
+
+        let restored_target = fs::read_link(workspace.path().join("CLAUDE.md")).unwrap();
+        assert_eq!(restored_target, Path::new("local-claude.md"));
+    }
+
+    #[serial]
+    #[test]
+    fn test_restore_local_link_backup_helper_skips_absolute_target() {
+        let workspace = TempDir::new().unwrap();
+        let local_target_dir = TempDir::new().unwrap();
         let local_target = local_target_dir.path().join("local-claude.md");
         fs::write(&local_target, "local symlink target").unwrap();
 
@@ -1274,14 +1407,26 @@ mod tests {
         fs::write(&link_backup, local_target.to_string_lossy().as_bytes()).unwrap();
 
         let restored = restore_local_link_backup(workspace.path(), "CLAUDE.md").unwrap();
-        assert!(restored);
-        assert!(!link_backup.exists());
+        assert!(!restored);
+        assert!(link_backup.exists());
+        assert!(!workspace.path().join("CLAUDE.md").exists());
+    }
 
-        let restored_target = fs::read_link(workspace.path().join("CLAUDE.md")).unwrap();
-        assert_eq!(restored_target, local_target);
+    #[serial]
+    #[test]
+    fn test_restore_local_link_backup_helper_skips_parent_escape_target() {
+        let workspace = TempDir::new().unwrap();
+        let link_backup = workspace.path().join("CLAUDE.md.local.link");
+        fs::write(&link_backup, "../local-claude.md").unwrap();
+
+        let restored = restore_local_link_backup(workspace.path(), "CLAUDE.md").unwrap();
+        assert!(!restored);
+        assert!(link_backup.exists());
+        assert!(!workspace.path().join("CLAUDE.md").exists());
     }
 
     #[cfg(windows)]
+    #[serial]
     #[test]
     fn test_restore_local_link_backup_helper_recreates_directory_symlink_on_windows() {
         let workspace = TempDir::new().unwrap();
@@ -1301,13 +1446,16 @@ mod tests {
         assert_eq!(restored_target, local_target);
     }
 
+    #[serial]
     #[test]
     fn test_update_vault_linked_items_refreshes_workspace_config_cache() {
         let workspace = TempDir::new().unwrap();
         let workspace_path = workspace.path().to_string_lossy().to_string();
 
         {
-            let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+            let mut cache = WORKSPACE_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             *cache = None;
         }
 
@@ -1329,11 +1477,14 @@ mod tests {
         assert_eq!(updated.vault_linked_workspace_items, vec!["memory"]);
 
         {
-            let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+            let mut cache = WORKSPACE_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             *cache = None;
         }
     }
 
+    #[serial]
     #[test]
     fn test_vault_link_rolls_back_workspace_changes_when_overrides_save_fails() {
         let workspace = TempDir::new().unwrap();
@@ -1342,11 +1493,15 @@ mod tests {
         let window_label = "vault-rollback-test";
 
         {
-            let mut windows = WINDOW_WORKSPACES.lock().unwrap();
+            let mut windows = WINDOW_WORKSPACES
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             windows.insert(window_label.to_string(), workspace_path.clone());
         }
         {
-            let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+            let mut cache = WORKSPACE_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             *cache = None;
         }
 
@@ -1391,17 +1546,22 @@ mod tests {
             .is_empty());
 
         {
-            let mut windows = WINDOW_WORKSPACES.lock().unwrap();
+            let mut windows = WINDOW_WORKSPACES
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             windows.remove(window_label);
         }
         {
-            let mut cache = WORKSPACE_CONFIG_CACHE.lock().unwrap();
+            let mut cache = WORKSPACE_CONFIG_CACHE
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             *cache = None;
         }
     }
 
     // ---- save/clear overrides ----
 
+    #[serial]
     #[test]
     fn test_save_and_clear_overrides() {
         let tmp = TempDir::new().unwrap();
@@ -1449,6 +1609,7 @@ mod tests {
         assert!(read_vault_path_from_overrides(tmp.path()).is_none());
     }
 
+    #[serial]
     #[test]
     fn test_save_overrides_preserves_other_fields() {
         let tmp = TempDir::new().unwrap();
@@ -1486,6 +1647,7 @@ mod tests {
         assert!(json.get("vaultWorkspacePath").is_none());
     }
 
+    #[serial]
     #[test]
     fn test_clear_overrides_missing_file() {
         let tmp = TempDir::new().unwrap();
