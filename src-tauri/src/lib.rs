@@ -622,7 +622,7 @@ pub fn run() {
             }
 
             // Start MCP server on the port expected by @worktree-manager/mcp.
-            let mcp_port = 42819;
+            let mcp_port = MCP_SERVER_PORT;
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = http_server::start_mcp_server(mcp_port).await {
                     log::error!("[MCP] Server failed: {}", e);
@@ -1385,3 +1385,4 @@ mod crash_report_coverage_completion_tests {
         }
     }
 }
+// test

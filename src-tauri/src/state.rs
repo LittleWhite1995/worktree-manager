@@ -8,6 +8,8 @@ use crate::types::{
     WorkspaceConfig,
 };
 
+pub(crate) const MCP_SERVER_PORT: u16 = 42819;
+
 // PTY Manager 全局实例
 pub(crate) static PTY_MANAGER: Lazy<Mutex<PtyManager>> =
     Lazy::new(|| Mutex::new(PtyManager::new()));

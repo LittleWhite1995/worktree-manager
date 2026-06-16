@@ -77,6 +77,17 @@ pub async fn start_sharing_internal(
         ));
     }
 
+    if port == crate::state::MCP_SERVER_PORT {
+        log::warn!(
+            "[sharing] Rejected: port {} conflicts with MCP server",
+            port
+        );
+        return Err(format!(
+            "端口 {} 已被 MCP 服务占用，请更换其他端口",
+            port
+        ));
+    }
+
     // Check if already sharing
     {
         let state = SHARE_STATE
@@ -726,6 +737,22 @@ mod tests {
                 "端口 2 过小。推荐使用 49152-65535 范围内的端口，或 3000-9999 开发端口".to_string()
             )
         );
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn start_sharing_rejects_mcp_server_port() {
+        let _serial = lock_test_mutex();
+
+        let result = start_sharing_internal(
+            "/tmp/workspace".to_string(),
+            crate::state::MCP_SERVER_PORT,
+            "long-password".to_string(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("MCP"));
     }
 
     #[serial]
